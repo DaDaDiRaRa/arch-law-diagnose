@@ -84,6 +84,21 @@ CREATE TABLE IF NOT EXISTS ordinance_versions (
     content_hash TEXT NOT NULL,
     fetched_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS ordinance_zone_limits (
+    jurisdiction_code TEXT NOT NULL,
+    jurisdiction_name TEXT,
+    zone_use          TEXT NOT NULL,
+    category          TEXT NOT NULL,
+    value             REAL NOT NULL,
+    source_law_id     TEXT,
+    source_article    TEXT,
+    ef_date           TEXT,
+    fetched_at        TEXT NOT NULL,
+    needs_review      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (jurisdiction_code, zone_use, category)
+);
+CREATE INDEX IF NOT EXISTS idx_ozl_code ON ordinance_zone_limits(jurisdiction_code);
 """
 
 
@@ -206,6 +221,65 @@ class CacheManager:
         )
         await self._db.commit()
         logger.info("조례 캐시 저장: %s/%s (%d 조문)", jurisdiction_code, law_type, len(articles))
+
+    # ─── 조례 수치 (ordinance_zone_limits) ───────────────────────────────
+
+    async def get_zone_limit(
+        self,
+        jurisdiction_code: str,
+        zone_use: str,
+        category: str,
+    ) -> dict | None:
+        """DB에 저장된 조례 수치를 반환. 없으면 None."""
+        row = await self._fetchone(
+            """SELECT * FROM ordinance_zone_limits
+               WHERE jurisdiction_code=? AND zone_use=? AND category=?""",
+            (jurisdiction_code, zone_use, category),
+        )
+        return dict(row) if row else None
+
+    async def set_zone_limit(
+        self,
+        jurisdiction_code: str,
+        jurisdiction_name: str | None,
+        zone_use: str,
+        category: str,
+        value: float,
+        source_law_id: str | None = None,
+        source_article: str | None = None,
+        ef_date: str | None = None,
+        needs_review: bool = False,
+    ) -> None:
+        """조례 수치를 UPSERT."""
+        now = datetime.utcnow().isoformat()
+        await self._db.execute(
+            """INSERT INTO ordinance_zone_limits
+               (jurisdiction_code, jurisdiction_name, zone_use, category,
+                value, source_law_id, source_article, ef_date, fetched_at, needs_review)
+               VALUES (?,?,?,?,?,?,?,?,?,?)
+               ON CONFLICT(jurisdiction_code, zone_use, category) DO UPDATE SET
+               jurisdiction_name=excluded.jurisdiction_name,
+               value=excluded.value,
+               source_law_id=excluded.source_law_id,
+               source_article=excluded.source_article,
+               ef_date=excluded.ef_date,
+               fetched_at=excluded.fetched_at,
+               needs_review=excluded.needs_review""",
+            (
+                jurisdiction_code, jurisdiction_name, zone_use, category,
+                value, source_law_id, source_article, ef_date, now,
+                1 if needs_review else 0,
+            ),
+        )
+        await self._db.commit()
+
+    async def list_zone_limits(self, jurisdiction_code: str) -> list[dict]:
+        """특정 시군구의 조례 수치 전체 목록."""
+        rows = await self._fetchall(
+            "SELECT * FROM ordinance_zone_limits WHERE jurisdiction_code=? ORDER BY zone_use, category",
+            (jurisdiction_code,),
+        )
+        return [dict(r) for r in rows]
 
     # ─── 진단 이력 ────────────────────────────────────────────────────────
 

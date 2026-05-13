@@ -28,6 +28,9 @@ class VWorldClient:
         self._key = os.getenv("VWORLD_API_KEY", "")
         if not self._key:
             logger.warning("VWORLD_API_KEY 미설정 — VWorld 조회 불가")
+        # VWorld WFS는 등록된 서비스 URL과 Referer 헤더가 일치해야 인증됨
+        service_url = os.getenv("SERVICE_URL", "http://localhost:8000")
+        self._wfs_headers = {"Referer": service_url}
         self._http = httpx.AsyncClient(timeout=15)
 
     async def close(self) -> None:
@@ -95,62 +98,81 @@ class VWorldClient:
 
     # ─── 토지이용계획 (용도지역·지구·구역) ──────────────────────────────
 
+    # 용도지역 판별: 국토계획법상 지역명 suffix
+    _ZONE_USE_SUFFIXES = ("주거지역", "상업지역", "공업지역", "녹지지역")
+    # 용도구역 판별
+    _ZONE_AREA_KEYWORDS = ("개발제한", "시가화조정", "수산자원보호", "도시자연공원")
+
     async def get_land_use(self, lon: float, lat: float) -> dict:
         """좌표 → 용도지역/지구/구역 정보.
 
-        Uses VWorld WFS with lt_c_lhblpn layer.
+        VWorld Data API LT_C_UQ111 레이어 (geomFilter=POINT 방식).
+        WFS CQL 공간필터 오동작 문제 우회.
         Returns {} if unavailable.
         """
         if not self._key:
             return {}
 
-        # CQL 필터로 포인트 내 용도지역 레이어 조회
-        cql = f"INTERSECTS(geom,POINT({lon} {lat}))"
         params = {
-            "service": "WFS",
-            "version": "2.0.0",
+            "service": "data",
             "request": "GetFeature",
-            "typeName": "lt_c_lhblpn",
+            "data": "LT_C_UQ111",
             "key": self._key,
-            "output": "application/json",
-            "count": 5,
-            "CQL_FILTER": cql,
+            "format": "json",
+            "size": 10,
+            "page": 1,
+            "geometry": "false",
+            "attribute": "true",
+            "crs": "EPSG:4326",
+            "geomFilter": f"POINT({lon} {lat})",
         }
         try:
-            r = await self._http.get(WFS_URL, params=params)
+            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
-            logger.error("VWorld WFS 토지이용계획 오류: %s", e)
+            logger.error("VWorld Data API 토지이용계획 오류: %s", e)
             return {}
 
-        features = body.get("features", [])
+        status = body.get("response", {}).get("status", "")
+        logger.info("VWorld Data API status=%s geomFilter=POINT(%s %s)", status, lon, lat)
+        if status != "OK":
+            logger.warning("VWorld Data API 응답 status=%s body=%s", status, str(body)[:300])
+            return {}
+
+        features = (
+            body.get("response", {})
+            .get("result", {})
+            .get("featureCollection", {})
+            .get("features", [])
+        )
         if not features:
             return {}
 
-        # 여러 레코드(지구 중복 지정) 집계
         zone_use = ""
         zone_districts: list[str] = []
         zone_areas: list[str] = []
 
         for feat in features:
             props = feat.get("properties", {})
-            utype = props.get("uname", "") or props.get("prp_type_nm", "") or ""
-            ucode = props.get("ucode", "") or ""
-            # 용도지역 코드 100번대
-            if ucode.startswith("100") and not zone_use:
-                zone_use = utype
-            # 용도지구 코드 200번대
-            elif ucode.startswith("200") and utype:
-                zone_districts.append(utype)
-            # 용도구역 코드 300번대
-            elif ucode.startswith("300") and utype:
-                zone_areas.append(utype)
+            uname = (props.get("uname") or "").strip()
+            if not uname:
+                continue
+            if uname.endswith(self._ZONE_USE_SUFFIXES):
+                if not zone_use:
+                    zone_use = uname
+            elif any(kw in uname for kw in self._ZONE_AREA_KEYWORDS):
+                zone_areas.append(uname)
+            else:
+                zone_districts.append(uname)
 
-        # fallback: 첫 feature에서 zone 추출
+        # fallback: 첫 non-empty uname
         if not zone_use and features:
-            props = features[0].get("properties", {})
-            zone_use = props.get("uname", "") or props.get("prp_type_nm", "")
+            for feat in features:
+                uname = (feat.get("properties", {}).get("uname") or "").strip()
+                if uname:
+                    zone_use = uname
+                    break
 
         return {
             "zone_use": zone_use,

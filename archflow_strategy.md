@@ -1,7 +1,7 @@
 # 건축설계 AI 자동화 워크플로우 — 전략 종합 문서
 
 > 정현님의 사내 건축 설계 자동화 MCP 에코시스템 구축 전략 정리
-> 작성: 2026-05-11 / 다음 대화에서 참조용
+> 작성: 2026-05-11 / 최종 업데이트: 2026-05-13
 
 ---
 
@@ -86,7 +86,7 @@ KUNWON_COMPETITION_DB/
 | MCP 도구 | 39 | 39 |
 | Pipeline Phases | 9 | 9 |
 | 3D 법조문 | 47,225 | 47,225 |
-| 지자체 조례 | 162 | 162 |
+| 지자체 조례 | 162 | 162 (Phase 5에서 수집 인프라 완성 — seed 진행 예정) |
 
 ---
 
@@ -188,20 +188,25 @@ pattern-db-mcp            ← 당선 패턴 비교 (정현님 USP, SeonJ에 없�
 ## 6. 각 Wave 2 MCP — SeonJ보다 더 좋게 만드는 법
 
 ### law-mcp — 시나리오 기반으로
+
 **SeonJ 약점**: 15개 도구가 단편적 (`check_far`, `check_setback`, `check_parking` 따로따로). 사용자가 어떤 도구를 어떤 순서로 부를지 알아야 함.
 
-**우리 버전**:
-```
+**현재 상태**: `arch-law-diagnose` Phase 5가 사실상 law-mcp 역할 수행 중.
+
+```text
 SeonJ:  check_far() + check_setback() + check_parking() + ... 따로 호출
-우리:   analyze_site_scenario(주소, 용도, 규모)
-        → 내부에서 자동으로 모든 항목 체크
-        → "이 안의 핵심 법적 리스크 3가지" 종합 리포트
-        → 통과 가능성 점수
+우리:   /api/diagnose(주소, 용도, 규모)
+        → 6개 카테고리 자동 체크
+        → 지자체 조례 cascade 적용 (Phase 5)
+        → 종합 점수 + 신호등 + 위험 항목
 ```
 
 **추가 차별화** (SeonJ에 없음):
-- 법규 변경 추적/알림
-- 타사 유사 프로젝트 케이스 비교 (당선작 DB 연계)
+
+- 지자체 조례 DB cascade (DB → 법제처 → 시행령 기본값)
+- 법규 변경 추적/알림 (SHA256 해시 비교)
+- 타사 유사 프로젝트 케이스 비교 (KUNWON_DB 연계)
+- V2: `arch-law-mcp`으로 추출 → Claude Desktop/Code에서 직접 사용 가능
 
 ### proposal-review-mcp — 이미 80% 설계됨
 Wave 1의 `submission-analysis-mcp` + `pattern-db-mcp` 통합 버전.

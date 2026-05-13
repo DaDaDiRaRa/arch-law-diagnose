@@ -11,6 +11,16 @@ const BUILDING_USES = [
   '위락시설', '공장', '창고시설', '기타',
 ]
 
+const ZONE_USES = [
+  '', // 자동 조회
+  '제1종전용주거지역', '제2종전용주거지역',
+  '제1종일반주거지역', '제2종일반주거지역', '제3종일반주거지역',
+  '준주거지역',
+  '중심상업지역', '일반상업지역', '근린상업지역', '유통상업지역',
+  '전용공업지역', '일반공업지역', '준공업지역',
+  '보전녹지지역', '생산녹지지역', '자연녹지지역',
+]
+
 export default function InputForm() {
   const { formData, setFormData, setSelectedAddress, setResult, setLoading, setError, loading } =
     useDiagnoseStore()
@@ -44,6 +54,7 @@ export default function InputForm() {
       ...(formData.road_width ? { road_width: parseFloat(formData.road_width) } : {}),
       ...(formData.landscape_area ? { landscape_area: parseFloat(formData.landscape_area) } : {}),
       ...(isApartment && formData.units ? { units: parseInt(formData.units, 10) } : {}),
+      ...(formData.zone_use_override ? { zone_use_override: formData.zone_use_override } : {}),
     }
 
     const hasInvalid = Object.values(payload).some((v) => typeof v === 'number' && isNaN(v))
@@ -90,6 +101,21 @@ export default function InputForm() {
           <option value="">선택하세요</option>
           {BUILDING_USES.map((u) => (
             <option key={u} value={u}>{u}</option>
+          ))}
+        </select>
+      </Field>
+
+      {/* 용도지역 (선택) */}
+      <Field label="용도지역" hint="자동 조회 — 알 경우 직접 선택 시 조례 적용">
+        <select
+          name="zone_use_override"
+          value={formData.zone_use_override || ''}
+          onChange={handleChange}
+          className={inputCls}
+        >
+          <option value="">자동 (VWorld 조회)</option>
+          {ZONE_USES.filter(Boolean).map((z) => (
+            <option key={z} value={z}>{z}</option>
           ))}
         </select>
       </Field>

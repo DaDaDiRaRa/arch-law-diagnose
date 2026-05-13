@@ -6,11 +6,23 @@ SQLite 캐시 우선 조회 → 미스 시 VWorld API 호출.
 from __future__ import annotations
 
 import logging
+import re
 
 from services.cache_manager import CacheManager
 from services.vworld_client import VWorldClient
 
 logger = logging.getLogger(__name__)
+
+_SIDO_RE = re.compile(
+    r"^(서울특별시|부산광역시|대구광역시|인천광역시|광주광역시|대전광역시|울산광역시"
+    r"|세종특별자치시|경기도|강원도|충청북도|충청남도|전라북도|전라남도|경상북도|경상남도|제주특별자치도)"
+)
+
+
+def _parse_sido(address: str) -> str:
+    """주소 문자열에서 시도명 추출. 실패 시 빈 문자열."""
+    m = _SIDO_RE.match(address.strip())
+    return m.group(1) if m else ""
 
 
 class LandUseResolver:
@@ -78,6 +90,7 @@ class LandUseResolver:
             "lat": lat,
             "pnu": pnu,
             "jurisdiction_code": pnu[:5] if len(pnu) >= 5 else "",
+            "jurisdiction_name": _parse_sido(address),
             "cache_hit": False,
             "cache_age_days": 0,
             "cache_stale": False,
@@ -103,6 +116,7 @@ def _empty_result(address: str, pnu: str) -> dict:
         "lat": None,
         "pnu": pnu,
         "jurisdiction_code": "",
+        "jurisdiction_name": _parse_sido(address),
         "cache_hit": False,
         "cache_age_days": 0,
         "cache_stale": False,

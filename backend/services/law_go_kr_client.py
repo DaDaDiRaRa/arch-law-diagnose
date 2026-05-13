@@ -1,17 +1,17 @@
-"""법제처 국가법령정보 공동활용 DRF API 클라이언트.
+"""법제처 국가법령정보 공동활용(DRF) API 클라이언트.
 
 API 문서: https://open.law.go.kr/LSO/openApi/openApiInfo.do
-환경변수: LAW_API_KEY
+환경변수: LAW_API_KEY  (사이트 표기: OC 인증키)
 
-주요 엔드포인트:
-  - 법령 목록 조회: /law/lawSearch.do
-  - 법령 본문 조회: /law/law.do (법령 ID 기반)
-  - 자치법규 조회:  /law/lawSearch.do?type=CST (조례)
+엔드포인트:
+  - 법령/조례 목록: GET /DRF/lawSearch.do
+  - 법령/조례 본문: GET /DRF/lawService.do
 """
 from __future__ import annotations
 
 import logging
 import os
+import re
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-BASE = "https://open.law.go.kr/LSO/openApi/rest"
+BASE = "https://www.law.go.kr/DRF"
 
 
 class LawGoKrClient:
@@ -39,47 +39,66 @@ class LawGoKrClient:
         """법령 키워드 검색.
 
         law_type: 'LAW' (법률) | 'CST' (자치법규/조례)
-        Returns: [{law_id, law_nm, efYd, ...}, ...]
+        Returns: [{law_id, law_nm, ef_yd, law_type}, ...]
         """
         if not self._key:
             return []
+
+        target = "ordin" if law_type == "CST" else "law"
         params = {
             "OC": self._key,
-            "target": "law",
+            "target": target,
             "type": "JSON",
             "query": keyword,
             "display": 10,
             "page": 1,
         }
-        if law_type == "CST":
-            params["target"] = "ordin"  # 자치법규
 
-        url = f"{BASE}/{'ordin' if law_type == 'CST' else 'law'}/lawSearch.do"
         try:
-            r = await self._http.get(url, params=params)
+            r = await self._http.get(f"{BASE}/lawSearch.do", params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
             logger.error("법령 검색 오류 (%s): %s", keyword, e)
             return []
 
-        laws = body.get("LawSearch", {}).get("law", []) or []
-        if isinstance(laws, dict):
-            laws = [laws]
-        return [
-            {
-                "law_id": l.get("법령ID") or l.get("자치법규ID", ""),
-                "law_nm": l.get("법령명한글") or l.get("자치법규명", ""),
-                "ef_yd": l.get("시행일자", ""),
-                "law_type": law_type,
-            }
-            for l in laws
-        ]
+        if law_type == "CST":
+            items = body.get("OrdinSearch", {}).get("law", []) or []
+        else:
+            items = body.get("LawSearch", {}).get("law", []) or []
+
+        if isinstance(items, dict):
+            items = [items]
+
+        result = []
+        for item in items:
+            if law_type == "CST":
+                law_id = item.get("자치법규일련번호", "")
+                law_nm = item.get("자치법규명", "")
+                # 상세링크에서 MST 번호 추출 (백업)
+                if not law_id:
+                    link = item.get("자치법규상세링크", "")
+                    m = re.search(r"MST=(\d+)", link)
+                    law_id = m.group(1) if m else ""
+            else:
+                law_id = item.get("법령ID", "")
+                law_nm = item.get("법령명한글", "")
+
+            if law_id and law_nm:
+                result.append({
+                    "law_id": law_id,
+                    "law_nm": law_nm,
+                    "ef_yd": item.get("시행일자", ""),
+                    "law_type": law_type,
+                    "org": item.get("지자체기관명", ""),
+                })
+
+        return result
 
     # ─── 법령 본문 조회 ───────────────────────────────────────────────────
 
     async def get_law_articles(self, law_id: str, law_type: str = "LAW") -> list[dict]:
-        """법령 ID로 전체 조문 목록 반환.
+        """법령 ID(MST)로 전체 조문 목록 반환.
 
         Returns: [{article_no, title, content}, ...]
         """
@@ -87,28 +106,96 @@ class LawGoKrClient:
             return []
 
         target = "ordin" if law_type == "CST" else "law"
-        url = f"{BASE}/{target}/law.do"
-        params = {"OC": self._key, "target": target, "ID": law_id, "type": "XML"}
+        params = {"OC": self._key, "target": target, "MST": law_id, "type": "XML"}
         try:
-            r = await self._http.get(url, params=params)
+            r = await self._http.get(f"{BASE}/lawService.do", params=params)
             r.raise_for_status()
             xml_text = r.text
         except Exception as e:
-            logger.error("법령 본문 조회 오류 (ID=%s): %s", law_id, e)
+            logger.error("법령 본문 조회 오류 (MST=%s): %s", law_id, e)
             return []
 
         return _parse_law_xml(xml_text)
+
+    # ─── org 필터 검색 (시도 직제 조례 우선) ────────────────────────────
+
+    async def _search_with_org_filter(
+        self, keyword: str, org_name: str, law_type: str = "CST",
+        law_nm_keyword: str = "",
+    ) -> list[dict]:
+        """최대 3페이지 검색해 org_name + 조례명 키워드가 일치하는 조례를 반환.
+
+        law_nm_keyword: 조례명에 반드시 포함되어야 할 핵심어 (예: '도시계획')
+        정확 일치가 없으면 page 1의 첫 번째 결과를 반환.
+        """
+        fallback: list[dict] = []
+        target = "ordin" if law_type == "CST" else "law"
+        # 조례명 필터: 공백 제거 버전으로 비교 (예: '도시계획 조례' → '도시계획')
+        nm_filter = law_nm_keyword.replace(" ", "") if law_nm_keyword else ""
+
+        for page in range(1, 4):
+            params = {
+                "OC": self._key,
+                "target": target,
+                "type": "JSON",
+                "query": keyword,
+                "display": 10,
+                "page": page,
+            }
+            try:
+                r = await self._http.get(f"{BASE}/lawSearch.do", params=params)
+                r.raise_for_status()
+                body = r.json()
+            except Exception as e:
+                logger.error("법령 검색(page=%s) 오류: %s", page, e)
+                break
+
+            raw = body.get("OrdinSearch", {}).get("law", []) or []
+            if isinstance(raw, dict):
+                raw = [raw]
+            if not raw:
+                break
+
+            for item in raw:
+                law_id = item.get("자치법규일련번호", "")
+                law_nm = item.get("자치법규명", "")
+                if not law_id:
+                    m = re.search(r"MST=(\d+)", item.get("자치법규상세링크", ""))
+                    law_id = m.group(1) if m else ""
+                org = item.get("지자체기관명", "")
+                entry = {
+                    "law_id": law_id,
+                    "law_nm": law_nm,
+                    "ef_yd": item.get("시행일자", ""),
+                    "law_type": law_type,
+                    "org": org,
+                }
+                nm_match = (nm_filter in law_nm.replace(" ", "")) if nm_filter else True
+                if law_id and law_nm and org == org_name and nm_match:
+                    logger.debug("org+조례명 정확 매칭: %s (%s)", law_nm, org)
+                    return [entry]
+                if page == 1 and law_id and law_nm and not fallback:
+                    fallback = [entry]
+
+        return fallback
 
     # ─── 조례 빠른 조회 (지역명 + 법령유형) ─────────────────────────────
 
     async def fetch_ordinance(
         self, region_name: str, law_keyword: str
     ) -> list[dict]:
-        """예: region_name='서울특별시', law_keyword='도시계획조례' → 조문 목록."""
+        """예: region_name='서울특별시', law_keyword='도시계획 조례' → 조문 목록.
+
+        지자체기관명이 region_name과 정확히 일치하는 조례를 우선 선택.
+        page 1~3까지 검색해 정확 일치를 찾은 뒤 없으면 첫 번째 결과 사용.
+        """
         query = f"{region_name} {law_keyword}"
-        laws = await self.search_law(query, law_type="CST")
+        # 공백 제거한 전체 키워드를 조례명 필터로 사용 (예: '도시계획 조례' → '도시계획조례')
+        nm_key = law_keyword.replace(" ", "") if law_keyword else ""
+        laws = await self._search_with_org_filter(
+            query, region_name, law_type="CST", law_nm_keyword=nm_key
+        )
         if not laws:
-            # 국가 법률로 fallback
             laws = await self.search_law(law_keyword, law_type="LAW")
         if not laws:
             logger.warning("법령 검색 결과 없음: %s", query)
@@ -127,6 +214,11 @@ class LawGoKrClient:
 
 
 def _parse_law_xml(xml_text: str) -> list[dict]:
+    """DRF XML 조문 파싱.
+
+    구조: <LawService> > <조문> > <조> 반복
+      <조문번호>, <조문제목>, <조문내용>
+    """
     articles: list[dict] = []
     try:
         root = ET.fromstring(xml_text)
@@ -134,21 +226,31 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
         logger.error("법령 XML 파싱 오류: %s", e)
         return []
 
-    # 조문 태그 탐색 (조문번호, 조문제목, 조문내용)
-    for jo in root.iter("조문"):
+    for jo in root.iter("조"):
         no_el = jo.find("조문번호")
-        title_el = jo.find("조문제목")
-        content_el = jo.find("조문내용")
-        articles.append(
-            {
-                "article_no": no_el.text.strip() if no_el is not None and no_el.text else "",
-                "title": title_el.text.strip() if title_el is not None and title_el.text else "",
-                "content": content_el.text.strip() if content_el is not None and content_el.text else "",
-            }
-        )
+        title_el = jo.find("조제목")      # DRF 실제 태그명
+        content_el = jo.find("조내용")    # DRF 실제 태그명
 
-    # XML 구조가 다를 경우 폴백: 전체 텍스트 하나의 아티클로
+        no_text = (no_el.text or "").strip() if no_el is not None else ""
+        title_text = (title_el.text or "").strip() if title_el is not None else ""
+        content_text = (content_el.text or "").strip() if content_el is not None else ""
+
+        # 조문여부 Y인 것만 (장/절 구분자 제외)
+        yn_el = jo.find("조문여부")
+        if yn_el is not None and (yn_el.text or "").strip() != "Y":
+            continue
+
+        if content_text:
+            articles.append({
+                "article_no": no_text,
+                "title": title_text,
+                "content": content_text,
+            })
+
     if not articles and xml_text.strip():
-        articles = [{"article_no": "", "title": "전문", "content": ET.tostring(root, encoding="unicode")}]
+        try:
+            articles = [{"article_no": "", "title": "전문", "content": ET.tostring(root, encoding="unicode")}]
+        except Exception:
+            pass
 
     return articles

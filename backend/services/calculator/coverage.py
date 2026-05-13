@@ -26,8 +26,13 @@ def calculate(
     building_area: float,
     site_area: float,
     zone_use: str,
+    limit_override: float | None = None,
+    source_override: str | None = None,
 ) -> dict:
     """건폐율 진단 결과 반환.
+
+    limit_override: OrdinanceResolver가 결정한 조례 수치 (없으면 zone_limits.json 사용).
+    source_override: "조례" | "시행령" 레이블.
 
     Returns:
       {
@@ -39,7 +44,10 @@ def calculate(
 
     actual_pct = (building_area / site_area) * 100 if site_area > 0 else 0.0
 
-    limit_pct = _get_limit(limits, zone_use)
+    if limit_override is not None:
+        limit_pct = float(limit_override)
+    else:
+        limit_pct = _get_limit(limits, zone_use)
 
     if limit_pct is None:
         return _unknown_result(actual_pct, zone_use)
@@ -59,6 +67,8 @@ def calculate(
         else:
             score = round(8.0 - (ratio - 0.9) / 0.1 * 2.0, 1)
 
+    source = source_override or "국토계획법 시행령 별표 (기본값, 조례 미적용)"
+
     return {
         "category": "건폐율",
         "actual_pct": round(actual_pct, 2),
@@ -67,7 +77,7 @@ def calculate(
         "excess_pct": round(excess_pct, 2),
         "score": max(0.0, round(score, 1)),
         "confidence": 5,
-        "source": "국토계획법 시행령 별표 (기본값, 조례 미적용)",
+        "source": source,
         "law_refs": _law_refs(),
         "notes": _notes(passed, actual_pct, limit_pct, zone_use),
     }

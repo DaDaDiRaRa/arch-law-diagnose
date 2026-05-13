@@ -1,4 +1,4 @@
-"""arch-law-diagnose FastAPI 백엔드 — Phase 4"""
+"""arch-law-diagnose FastAPI 백엔드 — Phase 5"""
 from __future__ import annotations
 
 import logging
@@ -17,6 +17,8 @@ from services.land_use_resolver import LandUseResolver
 from services.law_change_tracker import LawChangeTracker
 from services.law_go_kr_client import LawGoKrClient
 from services.llm_client import LLMClient
+from services.ordinance_extractor import OrdinanceExtractor
+from services.ordinance_resolver import OrdinanceResolver
 from services.query_engine import QueryEngine
 from services.review_notifier import ReviewNotifier
 from services.vworld_client import VWorldClient
@@ -30,6 +32,8 @@ address_client: AddressApiClient | None = None
 vworld_client: VWorldClient | None = None
 land_resolver: LandUseResolver | None = None
 llm_client: LLMClient | None = None
+ordinance_extractor: OrdinanceExtractor | None = None
+ordinance_resolver: OrdinanceResolver | None = None
 engine: DiagnoseEngine | None = None
 simulator: WhatIfSimulator | None = None
 query_engine: QueryEngine | None = None
@@ -42,6 +46,7 @@ review_notifier: ReviewNotifier | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global cache_manager, address_client, vworld_client, land_resolver, llm_client
+    global ordinance_extractor, ordinance_resolver
     global engine, simulator, query_engine
     global law_client, case_matcher, law_tracker, review_notifier
     cache_manager = CacheManager()
@@ -50,18 +55,23 @@ async def lifespan(app: FastAPI):
     vworld_client = VWorldClient()
     land_resolver = LandUseResolver(vworld_client, cache_manager)
     llm_client = LLMClient()
-    engine = DiagnoseEngine(land_resolver, cache_manager, llm_client)
+
+    # Phase 5 — 조례 리졸버
+    law_client = LawGoKrClient()
+    ordinance_extractor = OrdinanceExtractor(llm_client)
+    ordinance_resolver = OrdinanceResolver(cache_manager, law_client, ordinance_extractor)
+
+    engine = DiagnoseEngine(land_resolver, cache_manager, llm_client, ordinance_resolver)
     simulator = WhatIfSimulator(engine)
     query_engine = QueryEngine(llm_client)
 
     # Phase 4
-    law_client = LawGoKrClient()
     case_matcher = CaseMatcher()
     law_tracker = LawChangeTracker(cache_manager, law_client)
     review_notifier = ReviewNotifier()
 
     logger.info(
-        "arch-law-diagnose backend ready (AI: %s · Slack: %s)",
+        "arch-law-diagnose backend ready (AI: %s · Slack: %s · OrdinanceResolver: 활성)",
         "활성" if llm_client.available else "비활성",
         "활성" if review_notifier.slack_configured else "비활성(로그만)",
     )
@@ -105,6 +115,9 @@ class DiagnoseRequest(BaseModel):
     road_width: float | None = Field(None, description="전면도로 폭 (m), 미입력 시 추정")
     landscape_area: float | None = Field(
         None, ge=0, description="조경면적 (㎡, 선택). 미입력 시 의무비율만 표시"
+    )
+    zone_use_override: str | None = Field(
+        None, description="용도지역 직접 지정 (미입력 시 VWorld 자동 조회)"
     )
 
 

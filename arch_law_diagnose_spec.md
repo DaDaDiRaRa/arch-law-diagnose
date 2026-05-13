@@ -1,19 +1,33 @@
 # arch-law-diagnose — 종합 사양서
 
-> 사내 건축 법규 자동 진단 시스템 V1
-> 작성: 2026-05-11
-> 다음 대화 시작용 컨텍스트 문서
+> 사내 건축 법규 자동 진단 시스템
+> 작성: 2026-05-11 / 최종 업데이트: 2026-05-13
+> 다음 대화 시작용 컨텍스트 문서 — **현재 Phase 5 완료 상태**
 
 ---
 
 ## 0. 빠른 시작 가이드 (다음 대화용)
 
-이 문서를 첨부하고 다음 중 하나로 시작:
+### 현재 완료 상태 (2026-05-13)
 
-- `"arch-law-diagnose Phase 1 프롬프트 생성해줘. Claude Code에서 실행할 거야."`
-- `"이 사양으로 프로젝트 구조부터 잡아줘."`
-- `"법제처 DRF API 응답 샘플 보고 DB 스키마 같이 설계하자."`
-- `"가중치 JSON 설정 파일부터 만들어줘."`
+Phase 1~5 전부 완료. 백엔드 `main.py` 버전 5.0, 프론트엔드 Phase 4 UI.
+
+### 서버 실행
+
+```bash
+# 백엔드
+cd backend && uvicorn main:app --reload --port 8000
+
+# 프론트엔드
+cd frontend && npm run dev   # → http://localhost:5173
+```
+
+### 다음 대화 시작 예시
+
+- `"seed_ordinances.py 작성해줘 — 7대 광역시 건폐율 dry-run 먼저"` ← 다음 단계
+- `"조경/높이 카테고리도 조례 리졸버 연동해줘"` ← Phase 6 범위
+- `"MCP 서버로 추출하는 구조 잡아줘"` ← V2 방향
+- `"법규 변경 cron 스캔 자동화해줘"` ← Phase 4 확장
 
 ---
 
@@ -278,50 +292,54 @@ arch-law-diagnose/
 │       ├── App.jsx
 │       ├── main.jsx
 │       ├── components/
-│       │   ├── InputForm/        # 대지 주소·용도·규모 입력
-│       │   ├── DiagnoseResult/   # 8개 카테고리 신호등
-│       │   ├── WhatIfPanel/      # 슬라이더 시뮬레이션
-│       │   ├── ScenarioCompare/  # 안 A/B/C 비교
-│       │   ├── CaseReference/    # 사내 케이스 연계
-│       │   └── LawChangeAlert/   # 법규 변경 알림
-│       ├── stores/               # Zustand
-│       └── utils/
+│       │   ├── InputForm/           # 대지 주소·용도·규모 입력
+│       │   ├── DiagnoseResult/      # 6개 카테고리 신호등 + source 배지 (Phase 5)
+│       │   ├── WhatIfPanel/         # 슬라이더 시뮬레이션 (Phase 3)
+│       │   ├── ScenarioCompare/     # 안 A/B/C 비교 (Phase 3)
+│       │   ├── QueryBox/            # 자연어 질의 (Phase 3)
+│       │   ├── CaseReference/       # 사내 케이스 연계 (Phase 4)
+│       │   ├── LawChangeAlert/      # 법규 변경 알림 (Phase 4)
+│       │   └── ReviewRequestButton/ # 시니어 검토 요청 (Phase 4)
+│       ├── stores/                  # Zustand (diagnoseStore.js)
+│       └── utils/                   # api.js
 │
-├── backend/                      # FastAPI
+├── backend/                      # FastAPI (v5.0)
 │   ├── pyproject.toml
-│   ├── main.py
+│   ├── main.py                   # Phase 5 — OrdinanceResolver 포함
 │   ├── config/
-│   │   └── law_scoring_weights.json  # 가중치 (외부 설정)
+│   │   ├── law_scoring_weights.json  # 가중치 (외부 설정)
+│   │   └── zone_limits.json          # 시행령 기본값 — 조례 미조회 시 fallback
 │   ├── services/
-│   │   ├── vworld_client.py      # VWorld API
-│   │   ├── law_go_kr_client.py   # 법제처 DRF API
-│   │   ├── llm_client.py         # Claude API
-│   │   ├── cache_manager.py      # SQLite 캐시
-│   │   ├── address_normalizer.py # 주소 → PNU
-│   │   ├── land_use_resolver.py  # 토지이용계획 조회
-│   │   ├── diagnose_engine.py    # 8개 카테고리 진단 엔진
+│   │   ├── vworld_client.py         # VWorld API (Geocoder + 토지이용계획)
+│   │   ├── law_go_kr_client.py      # 법제처 DRF API (조례 본문)
+│   │   ├── llm_client.py            # Claude API (AsyncAnthropic)
+│   │   ├── cache_manager.py         # SQLite 캐시 + ordinance_zone_limits
+│   │   ├── address_api_client.py    # 행안부 도로명주소 API (자동완성)
+│   │   ├── land_use_resolver.py     # 토지이용계획 조회 + jurisdiction_name
+│   │   ├── ordinance_extractor.py   # 조례 본문 → 수치 추출 (regex+LLM) ★Phase5
+│   │   ├── ordinance_resolver.py    # cascade: DB→법제처→JSON fallback ★Phase5
+│   │   ├── diagnose_engine.py       # 6개 카테고리 진단 엔진 (OrdinanceResolver 주입)
 │   │   ├── calculator/
-│   │   │   ├── coverage.py       # 건폐율
-│   │   │   ├── far.py            # 용적률
-│   │   │   ├── height.py         # 높이·일조
-│   │   │   ├── parking.py        # 주차
-│   │   │   ├── landscape.py      # 조경
-│   │   │   └── fire_safety.py    # 설비-소방
-│   │   ├── what_if_simulator.py
-│   │   ├── case_matcher.py       # Competition Analyzer DB 연계
-│   │   └── law_change_tracker.py
+│   │   │   ├── coverage.py          # 건폐율 (limit_override 지원)
+│   │   │   ├── far.py               # 용적률 (limit_override 지원)
+│   │   │   ├── height.py            # 높이·일조
+│   │   │   ├── parking.py           # 주차
+│   │   │   ├── landscape.py         # 조경
+│   │   │   └── fire_safety.py       # 설비·소방 (AI)
+│   │   ├── what_if_simulator.py     # Phase 3
+│   │   ├── query_engine.py          # Phase 3
+│   │   ├── case_matcher.py          # Phase 4 — KUNWON_DB 연계
+│   │   ├── law_change_tracker.py    # Phase 4 — SHA256 해시 변경 감지
+│   │   └── review_notifier.py       # Phase 4 — Slack/로그 시니어 알림
+│   ├── scripts/
+│   │   └── seed_ordinances.py       # Phase 5 — 7대 광역시 조례 수집 (작성 예정)
 │   └── data/
-│       ├── arch_law.db           # SQLite (gitignore)
-│       └── seed/                 # 초기 데이터 (있을 경우)
+│       ├── arch_law.db              # SQLite (gitignore)
+│       └── seed/
 │
 ├── docs/
-│   ├── api_response_samples/     # 실제 API 응답 샘플
-│   │   ├── vworld_geocoder.json
-│   │   ├── vworld_land_use.json
-│   │   └── law_go_kr_ordinance.json
-│   └── reference/                # 건축법 참고 자료
-│       ├── 건축물_면적_높이_세부_산정기준.pdf
-│       └── 그림으로_이해하는_건축법.pdf
+│   ├── api_response_samples/
+│   └── reference/
 │
 └── tests/
     └── (계산 엔진 단위 테스트)
@@ -337,73 +355,92 @@ arch-law-diagnose/
 -- 행정구역 코드 → 명칭 매핑
 CREATE TABLE jurisdictions (
     code TEXT PRIMARY KEY,      -- '11560' (영등포구)
-    name TEXT NOT NULL,         -- '영등포구'
-    parent_code TEXT,           -- '11' (서울)
-    type TEXT                   -- 'gu' | 'si' | 'do'
+    name TEXT NOT NULL,
+    parent_code TEXT,
+    type TEXT
 );
 
--- 조례 캐시
+-- 조례 본문 캐시 (법제처 DRF API 응답)
 CREATE TABLE ordinances (
-    id INTEGER PRIMARY KEY,
-    jurisdiction_code TEXT,     -- '11560'
-    law_type TEXT,              -- 'urban_planning' | 'building' 등
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jurisdiction_code TEXT NOT NULL,
+    law_type TEXT NOT NULL,
     title TEXT,
-    content TEXT,               -- 전문
-    article_no TEXT,            -- '제25조'
-    last_fetched_at TIMESTAMP,
+    content TEXT,
+    article_no TEXT,
+    last_fetched_at TEXT NOT NULL,
     source_url TEXT,
     FOREIGN KEY (jurisdiction_code) REFERENCES jurisdictions(code)
 );
+CREATE INDEX idx_ordinances_jcode ON ordinances(jurisdiction_code, law_type);
 
 -- FTS5 전문 검색 인덱스
 CREATE VIRTUAL TABLE ordinances_fts USING fts5(
     title, content,
-    content='ordinances'
+    content='ordinances',
+    content_rowid='id'
 );
 
 -- 토지 정보 캐시 (PNU 기반)
 CREATE TABLE land_info_cache (
-    pnu TEXT PRIMARY KEY,           -- 19자리 필지번호
+    pnu TEXT PRIMARY KEY,
     address TEXT,
     jurisdiction_code TEXT,
-    zone_use TEXT,                  -- 용도지역
-    zone_district TEXT,             -- 용도지구
-    zone_area TEXT,                 -- 용도구역
-    district_plan TEXT,             -- 지구단위계획
-    urban_facility TEXT,            -- 도시계획시설
-    land_category TEXT,             -- 지목
-    official_price INTEGER,         -- 공시지가
-    fetched_at TIMESTAMP
+    zone_use TEXT,
+    zone_district TEXT,
+    zone_area TEXT,
+    district_plan TEXT,
+    urban_facility TEXT,
+    land_category TEXT,
+    official_price INTEGER,
+    lon REAL,
+    lat REAL,
+    fetched_at TEXT NOT NULL
 );
 
--- 진단 이력 (감사 로그 + V2 학습용)
+-- 진단 이력
 CREATE TABLE diagnose_history (
-    id INTEGER PRIMARY KEY,
-    user_id TEXT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     address TEXT,
     pnu TEXT,
-    input_json TEXT,                -- 입력 전체 (용도, 규모 등)
-    result_json TEXT,               -- 결과 전체
+    input_json TEXT,
+    result_json TEXT,
     overall_score REAL,
-    created_at TIMESTAMP
+    created_at TEXT NOT NULL
 );
 
--- 법규 변경 감지 (해시 기반)
+-- 법규 변경 감지 (SHA256 해시 비교)
 CREATE TABLE ordinance_versions (
-    id INTEGER PRIMARY KEY,
-    jurisdiction_code TEXT,
-    law_type TEXT,
-    content_hash TEXT,              -- SHA256
-    fetched_at TIMESTAMP
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    jurisdiction_code TEXT NOT NULL,
+    law_type TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
 );
+
+-- ★ Phase 5 — 조례 수치 (건폐율·용적률 상한값)
+-- cascade: 이 테이블 → 법제처+LLM 추출 → zone_limits.json fallback
+CREATE TABLE ordinance_zone_limits (
+    jurisdiction_code TEXT NOT NULL,   -- PNU 앞 5자리 (시군구)
+    jurisdiction_name TEXT,            -- '서울특별시'
+    zone_use          TEXT NOT NULL,   -- '일반상업지역'
+    category          TEXT NOT NULL,   -- 'building_coverage_ratio' | 'floor_area_ratio'
+    value             REAL NOT NULL,   -- % 수치
+    source_law_id     TEXT,            -- 법제처 law_id
+    source_article    TEXT,            -- 관련 조문 문구
+    ef_date           TEXT,            -- 시행일
+    fetched_at        TEXT NOT NULL,
+    needs_review      INTEGER NOT NULL DEFAULT 0,  -- sanity check 실패 플래그
+    PRIMARY KEY (jurisdiction_code, zone_use, category)
+);
+CREATE INDEX idx_ozl_code ON ordinance_zone_limits(jurisdiction_code);
 ```
 
 ---
 
 ## 11. Phase별 개발 로드맵
 
-### Phase 1 (1~2주): 기반 + 정량 4개
-**목표**: SeonJ 기본 수준 달성
+### Phase 1 ✅ 완료 — 기반 + 정량 4개
 
 - 프로젝트 구조 셋업 (Vite + FastAPI + SQLite)
 - VWorld 클라이언트 (Geocoder + 토지이용계획)
@@ -411,39 +448,40 @@ CREATE TABLE ordinance_versions (
 - 정량 계산 4개: 건폐율, 용적률, 높이, 주차
 - 기본 입력 폼 + 결과 화면
 
-**Deliverable**: 주소 입력 → 정량 4개 점수 출력
+### Phase 2 ✅ 완료 — 6개 카테고리 + 종합 진단
 
-### Phase 2 (1주): 8개 카테고리 + 종합 진단
-**목표**: SeonJ 추월
-
-- 조경, 설비-소방 추가 (AI 보조)
+- 조경, 설비·소방 추가 (AI 보조)
 - 종합 점수 산출 (가중평균)
-- 신호등 대시보드
-- 위험 항목 자동 추출
-- 확신도 표시
-- 근거 법조문 자동 인용
+- 신호등 대시보드, 위험 항목 자동 추출
+- 확신도 표시, 근거 법조문 자동 인용
 
-**Deliverable**: 한 화면 종합 진단
-
-### Phase 3 (1~2주): What-if + 비교 + 자연어 질의
-**목표**: 의사결정 도구로 진화
+### Phase 3 ✅ 완료 — What-if + 비교 + 자연어 질의
 
 - 슬라이더 기반 What-if 시뮬레이션
 - 시나리오 비교 매트릭스 (안 A/B/C)
-- 자연어 질의 (조문 + 판례 종합)
+- 자연어 질의 (컨텍스트 기반 AI 답변)
 
-**Deliverable**: 실시간 의사결정 지원
+### Phase 4 ✅ 완료 — 사내 연계 + 변경 추적
 
-### Phase 4 (2주): 사내 연계 + 변경 추적
-**목표**: 차별화 완성
+- KUNWON_DB 유사 케이스 자동 매칭
+- 법규 변경 모니터링 (SHA256 해시 비교)
+- 시니어 검토 요청 버튼 (Slack/로그)
 
-- Competition Analyzer DB 연동
-- 유사 케이스 자동 매칭
-- 법규 변경 모니터링 (cron + diff)
-- 변경 영향도 자동 분석
-- 시니어 검토 요청 버튼
+### Phase 5 ✅ 완료 — 지자체 조례 기반 진단
 
-**Deliverable**: 회사 자산 통합 + 자동 모니터링
+- `ordinance_zone_limits` 테이블 + CRUD
+- `OrdinanceExtractor`: 조례 본문 → 수치 추출 (regex 1차 / LLM 2차 / sanity check)
+- `OrdinanceResolver`: DB → 법제처+LLM → zone_limits.json cascade
+- `coverage.py`, `far.py` — `limit_override`/`source_override` 주입 방식
+- `diagnose_engine.py` — OrdinanceResolver 연동, `_fmt_source()` 헬퍼
+- UI source 배지: `🏛 조례 —` (파랑) / `📋 시행령 —` (회색)
+
+### Phase 6 (예정) — 조례 데이터 적재 + 카테고리 확장
+
+- `seed_ordinances.py`: 7대 광역시 건폐율·용적률 조례 일괄 수집 (dry-run 우선)
+- 조경·높이 카테고리 OrdinanceResolver 연동
+- 법규 변경 cron 자동 스캔
+- 단위 테스트 (calculator 계층)
 
 ---
 
@@ -561,19 +599,31 @@ V1 완성 후 백엔드 로직을 MCP 서버로 추출:
 
 ---
 
-## 17. 다음 액션
+## 17. 다음 액션 (Phase 6 기준 — 2026-05-13 업데이트)
 
-### 즉시
-1. 이 사양서 검토 (수정사항 있으면 알려주세요)
-2. `arch-law-diagnose` 폴더 생성
-3. VSCode + Claude Code Extension 열기
+### 즉시 착수 가능
 
-### Claude Code 첫 프롬프트 작성 시 포함할 것
-- 이 사양서 전체 첨부
-- Phase 1 명시 ("Phase 1만 작업, Phase 2~4는 다음 단계")
-- 첫 작업: 프로젝트 구조 셋업 + VWorld 클라이언트
-- 환경 변수 처리 방식 명시
-- 테스트용 더미 주소 1개 제공 ("서울 영등포구 당산동3가 123")
+1. **`seed_ordinances.py` 작성** — 7대 광역시(서울·부산·대구·인천·광주·대전·울산) 건폐율·용적률 조례 일괄 수집. `--dry-run` 플래그로 API 조회 결과만 출력, DB 저장은 `--commit` 옵션에서만.
+2. **조례 sanity check 리포트** — `needs_review=1`인 행 목록 출력 엔드포인트 추가.
+
+### 단기 (Phase 6)
+
+- 조경·높이 카테고리 `OrdinanceResolver` 연동 (현재 건폐율·용적률만 적용)
+- `law_change_tracker` cron 자동 스캔 (현재 수동 트리거)
+- `calculator/` 단위 테스트 추가
+
+### 중기 (V2 방향)
+
+- MCP 서버로 추출: `arch-law-mcp` (시나리오 진단), `arch-land-use-mcp` (토지이용계획)
+- `feasibility-mcp` 연동 (사업성 검토)
+
+### 다음 대화 시작 프롬프트 예시
+
+```text
+"seed_ordinances.py 작성해줘.
+7대 광역시 건폐율·용적률 dry-run 먼저.
+법제처 API 응답이 없으면 어떻게 처리할지도 포함해줘."
+```
 
 ---
 

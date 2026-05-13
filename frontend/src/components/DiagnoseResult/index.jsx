@@ -267,7 +267,7 @@ function CategoryCard({ label, cat }) {
             </ul>
           )}
 
-          <p className="mt-1.5 text-xs text-gray-400">근거: {cat.source}</p>
+          <SourceBadge source={cat.source} />
 
           {/* 법조문 링크 */}
           {cat.law_refs && cat.law_refs.length > 0 && (
@@ -326,6 +326,23 @@ function FireSafetyItems({ items }) {
         )
       })}
     </div>
+  )
+}
+
+function SourceBadge({ source }) {
+  if (!source) return null
+  const isOrdinance = source.includes('조례')
+  return (
+    <p className="mt-1.5 text-xs">
+      <span className={[
+        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium',
+        isOrdinance
+          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+          : 'bg-gray-100 text-gray-500 border border-gray-200',
+      ].join(' ')}>
+        {source}
+      </span>
+    </p>
   )
 }
 

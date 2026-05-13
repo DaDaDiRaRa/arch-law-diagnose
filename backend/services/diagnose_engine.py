@@ -22,8 +22,9 @@ from pathlib import Path
 
 from services.cache_manager import CacheManager
 from services.calculator import coverage, far, fire_safety, height, landscape, parking
-from services.land_use_resolver import LandUseResolver
+from services.land_use_resolver import LandUseResolver, _parse_sido as _extract_sido
 from services.llm_client import LLMClient
+from services.ordinance_resolver import OrdinanceResolver
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,12 @@ class DiagnoseEngine:
         land_resolver: LandUseResolver,
         cache: CacheManager,
         llm: LLMClient,
+        ordinance_resolver: OrdinanceResolver | None = None,
     ) -> None:
         self._resolver = land_resolver
         self._cache = cache
         self._llm = llm
+        self._ordinance = ordinance_resolver
 
     async def run(self, req: dict) -> dict:
         """전체 진단 — 토지 조회 + 6개 카테고리 + 이력 저장."""
@@ -53,6 +56,9 @@ class DiagnoseEngine:
         pnu: str = req.get("pnu") or ""
 
         land = await self._resolver.resolve(address, pnu=pnu)
+        # 사용자가 zone_use를 직접 지정한 경우 VWorld 결과를 override
+        if req.get("zone_use_override"):
+            land["zone_use"] = req["zone_use_override"]
         return await self._diagnose(req, land, save_history=True, skip_ai=False)
 
     async def diagnose_fast(
@@ -75,6 +81,9 @@ class DiagnoseEngine:
         land = land_info if land_info else {"zone_use": zone_use}
         if "zone_use" not in land:
             land["zone_use"] = zone_use
+        # VWorld WFS 없이 호출될 때 jurisdiction_name을 주소에서 보완
+        if not land.get("jurisdiction_name"):
+            land["jurisdiction_name"] = _extract_sido(req.get("address", ""))
         return await self._diagnose(
             req,
             land,
@@ -110,9 +119,29 @@ class DiagnoseEngine:
         if not zone_use:
             logger.warning("용도지역 미확인: 기본 계산 진행 (점수 신뢰도 낮음)")
 
+        jurisdiction_code: str = land.get("jurisdiction_code", "") or (pnu[:5] if len(pnu) >= 5 else "")
+        jurisdiction_name: str = land.get("jurisdiction_name", "")
+
+        # 조례 수치 사전 조회 (OrdinanceResolver 있을 때만)
+        cov_limit: float | None = None
+        cov_source: str | None = None
+        far_limit: float | None = None
+        far_source: str | None = None
+        if self._ordinance and (jurisdiction_code or jurisdiction_name) and zone_use:
+            cov_res = await self._ordinance.resolve(
+                jurisdiction_code, jurisdiction_name, zone_use, "building_coverage_ratio"
+            )
+            far_res = await self._ordinance.resolve(
+                jurisdiction_code, jurisdiction_name, zone_use, "floor_area_ratio"
+            )
+            cov_limit = cov_res.get("value")
+            cov_source = _fmt_source(cov_res)
+            far_limit = far_res.get("value")
+            far_source = _fmt_source(far_res)
+
         # 정량 5개 (동기)
-        r_coverage = coverage.calculate(building_area, site_area, zone_use)
-        r_far = far.calculate(total_floor_area, site_area, zone_use, floors_below)
+        r_coverage = coverage.calculate(building_area, site_area, zone_use, cov_limit, cov_source)
+        r_far = far.calculate(total_floor_area, site_area, zone_use, floors_below, far_limit, far_source)
         r_height = height.calculate(h, floors_above, zone_use, road_width)
         r_parking = parking.calculate(building_use, total_floor_area, units=units)
         r_landscape = landscape.calculate(landscape_area, site_area, zone_use, building_use)
@@ -197,6 +226,18 @@ class DiagnoseEngine:
                 logger.warning("이력 저장 실패: %s", e)
 
         return response
+
+
+def _fmt_source(res: dict) -> str | None:
+    """OrdinanceResolver 결과 → source 문자열."""
+    if not res or res.get("value") is None:
+        return None
+    if res.get("is_ordinance"):
+        detail = res.get("source_detail") or ""
+        tag = "🏛 조례"
+        return f"{tag} — {detail}" if detail else tag
+    detail = res.get("source_detail") or "국토계획법 시행령 별표"
+    return f"📋 시행령 — {detail}"
 
 
 def _weighted_score(results: dict) -> tuple[float | None, int]:
