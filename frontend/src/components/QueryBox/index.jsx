@@ -174,11 +174,22 @@ function AnswerCard({ answer, compact }) {
 
 function buildBuildingInfo(fd) {
   if (!fd.site_area) return undefined
+  const above = parseFloat(fd.floor_area_above) || 0
+  const below = parseFloat(fd.floor_area_below) || 0
+  const parking = parseFloat(fd.floor_area_parking_above) || 0
+  const refuge = parseFloat(fd.floor_area_refuge) || 0
+  const atticRefuge = parseFloat(fd.floor_area_attic_refuge) || 0
+  const totalFloor = above + below
   const obj = {
     building_use: fd.building_use,
     site_area: fd.site_area && `${fd.site_area}㎡`,
     building_area: fd.building_area && `${fd.building_area}㎡`,
-    total_floor_area: fd.total_floor_area && `${fd.total_floor_area}㎡`,
+    floor_area_above: above > 0 ? `${above}㎡` : '',
+    floor_area_below: below > 0 ? `${below}㎡` : '',
+    floor_area_parking_above: parking > 0 ? `${parking}㎡ (용적률 제외)` : '',
+    floor_area_refuge: refuge > 0 ? `${refuge}㎡ (용적률 제외)` : '',
+    floor_area_attic_refuge: atticRefuge > 0 ? `${atticRefuge}㎡ (용적률 제외)` : '',
+    total_floor_area: totalFloor > 0 ? `${totalFloor}㎡` : '',
     floors_above: fd.floors_above && `${fd.floors_above}층`,
     floors_below: fd.floors_below && `${fd.floors_below}층`,
     height: fd.height && `${fd.height}m`,

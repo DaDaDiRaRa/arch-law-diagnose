@@ -54,12 +54,20 @@ def calculate(
     exempt = False
     exempt_reason: str | None = None
 
-    if site_area < exempt_threshold:
+    # 시행령 §27 ②항 1호: 녹지지역 건축 면제 (가장 확실한 면제 조항)
+    if _is_green_zone(zone_use):
         exempt = True
         exempt_reason = (
-            f"대지면적 {site_area:.0f}㎡ < {exempt_threshold}㎡ — 조경 의무 면제"
+            f"녹지지역({zone_use}) 건축 — 조경 의무 면제 (건축법 시행령 §27 ②항 1호)"
         )
         required_pct: float = 0.0
+    elif site_area < exempt_threshold:
+        exempt = True
+        exempt_reason = (
+            f"대지면적 {site_area:.0f}㎡ < {exempt_threshold}㎡ — 조경 의무 면제 "
+            f"(건축법 시행령 §27 ②항 2호)"
+        )
+        required_pct = 0.0
     else:
         required_pct = _required_ratio(building_use, site_area, zone_use, std)
         if required_pct == 0:
@@ -146,6 +154,13 @@ def calculate(
         law_refs=law_refs,
         notes=_notes(passed, actual_pct, required_pct, deficit, zone_use),
     )
+
+
+def _is_green_zone(zone_use: str) -> bool:
+    """녹지지역 — 시행령 §27 ②항 1호 조경 의무 면제 대상."""
+    if not zone_use:
+        return False
+    return any(kw in zone_use for kw in ("보전녹지", "생산녹지", "자연녹지"))
 
 
 def _required_ratio(

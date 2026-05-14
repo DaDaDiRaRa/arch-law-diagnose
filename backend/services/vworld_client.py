@@ -225,6 +225,53 @@ class VWorldClient:
             "area": _safe_float(props.get("lndpclAr")),
         }
 
+    # ─── 지적 폴리곤 (연속지적도) ────────────────────────────────────────
+
+    async def get_parcel_polygon(self, lon: float, lat: float) -> dict | None:
+        """좌표 → 해당 점을 포함하는 지적 필지의 폴리곤 (GeoJSON).
+
+        VWorld LP_PA_CBND_BUBUN (연속지적도) — geomFilter=POINT 방식.
+        반환: { "type": "Polygon" | "MultiPolygon", "coordinates": [...] } + properties
+        없으면 None.
+        """
+        if not self._key:
+            return None
+        params = {
+            "service": "data",
+            "request": "GetFeature",
+            "data": "LP_PA_CBND_BUBUN",
+            "key": self._key,
+            "format": "json",
+            "size": 1,
+            "geometry": "true",
+            "attribute": "true",
+            "crs": "EPSG:4326",
+            "geomFilter": f"POINT({lon} {lat})",
+        }
+        try:
+            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
+            r.raise_for_status()
+            body = r.json()
+        except Exception as e:
+            logger.error("VWorld 지적 폴리곤 조회 오류: %s", e)
+            return None
+
+        if body.get("response", {}).get("status") != "OK":
+            return None
+        feats = (
+            body.get("response", {})
+            .get("result", {})
+            .get("featureCollection", {})
+            .get("features", [])
+        )
+        if not feats:
+            return None
+        f = feats[0]
+        return {
+            "geometry": f.get("geometry"),
+            "properties": f.get("properties", {}),
+        }
+
 
 def _safe_int(v) -> int | None:
     try:

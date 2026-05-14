@@ -1,0 +1,603 @@
+import { useEffect, useState } from 'react'
+
+/**
+ * 법규 검토서 자동 출력 — 새 창에 단독 표시 + 인쇄 친화.
+ *
+ * 양식: 사용자가 보내준 사진 기반 표준 양식
+ *   항목 / 법규 및 조항 / 법정기준·설계내용 / 적법여부
+ *
+ * 사용: <LegalReviewReport rawResult={...} formData={...} onClose={...} />
+ * 또는 별도 라우트로 표시.
+ */
+
+const CATEGORY_LABELS = {
+  행위제한: '행위제한 적합성',
+  도시계획시설: '도시계획시설 저촉',
+  건폐율: '건폐율',
+  용적률: '용적률',
+  높이_일조: '높이·일조',
+  주차: '주차',
+  조경: '조경',
+  설비_소방: '설비·소방',
+}
+
+const COMPLIANCE_LABEL = {
+  true:  { label: '적법함', cls: 'compliant' },
+  false: { label: '부적법', cls: 'non-compliant' },
+  null:  { label: '확인필요', cls: 'review-needed' },
+}
+
+export default function LegalReviewReport({ rawResult, formData, onClose }) {
+  const [projectName, setProjectName] = useState('')
+  const [author, setAuthor] = useState('')
+  const [company, setCompany] = useState('')
+
+  useEffect(() => {
+    // Esc 로 닫기
+    const onKey = (e) => e.key === 'Escape' && onClose?.()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  if (!rawResult) return null
+
+  const isMulti = rawResult.mode === 'multi_parcel'
+  const result = isMulti ? rawResult.result : rawResult
+  const multi = isMulti ? { parcels: rawResult.parcels, aggregate: rawResult.aggregate } : null
+
+  const today = new Date().toISOString().slice(0, 10)
+  const signal = result.signal
+  const signalText = signal === 'GREEN' ? '🟢 적합' : signal === 'RED' ? '🔴 부적합' : '🟡 주의 필요'
+
+  const categories = Object.entries(result.results || {})
+
+  return (
+    <div className="lr-overlay">
+      {/* 화면 표시용 툴바 (인쇄 시 숨김) */}
+      <div className="lr-toolbar no-print">
+        <div className="lr-meta-inputs">
+          <input
+            type="text" placeholder="프로젝트명"
+            value={projectName} onChange={(e) => setProjectName(e.target.value)}
+            className="lr-input"
+          />
+          <input
+            type="text" placeholder="회사명 (선택)"
+            value={company} onChange={(e) => setCompany(e.target.value)}
+            className="lr-input"
+          />
+          <input
+            type="text" placeholder="작성자 (선택)"
+            value={author} onChange={(e) => setAuthor(e.target.value)}
+            className="lr-input"
+          />
+        </div>
+        <div className="lr-buttons">
+          <button onClick={() => window.print()} className="lr-btn primary">
+            📄 인쇄 / PDF 저장
+          </button>
+          <button onClick={onClose} className="lr-btn">닫기 (Esc)</button>
+        </div>
+      </div>
+
+      {/* 실제 검토서 본문 */}
+      <div className="lr-page">
+        <h1 className="lr-title">법 규 검 토 서</h1>
+
+        {/* 헤더 정보 */}
+        <table className="lr-header-table">
+          <tbody>
+            <tr>
+              <th>프로젝트명</th>
+              <td>{projectName || '—'}</td>
+              <th>작성일</th>
+              <td>{today}</td>
+            </tr>
+            <tr>
+              <th>대지 주소</th>
+              <td colSpan={3}>{result.address || formData?.address || '—'}</td>
+            </tr>
+            <tr>
+              <th>건축물 용도</th>
+              <td colSpan={3}>
+                {formData?.building_use || '—'}
+                {formData?.building_use_detail && (
+                  <div className="lr-note-sm">{formData.building_use_detail}</div>
+                )}
+              </td>
+            </tr>
+            <tr>
+              <th>용도지역</th>
+              <td>{result.land_info?.zone_use || '—'}</td>
+              <th>지역지구</th>
+              <td>{result.land_info?.zone_district || formData?.zone_district || '—'}</td>
+            </tr>
+            <tr>
+              <th>대지면적</th>
+              <td>
+                {isMulti
+                  ? `${multi.aggregate.total_site_area?.toLocaleString()}㎡ (합산)`
+                  : (() => {
+                      const sc = result.site_correction
+                      if (sc?.applied) {
+                        return (
+                          <>
+                            {sc.effective_m2?.toLocaleString()}㎡
+                            <span className="lr-note" style={{ fontSize: '0.85em' }}>
+                              {' '}(입력 {sc.original_m2?.toLocaleString()}㎡ - 시설부지 {sc.excluded_m2?.toLocaleString()}㎡, 시행령 §3)
+                            </span>
+                          </>
+                        )
+                      }
+                      return `${formData?.site_area || '—'}㎡`
+                    })()}
+              </td>
+              <th>종합 판정</th>
+              <td className={`lr-signal-${signal}`}>
+                <strong>{signalText}</strong>
+                {result.overall_score != null && (
+                  <span> · {result.overall_score.toFixed(1)}/10</span>
+                )}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* 대지면적 자동 보정 — 도시계획시설 저촉 (해당 시) */}
+        {result.site_correction?.applied && (
+          <section className="lr-section">
+            <h2>대지면적 보정 내역 (도시계획시설 저촉)</h2>
+            <p className="lr-note">
+              산정 근거:{' '}
+              <strong>
+                {result.site_correction.source === 'manual'
+                  ? '사용자 수동 지정'
+                  : '자동 추정 (VWorld 지적도 × 도시계획시설 SHP 공간 교차)'}
+              </strong>
+              {' — '}
+              {result.site_correction.note}
+            </p>
+            {result.site_correction.by_facility?.length > 0 && (
+              <table className="lr-table">
+                <thead>
+                  <tr>
+                    <th>구분</th>
+                    <th>시설명</th>
+                    <th>저촉 면적(㎡)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.site_correction.by_facility.slice(0, 10).map((f, i) => (
+                    <tr key={i}>
+                      <td>{f.category}</td>
+                      <td>{f.facility_name || '—'}</td>
+                      <td className="right">{f.area_m2?.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="lr-note" style={{ fontSize: '0.85em' }}>
+              ※ 건축법 시행령 §3에 따라 도시·군계획시설 부지에 포함되는 면적은
+              대지면적에서 제외하여 건폐율·용적률 등을 산정합니다.
+              자동 추정 결과는 실제 도면 확인이 필요하며, 입력 폼에 직접
+              수정값을 넣을 수 있습니다.
+            </p>
+          </section>
+        )}
+
+        {/* 인허가 심의 트리거 (해당 시) */}
+        {result.applicable_reviews?.items?.length > 0 && (
+          <section className="lr-section">
+            <h2>인허가 심의 트리거 ({result.applicable_reviews.required_count}건 필요)</h2>
+            <table className="lr-table">
+              <thead>
+                <tr>
+                  <th>심의명</th>
+                  <th>판정</th>
+                  <th>트리거 사유</th>
+                  <th>근거법령</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.applicable_reviews.items.map((it, i) => {
+                  const label = it.severity === 'REQUIRED' ? '필요' : it.severity === 'MAYBE' ? '검토' : '해당없음'
+                  const cls = it.severity === 'REQUIRED' ? 'lr-signal-RED' : it.severity === 'MAYBE' ? 'lr-signal-YELLOW' : ''
+                  return (
+                    <tr key={i}>
+                      <td>{it.name}</td>
+                      <td className={cls}><strong>{label}</strong></td>
+                      <td style={{ fontSize: '0.9em' }}>
+                        {it.triggered_reasons?.length > 0
+                          ? it.triggered_reasons.join('; ')
+                          : '—'}
+                      </td>
+                      <td style={{ fontSize: '0.85em' }}>{it.law_ref}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="lr-note" style={{ fontSize: '0.85em' }}>
+              ※ 일반 기준 자동 판정 결과이며, 지자체별 조례·특수 조건에 따라 변동 가능.
+              교육환경·문화재 관련 심의는 좌표 기반 정밀 판정 미지원으로 별도 확인 필요.
+            </p>
+          </section>
+        )}
+
+        {/* 합필 정보 (해당 시) */}
+        {multi && (
+          <section className="lr-section">
+            <h2>합필 진단 내역</h2>
+            <p className="lr-note">
+              산정 방식: <strong>{multi.aggregate.calc_method}</strong>
+              {multi.aggregate.cross_jurisdiction && (
+                <span className="lr-warn">
+                  {' '}⚠ 시·도가 다른 필지 포함 — 사업성 시뮬레이션 목적
+                </span>
+              )}
+            </p>
+            {multi.aggregate.threshold_m2 && (
+              <p className="lr-note">
+                소규모 임계치:{' '}
+                <strong>{multi.aggregate.threshold_m2.toLocaleString()}㎡</strong>
+                {' — '}
+                {multi.aggregate.threshold_basis}
+              </p>
+            )}
+            <table className="lr-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>주소</th>
+                  <th>면적(㎡)</th>
+                  <th>용도지역</th>
+                  <th>관할</th>
+                </tr>
+              </thead>
+              <tbody>
+                {multi.parcels.map((p, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{p.address}</td>
+                    <td className="right">{p.site_area?.toLocaleString()}</td>
+                    <td>{p.zone_use}</td>
+                    <td>{p.jurisdiction_name || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        {/* 건축 개요 */}
+        <section className="lr-section">
+          <h2>건축 개요</h2>
+          <table className="lr-table">
+            <tbody>
+              <BuildingInfoRow formData={formData} />
+            </tbody>
+          </table>
+        </section>
+
+        {/* 법규 검토 결과 — 메인 표 */}
+        <section className="lr-section">
+          <h2>법규 검토 결과</h2>
+          <table className="lr-main-table">
+            <thead>
+              <tr>
+                <th style={{ width: '14%' }}>항목</th>
+                <th style={{ width: '24%' }}>법규 및 조항</th>
+                <th style={{ width: '40%' }}>법정기준 / 설계내용</th>
+                <th style={{ width: '12%' }}>적법여부</th>
+                <th style={{ width: '10%' }}>점수</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map(([key, cat]) => {
+                const reliefSuffix = cat.relief_info?.applied ? ' (완화)' : ''
+                return (
+                  <CategoryRow
+                    key={key}
+                    label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
+                    cat={cat}
+                  />
+                )
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        {/* 위험·주의 요약 */}
+        {(result.risks?.length > 0 || result.warnings?.length > 0) && (
+          <section className="lr-section">
+            <h2>검토 의견</h2>
+            {result.risks?.length > 0 && (
+              <div className="lr-risks">
+                <h3>위험 항목 ({result.risks.length}건)</h3>
+                <ul>
+                  {result.risks.map((r, i) => (
+                    <li key={i}><strong>{r.category}:</strong> {r.reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {result.warnings?.length > 0 && (
+              <div className="lr-warnings">
+                <h3>검토 필요 ({result.warnings.length}건)</h3>
+                <ul>
+                  {result.warnings.map((w, i) => (
+                    <li key={i}><strong>{w.category}:</strong> {w.reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 푸터 — 작성자/회사/면책 */}
+        <section className="lr-footer">
+          <table className="lr-sign-table">
+            <tbody>
+              <tr>
+                <th>회사명</th>
+                <td>{company || '—'}</td>
+                <th>작성자</th>
+                <td>{author || '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="lr-disclaimer">
+            ※ 본 검토서는 arch-law-diagnose 자동 진단 시스템에 의해 작성되었으며,
+            최종 법규 해석은 반드시 시니어 검토자/설계자가 확인해야 합니다.
+            자동 진단 일자: {today}
+          </p>
+        </section>
+      </div>
+
+      <style>{styles}</style>
+    </div>
+  )
+}
+
+function BuildingInfoRow({ formData }) {
+  const fd = formData || {}
+  const site = parseFloat(fd.site_area) || 0
+  const above = parseFloat(fd.floor_area_above) || 0
+  const below = parseFloat(fd.floor_area_below) || 0
+  const parking = parseFloat(fd.floor_area_parking_above) || 0
+  const refuge = parseFloat(fd.floor_area_refuge) || 0
+  const attic = parseFloat(fd.floor_area_attic_refuge) || 0
+  const landscape = parseFloat(fd.landscape_area) || 0
+  const publicOpen = parseFloat(fd.public_open_space_area) || 0
+  const providedParking = fd.provided_parking_spaces
+  const total = above + below
+  const farArea = Math.max(0, above - parking - refuge - attic)
+  const excluded = []
+  if (below > 0) excluded.push(`지하 ${below.toLocaleString()}㎡`)
+  if (parking > 0) excluded.push(`지상 주차장 ${parking.toLocaleString()}㎡`)
+  if (refuge > 0) excluded.push(`피난안전구역 ${refuge.toLocaleString()}㎡`)
+  if (attic > 0) excluded.push(`경사지붕 대피공간 ${attic.toLocaleString()}㎡`)
+
+  const ratio = (a) => (site > 0 && a > 0 ? `(대지의 ${((a / site) * 100).toFixed(2)}%)` : '')
+
+  return (
+    <>
+      <tr>
+        <th>건축면적</th>
+        <td>{fd.building_area ? `${parseFloat(fd.building_area).toLocaleString()}㎡` : '—'}</td>
+        <th>연면적 (지상+지하)</th>
+        <td>{total > 0 ? `${total.toLocaleString()}㎡` : '—'}</td>
+      </tr>
+      <tr>
+        <th>지상 연면적</th>
+        <td>{above > 0 ? `${above.toLocaleString()}㎡` : '—'}</td>
+        <th>지하 연면적</th>
+        <td>{below > 0 ? `${below.toLocaleString()}㎡` : '—'}</td>
+      </tr>
+      <tr>
+        <th>용적률 산정 면적</th>
+        <td colSpan={3}>
+          <strong>{farArea.toLocaleString()}㎡</strong>
+          {excluded.length > 0 && (
+            <span className="lr-note-sm"> · 제외: {excluded.join(', ')} (건축법 시행령 제119조)</span>
+          )}
+        </td>
+      </tr>
+      <tr>
+        <th>층수 / 높이</th>
+        <td colSpan={3}>
+          지상 {fd.floors_above || '—'}층 / 지하 {fd.floors_below || 0}층 / 높이 {fd.height || '—'}m
+        </td>
+      </tr>
+      {(publicOpen > 0 || landscape > 0) && (
+        <tr>
+          <th>공개공지</th>
+          <td>
+            {publicOpen > 0 ? `${publicOpen.toLocaleString()}㎡` : '—'}
+            {publicOpen > 0 && <span className="lr-note-sm"> {ratio(publicOpen)}</span>}
+          </td>
+          <th>조경면적</th>
+          <td>
+            {landscape > 0 ? `${landscape.toLocaleString()}㎡` : '—'}
+            {landscape > 0 && <span className="lr-note-sm"> {ratio(landscape)}</span>}
+          </td>
+        </tr>
+      )}
+      {providedParking && (
+        <tr>
+          <th>계획 주차대수</th>
+          <td colSpan={3}>{providedParking}대</td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+function CategoryRow({ label, cat }) {
+  const compliance = COMPLIANCE_LABEL[cat.pass] || COMPLIANCE_LABEL.null
+
+  // 법규 인용 — law_refs 우선, 없으면 source
+  let lawRefs = ''
+  if (cat.law_refs && cat.law_refs.length > 0) {
+    lawRefs = cat.law_refs.map((r) => r.name).join('\n')
+  } else if (cat.source) {
+    lawRefs = cat.source
+  }
+
+  // 법정기준 / 설계내용
+  const standardDesign = buildStandardDesign(cat)
+
+  return (
+    <tr>
+      <td><strong>{label}</strong></td>
+      <td className="lr-law-cell">{lawRefs}</td>
+      <td className="lr-standard-cell">{standardDesign}</td>
+      <td className={`lr-compliance ${compliance.cls}`}>{compliance.label}</td>
+      <td className="right">
+        {cat.score != null ? `${cat.score}/10` : '—'}
+      </td>
+    </tr>
+  )
+}
+
+function buildStandardDesign(cat) {
+  const lines = []
+
+  if (cat.limit_pct != null) {
+    lines.push(`• 법정기준: 한도 ${cat.limit_pct}%`)
+    if (cat.actual_pct != null) {
+      lines.push(`• 설계내용: 실제 ${cat.actual_pct}%`)
+      if (cat.excess_pct > 0) {
+        lines.push(`  (${cat.excess_pct}%p 초과)`)
+      }
+    }
+  } else if (cat.required_pct != null) {
+    lines.push(`• 법정기준: 의무 ${cat.required_pct}%`)
+    if (cat.actual_pct != null) {
+      lines.push(`• 설계내용: ${cat.actual_pct}%`)
+    }
+  } else if (cat.required_spaces != null) {
+    lines.push(`• 법정기준: ${cat.required_spaces}대 의무`)
+    if (cat.provided_spaces != null) {
+      lines.push(`• 설계내용: ${cat.provided_spaces}대 계획`)
+    }
+  } else if (cat.actual_height_m != null) {
+    lines.push(`• 설계내용: 높이 ${cat.actual_height_m}m`)
+    if (cat.road_height_limit_m) {
+      lines.push(`• 법정기준: 도로사선 ${cat.road_height_limit_m}m`)
+    }
+  }
+
+  if (cat.exempt === true) {
+    lines.push('• 면제 대상')
+  }
+
+  if (cat.notes) {
+    lines.push(`• ${cat.notes}`)
+  }
+
+  return lines.join('\n')
+}
+
+const styles = `
+.lr-overlay {
+  position: fixed; inset: 0; background: #525659;
+  z-index: 9999; overflow-y: auto;
+  font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+}
+.lr-toolbar {
+  position: sticky; top: 0; z-index: 10;
+  background: #2d2d2d; color: white;
+  padding: 12px 24px; display: flex; gap: 16px;
+  justify-content: space-between; align-items: center;
+  flex-wrap: wrap;
+}
+.lr-meta-inputs { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+.lr-input {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid #555;
+  background: #3d3d3d; color: white; font-size: 13px;
+  min-width: 140px;
+}
+.lr-input::placeholder { color: #999; }
+.lr-buttons { display: flex; gap: 8px; }
+.lr-btn {
+  padding: 8px 16px; border-radius: 6px; border: 1px solid #555;
+  background: #3d3d3d; color: white; cursor: pointer; font-size: 13px;
+}
+.lr-btn:hover { background: #4d4d4d; }
+.lr-btn.primary { background: #2563eb; border-color: #2563eb; }
+.lr-btn.primary:hover { background: #1d4ed8; }
+
+.lr-page {
+  background: white; max-width: 820px; margin: 24px auto;
+  padding: 48px 56px; box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  font-size: 13px; color: #1f2937; line-height: 1.6;
+}
+.lr-title {
+  text-align: center; font-size: 24px; font-weight: bold;
+  letter-spacing: 12px; margin: 0 0 32px;
+  border-bottom: 3px double #111; padding-bottom: 12px;
+}
+.lr-header-table, .lr-table, .lr-main-table, .lr-sign-table {
+  width: 100%; border-collapse: collapse; margin-bottom: 16px;
+}
+.lr-header-table th, .lr-table th, .lr-main-table th, .lr-sign-table th {
+  background: #f3f4f6; font-weight: 600; padding: 8px 12px;
+  border: 1px solid #999; text-align: left; vertical-align: middle;
+  white-space: nowrap;
+}
+.lr-header-table td, .lr-table td, .lr-main-table td, .lr-sign-table td {
+  padding: 8px 12px; border: 1px solid #999; vertical-align: middle;
+}
+.lr-header-table th { width: 90px; }
+.lr-section { margin-top: 24px; }
+.lr-section h2 {
+  font-size: 15px; font-weight: bold; border-left: 4px solid #2563eb;
+  padding-left: 10px; margin: 16px 0 12px;
+}
+.lr-section h3 { font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+.lr-section ul { margin: 4px 0 8px 20px; padding: 0; }
+.lr-section li { margin-bottom: 4px; }
+.lr-main-table th {
+  background: #e5e7eb; text-align: center; font-size: 12px;
+}
+.lr-main-table td { font-size: 12px; vertical-align: top; }
+.lr-law-cell { white-space: pre-line; font-size: 11px; color: #4b5563; }
+.lr-standard-cell { white-space: pre-line; font-size: 11.5px; }
+.lr-compliance { text-align: center; font-weight: 600; }
+.lr-compliance.compliant { background: #ecfdf5; color: #047857; }
+.lr-compliance.non-compliant { background: #fef2f2; color: #b91c1c; }
+.lr-compliance.review-needed { background: #fffbeb; color: #b45309; }
+.right { text-align: right; }
+.lr-signal-GREEN { color: #047857; }
+.lr-signal-YELLOW { color: #b45309; }
+.lr-signal-RED { color: #b91c1c; }
+.lr-risks { border-left: 3px solid #ef4444; padding-left: 12px; margin-bottom: 12px; }
+.lr-risks h3 { color: #b91c1c; }
+.lr-warnings { border-left: 3px solid #f59e0b; padding-left: 12px; }
+.lr-warnings h3 { color: #b45309; }
+.lr-note { font-size: 12px; color: #4b5563; margin-bottom: 8px; }
+.lr-note-sm { font-size: 11px; color: #6b7280; }
+.lr-warn { color: #b91c1c; font-weight: 600; }
+.lr-footer { margin-top: 40px; }
+.lr-disclaimer {
+  margin-top: 16px; font-size: 11px; color: #6b7280;
+  padding: 12px; background: #f9fafb; border-radius: 4px;
+  border-left: 3px solid #9ca3af;
+}
+
+@media print {
+  .lr-overlay { background: white; position: static; }
+  .no-print { display: none !important; }
+  .lr-page {
+    box-shadow: none; margin: 0; padding: 20mm 15mm;
+    max-width: 100%; font-size: 11px;
+  }
+  .lr-title { font-size: 20px; margin-bottom: 20px; }
+  .lr-section { margin-top: 16px; page-break-inside: avoid; }
+  .lr-main-table { page-break-inside: auto; }
+  .lr-main-table tr { page-break-inside: avoid; page-break-after: auto; }
+  @page { size: A4; margin: 0; }
+}
+`

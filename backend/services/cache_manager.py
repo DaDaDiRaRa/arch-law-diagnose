@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = os.getenv("DB_PATH", "./data/arch_law.db")
 CACHE_TTL_DAYS = int(os.getenv("CACHE_TTL_DAYS", "30"))
+LURIS_TTL_DAYS = int(os.getenv("LURIS_TTL_DAYS", "90"))  # 행위제한은 변경 빈도 낮음
 
 DDL = """
 PRAGMA journal_mode=WAL;
@@ -67,6 +68,9 @@ CREATE TABLE IF NOT EXISTS land_info_cache (
     fetched_at TEXT NOT NULL
 );
 
+-- B7: parcel polygon (GeoJSON) 별도 마이그레이션 — 신규 DB는 위 CREATE에 따라 컬럼 없이 생성됨.
+-- 기존 DB에는 ALTER TABLE 로 추가. 실패해도 무시 (이미 존재).
+
 CREATE TABLE IF NOT EXISTS diagnose_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     address TEXT,
@@ -99,6 +103,17 @@ CREATE TABLE IF NOT EXISTS ordinance_zone_limits (
     PRIMARY KEY (jurisdiction_code, zone_use, category)
 );
 CREATE INDEX IF NOT EXISTS idx_ozl_code ON ordinance_zone_limits(jurisdiction_code);
+
+-- LURIS 행위제한 응답 캐시 (1000회/일 한도 대응)
+-- info_json IS NULL → API가 데이터 없음 응답한 것도 캐싱 (재호출 절약)
+CREATE TABLE IF NOT EXISTS luris_act_info_cache (
+    area_cd     TEXT NOT NULL,
+    ucode       TEXT NOT NULL,
+    land_use_nm TEXT NOT NULL,
+    info_json   TEXT,
+    fetched_at  TEXT NOT NULL,
+    PRIMARY KEY (area_cd, ucode, land_use_nm)
+);
 """
 
 
@@ -111,6 +126,13 @@ class CacheManager:
         self._db = await aiosqlite.connect(DB_PATH)
         self._db.row_factory = aiosqlite.Row
         await self._db.executescript(DDL)
+        # B7 마이그레이션: parcel_geometry_json 컬럼 추가 (기존 DB 대응)
+        try:
+            await self._db.execute(
+                "ALTER TABLE land_info_cache ADD COLUMN parcel_geometry_json TEXT"
+            )
+        except Exception:
+            pass  # 이미 존재
         await self._db.commit()
         logger.info("SQLite DB 초기화 완료: %s", DB_PATH)
 
@@ -131,22 +153,34 @@ class CacheManager:
         data = dict(row)
         data["cache_age_days"] = age_days
         data["cache_stale"] = age_days > CACHE_TTL_DAYS
+        # parcel_geometry_json → dict
+        raw_geom = data.pop("parcel_geometry_json", None)
+        data["parcel_geometry"] = None
+        if raw_geom:
+            try:
+                data["parcel_geometry"] = json.loads(raw_geom)
+            except json.JSONDecodeError:
+                pass
         return data
 
     async def set_land_info(self, pnu: str, address: str, data: dict) -> None:
         now = datetime.utcnow().isoformat()
+        geom = data.get("parcel_geometry")
+        geom_json = json.dumps(geom, ensure_ascii=False) if geom else None
         await self._db.execute(
             """INSERT INTO land_info_cache
                (pnu, address, jurisdiction_code, zone_use, zone_district, zone_area,
-                district_plan, urban_facility, land_category, official_price, lon, lat, fetched_at)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                district_plan, urban_facility, land_category, official_price, lon, lat,
+                fetched_at, parcel_geometry_json)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(pnu) DO UPDATE SET
                address=excluded.address, jurisdiction_code=excluded.jurisdiction_code,
                zone_use=excluded.zone_use, zone_district=excluded.zone_district,
                zone_area=excluded.zone_area, district_plan=excluded.district_plan,
                urban_facility=excluded.urban_facility, land_category=excluded.land_category,
                official_price=excluded.official_price, lon=excluded.lon, lat=excluded.lat,
-               fetched_at=excluded.fetched_at""",
+               fetched_at=excluded.fetched_at,
+               parcel_geometry_json=excluded.parcel_geometry_json""",
             (
                 pnu, address,
                 data.get("jurisdiction_code", ""),
@@ -160,6 +194,7 @@ class CacheManager:
                 data.get("lon"),
                 data.get("lat"),
                 now,
+                geom_json,
             ),
         )
         await self._db.commit()
@@ -280,6 +315,62 @@ class CacheManager:
             (jurisdiction_code,),
         )
         return [dict(r) for r in rows]
+
+    # ─── LURIS 행위제한 캐시 ─────────────────────────────────────────────
+
+    async def get_luris_act_info(
+        self,
+        area_cd: str,
+        ucode: str,
+        land_use_nm: str,
+    ) -> tuple[bool, dict | None]:
+        """LURIS 응답 캐시 조회.
+
+        Returns:
+          (hit, info)
+            hit=False: 캐시 미스 (호출 필요)
+            hit=True, info=None: 'API가 빈/오류 응답을 캐싱한 상태' (재호출 불필요)
+            hit=True, info=dict: 정상 캐시
+        """
+        row = await self._fetchone(
+            """SELECT info_json, fetched_at FROM luris_act_info_cache
+               WHERE area_cd=? AND ucode=? AND land_use_nm=?""",
+            (area_cd, ucode, land_use_nm),
+        )
+        if not row:
+            return False, None
+        fetched_at = _parse_dt(row["fetched_at"])
+        age_days = (datetime.utcnow() - fetched_at).days
+        if age_days > LURIS_TTL_DAYS:
+            return False, None  # 만료 → 재호출
+        raw = row["info_json"]
+        if raw is None:
+            return True, None
+        try:
+            return True, json.loads(raw)
+        except json.JSONDecodeError:
+            return False, None
+
+    async def set_luris_act_info(
+        self,
+        area_cd: str,
+        ucode: str,
+        land_use_nm: str,
+        info: dict | None,
+    ) -> None:
+        """LURIS 응답 저장 (info=None도 캐싱 — 재호출 방지)."""
+        now = datetime.utcnow().isoformat()
+        payload = json.dumps(info, ensure_ascii=False) if info is not None else None
+        await self._db.execute(
+            """INSERT INTO luris_act_info_cache
+               (area_cd, ucode, land_use_nm, info_json, fetched_at)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(area_cd, ucode, land_use_nm) DO UPDATE SET
+               info_json=excluded.info_json,
+               fetched_at=excluded.fetched_at""",
+            (area_cd, ucode, land_use_nm, payload, now),
+        )
+        await self._db.commit()
 
     # ─── 진단 이력 ────────────────────────────────────────────────────────
 

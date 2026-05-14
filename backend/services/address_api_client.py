@@ -1,13 +1,12 @@
-"""행안부 도로명주소 Open API 클라이언트.
+"""카카오 로컬 API 주소 검색 클라이언트.
 
 주소 자동완성(search)과 PNU 구성에 사용.
-API 문서: https://business.juso.go.kr/addrlink/openApi/guide.do
+API 문서: https://developers.kakao.com/docs/latest/ko/local/dev-guide#address-coord
 """
 from __future__ import annotations
 
 import os
 import logging
-import math
 
 import httpx
 from dotenv import load_dotenv
@@ -15,69 +14,77 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-JUSO_BASE = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
+KAKAO_BASE = "https://dapi.kakao.com/v2/local/search/address.json"
 
 
 class AddressApiClient:
     def __init__(self) -> None:
-        self._key = os.getenv("JUSO_API_KEY", "")
+        self._key = os.getenv("KAKAO_API_KEY", "")
         if not self._key:
-            logger.warning("JUSO_API_KEY 미설정 — 주소 검색 불가")
-        self._http = httpx.AsyncClient(timeout=10)
+            logger.warning("KAKAO_API_KEY 미설정 — 주소 검색 불가")
+        self._http = httpx.AsyncClient(
+            timeout=10,
+            headers={"Authorization": f"KakaoAK {self._key}"},
+        )
 
     async def close(self) -> None:
         await self._http.aclose()
 
     async def search(self, keyword: str, count: int = 10) -> list[dict]:
-        """키워드로 도로명주소 목록 반환.
+        """키워드로 주소 목록 반환 (도로명 + 지번 모두 지원).
 
-        Returns: [{road_addr, jibun_addr, zip_no, bd_mgt_sn, pnu, legal_dong_code, ...}]
+        Returns: [{road_addr, jibun_addr, zip_no, pnu, legal_dong_code, ...}]
         """
         if not self._key:
             return []
 
         params = {
-            "confmKey": self._key,
-            "currentPage": 1,
-            "countPerPage": min(count, 100),
-            "keyword": keyword,
-            "resultType": "json",
+            "query": keyword,
+            "analyze_type": "similar",
+            "page": 1,
+            "size": min(count, 30),
         }
         try:
-            r = await self._http.get(JUSO_BASE, params=params)
+            r = await self._http.get(KAKAO_BASE, params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
-            logger.error("주소 API 오류: %s", e)
+            logger.error("카카오 주소 API 오류: %s", e)
             return []
 
-        items = body.get("results", {}).get("juso", []) or []
-        return [self._parse_item(i) for i in items]
+        documents = body.get("documents", []) or []
+        return [self._parse_item(d) for d in documents]
 
     # ─── 내부 헬퍼 ────────────────────────────────────────────────────────
 
     @staticmethod
-    def _parse_item(item: dict) -> dict:
-        bd_mgt_sn: str = item.get("bdMgtSn", "") or ""
-        mt_yn: str = item.get("mtYn", "0") or "0"
-        lnbr_mnnm: str = item.get("lnbrMnnm", "0") or "0"
-        lnbr_slno: str = item.get("lnbrSlno", "0") or "0"
+    def _parse_item(doc: dict) -> dict:
+        addr = doc.get("address") or {}
+        road = doc.get("road_address") or {}
 
-        legal_dong_code = bd_mgt_sn[:10] if len(bd_mgt_sn) >= 10 else ""
-        pnu = _build_pnu(legal_dong_code, mt_yn, lnbr_mnnm, lnbr_slno)
+        b_code: str = addr.get("b_code", "") or ""
+        mountain_yn: str = addr.get("mountain_yn", "N") or "N"
+        main_no: str = addr.get("main_address_no", "0") or "0"
+        sub_no: str = addr.get("sub_address_no", "0") or "0"
+
+        mt_yn = "1" if mountain_yn == "Y" else "0"
+        legal_dong_code = b_code[:10] if len(b_code) >= 10 else b_code
+        pnu = _build_pnu(legal_dong_code, mt_yn, main_no, sub_no)
+
+        jibun_addr = addr.get("address_name", "")
+        road_addr = road.get("address_name", "")
 
         return {
-            "road_addr": item.get("roadAddr", ""),
-            "jibun_addr": item.get("jibunAddr", ""),
-            "zip_no": item.get("zipNo", ""),
-            "si_nm": item.get("siNm", ""),
-            "sgg_nm": item.get("sggNm", ""),
-            "emd_nm": item.get("emdNm", ""),
-            "bd_mgt_sn": bd_mgt_sn,
+            "road_addr": road_addr,
+            "jibun_addr": jibun_addr,
+            "zip_no": road.get("zone_no", "") or addr.get("zip_code", ""),
+            "si_nm": addr.get("region_1depth_name", ""),
+            "sgg_nm": addr.get("region_2depth_name", ""),
+            "emd_nm": addr.get("region_3depth_name", ""),
             "legal_dong_code": legal_dong_code,
             "mt_yn": mt_yn,
-            "lnbr_mnnm": lnbr_mnnm,
-            "lnbr_slno": lnbr_slno,
+            "lnbr_mnnm": main_no,
+            "lnbr_slno": sub_no,
             "pnu": pnu,
         }
 

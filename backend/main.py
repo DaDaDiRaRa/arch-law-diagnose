@@ -1,6 +1,7 @@
 """arch-law-diagnose FastAPI 백엔드 — Phase 5"""
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from typing import Any
@@ -17,12 +18,13 @@ from services.land_use_resolver import LandUseResolver
 from services.law_change_tracker import LawChangeTracker
 from services.law_go_kr_client import LawGoKrClient
 from services.llm_client import LLMClient
+from services.luris_client import LurisClient
+from services.multi_parcel import aggregate_zones, apply_weighted_limits
 from services.ordinance_extractor import OrdinanceExtractor
 from services.ordinance_resolver import OrdinanceResolver
 from services.query_engine import QueryEngine
 from services.review_notifier import ReviewNotifier
 from services.vworld_client import VWorldClient
-from services.what_if_simulator import WhatIfSimulator
 
 logging.basicConfig(level="INFO", format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -35,9 +37,9 @@ llm_client: LLMClient | None = None
 ordinance_extractor: OrdinanceExtractor | None = None
 ordinance_resolver: OrdinanceResolver | None = None
 engine: DiagnoseEngine | None = None
-simulator: WhatIfSimulator | None = None
 query_engine: QueryEngine | None = None
 law_client: LawGoKrClient | None = None
+luris_client: LurisClient | None = None
 case_matcher: CaseMatcher | None = None
 law_tracker: LawChangeTracker | None = None
 review_notifier: ReviewNotifier | None = None
@@ -47,8 +49,8 @@ review_notifier: ReviewNotifier | None = None
 async def lifespan(app: FastAPI):
     global cache_manager, address_client, vworld_client, land_resolver, llm_client
     global ordinance_extractor, ordinance_resolver
-    global engine, simulator, query_engine
-    global law_client, case_matcher, law_tracker, review_notifier
+    global engine, query_engine
+    global law_client, luris_client, case_matcher, law_tracker, review_notifier
     cache_manager = CacheManager()
     await cache_manager.init()
     address_client = AddressApiClient()
@@ -61,8 +63,10 @@ async def lifespan(app: FastAPI):
     ordinance_extractor = OrdinanceExtractor(llm_client)
     ordinance_resolver = OrdinanceResolver(cache_manager, law_client, ordinance_extractor)
 
-    engine = DiagnoseEngine(land_resolver, cache_manager, llm_client, ordinance_resolver)
-    simulator = WhatIfSimulator(engine)
+    # LURIS — 행위제한정보 (토지이용규제정보서비스), SQLite 캐시 주입 (1000회/일 한도 절약)
+    luris_client = LurisClient(cache=cache_manager)
+
+    engine = DiagnoseEngine(land_resolver, cache_manager, llm_client, ordinance_resolver, luris_client)
     query_engine = QueryEngine(llm_client)
 
     # Phase 4
@@ -81,6 +85,7 @@ async def lifespan(app: FastAPI):
     await vworld_client.close()
     await llm_client.close()
     await law_client.close()
+    await luris_client.close()
     await review_notifier.close()
 
 
@@ -104,10 +109,32 @@ app.add_middleware(
 class DiagnoseRequest(BaseModel):
     address: str = Field(..., description="도로명 또는 지번 주소")
     pnu: str | None = Field(None, description="필지번호 (선택)")
-    building_use: str = Field(..., description="건축물 용도 (예: 근린생활시설, 공동주택)")
+    building_use: str = Field(..., description="건축물 주 용도 (분류, 예: 공공업무시설)")
+    building_use_detail: str | None = Field(
+        None, description="세부/복합 용도 자유 입력 (예: '공공업무시설(구청, 어린이집, 부설주차장)')"
+    )
+    zone_district: str | None = Field(
+        None,
+        description="지역지구 (예: '지구단위계획구역, 일반미관지구'). 미입력 시 VWorld 조회값 사용",
+    )
     site_area: float = Field(..., gt=0, description="대지면적 (㎡)")
     building_area: float = Field(..., gt=0, description="건축면적 (㎡)")
-    total_floor_area: float = Field(..., gt=0, description="연면적 (㎡)")
+    floor_area_above: float = Field(..., gt=0, description="지상 연면적 (㎡) — 주차장 포함 전체")
+    floor_area_below: float | None = Field(
+        None, ge=0, description="지하 연면적 (㎡, 선택). 용적률 산정에서 제외"
+    )
+    floor_area_parking_above: float | None = Field(
+        None, ge=0,
+        description="지상 주차장 면적 (㎡, 선택). 부속용도 — 용적률 산정에서 제외 (건축법 시행령 제119조)",
+    )
+    floor_area_refuge: float | None = Field(
+        None, ge=0,
+        description="피난안전구역 면적 (㎡, 선택). 초고층/준초고층 한정 — 용적률 산정에서 제외 (건축법 시행령 제119조)",
+    )
+    floor_area_attic_refuge: float | None = Field(
+        None, ge=0,
+        description="경사지붕 아래 대피공간 면적 (㎡, 선택). 11층 이상 한정 — 용적률 산정에서 제외 (건축법 시행령 제119조)",
+    )
     floors_above: int = Field(..., ge=1, description="지상 층수")
     floors_below: int = Field(0, ge=0, description="지하 층수")
     height: float = Field(..., gt=0, description="건물 높이 (m)")
@@ -116,39 +143,79 @@ class DiagnoseRequest(BaseModel):
     landscape_area: float | None = Field(
         None, ge=0, description="조경면적 (㎡, 선택). 미입력 시 의무비율만 표시"
     )
+    provided_parking_spaces: int | None = Field(
+        None, ge=0, description="계획 주차대수 (선택). 미입력 시 법정 기준만 표시"
+    )
+    public_open_space_area: float | None = Field(
+        None, ge=0, description="공개공지 면적 (㎡, 선택)"
+    )
     zone_use_override: str | None = Field(
         None, description="용도지역 직접 지정 (미입력 시 VWorld 자동 조회)"
     )
 
+    # 용적률 완화 입력 (모두 선택)
+    green_grade: str | None = Field(None, description="녹색건축 인증 등급 (최우수/우수/우량/일반)")
+    energy_grade: str | None = Field(None, description="에너지효율 등급 (1++/1+/1/2)")
+    smart_grade: str | None = Field(None, description="지능형건축물 인증 등급 (최우수/우수/우량/일반)")
+    long_life_grade: str | None = Field(None, description="장수명주택 인증 등급 (최우수/우수/우량/일반, 공동주택 한정)")
+    far_limit_manual_override: float | None = Field(
+        None, gt=0,
+        description="용적률 한도 직접 지정 (도시계획심의/지구단위/정비사업 등). 입력 시 기본 한도 대신 사용",
+    )
+    relief_reason_manual: str | None = Field(
+        None, description="용적률 한도 변경 사유 (자유 입력)"
+    )
 
-class WhatIfRequest(DiagnoseRequest):
-    zone_use: str = Field(..., description="기본 진단에서 받은 용도지역. 재조회 안 함")
-    land_info: dict[str, Any] | None = Field(None, description="기본 진단의 land_info 전체")
-    skip_ai: bool = Field(True, description="True 시 설비_소방 AI 호출 생략 (속도↑)")
-    cached_fire_safety: dict[str, Any] | None = Field(
-        None, description="skip_ai=True 일 때 재활용할 기본 진단의 설비_소방 결과"
+    # B7: 도시계획시설 저촉 면적 — 비워두면 자동 (VWorld 지적도 ∩ 시설 SHP)
+    urban_facility_exclude_area: float | None = Field(
+        None, ge=0,
+        description="대지면적에서 제외할 시설부지 면적 (선택). 자동 추정 결과를 무시하고 수동 지정.",
     )
 
 
-class CompareScenario(BaseModel):
-    name: str = Field(..., description="시나리오 이름 (예: '안 A')")
-    building_use: str
-    site_area: float = Field(..., gt=0)
-    building_area: float = Field(..., gt=0)
-    total_floor_area: float = Field(..., gt=0)
-    floors_above: int = Field(..., ge=1)
-    floors_below: int = 0
-    height: float = Field(..., gt=0)
-    units: int | None = None
-    road_width: float | None = None
-    landscape_area: float | None = None
+class ParcelInput(BaseModel):
+    address: str = Field(..., description="필지 주소")
+    pnu: str | None = Field(None, description="필지번호 (선택)")
+    site_area: float = Field(..., gt=0, description="해당 필지 면적 (㎡)")
+    zone_use_override: str | None = Field(None, description="용도지역 직접 지정")
 
 
-class CompareRequest(BaseModel):
-    address: str
-    pnu: str | None = None
-    scenarios: list[CompareScenario] = Field(..., min_length=2, max_length=4)
-    skip_ai: bool = Field(True, description="True 시 시나리오별 설비_소방 AI 호출 생략")
+class MultiDiagnoseRequest(BaseModel):
+    parcels: list[ParcelInput] = Field(..., min_length=2, max_length=20, description="합산 대상 필지 목록")
+    building_use: str = Field(..., description="건축물 주 용도")
+    building_use_detail: str | None = Field(None, description="세부/복합 용도 자유 입력")
+    zone_district: str | None = Field(None, description="지역지구 (미입력 시 VWorld)")
+    building_area: float = Field(..., gt=0, description="건축면적 (㎡)")
+    floor_area_above: float = Field(..., gt=0, description="지상 연면적 (㎡) — 주차장 포함 전체")
+    floor_area_below: float | None = Field(None, ge=0, description="지하 연면적 (㎡, 선택)")
+    floor_area_parking_above: float | None = Field(
+        None, ge=0, description="지상 주차장 면적 (㎡, 선택) — 용적률 산정 제외"
+    )
+    floor_area_refuge: float | None = Field(
+        None, ge=0, description="피난안전구역 면적 (㎡, 선택, 초고층 한정) — 용적률 산정 제외"
+    )
+    floor_area_attic_refuge: float | None = Field(
+        None, ge=0, description="경사지붕 대피공간 면적 (㎡, 선택, 11층 이상) — 용적률 산정 제외"
+    )
+    floors_above: int = Field(..., ge=1, description="지상 층수")
+    floors_below: int = Field(0, ge=0, description="지하 층수")
+    height: float = Field(..., gt=0, description="건물 높이 (m)")
+    units: int | None = Field(None, description="세대수 (공동주택)")
+    road_width: float | None = Field(None, description="전면도로 폭 (m)")
+    landscape_area: float | None = Field(None, ge=0, description="조경면적 (㎡)")
+    provided_parking_spaces: int | None = Field(None, ge=0, description="계획 주차대수 (선택)")
+    public_open_space_area: float | None = Field(None, ge=0, description="공개공지 면적 (㎡, 선택)")
+
+    # 용적률 완화 입력
+    green_grade: str | None = None
+    energy_grade: str | None = None
+    smart_grade: str | None = None
+    long_life_grade: str | None = None
+    far_limit_manual_override: float | None = Field(None, gt=0)
+    relief_reason_manual: str | None = None
+
+    # B7: 도시계획시설 저촉 면적 (선택)
+    urban_facility_exclude_area: float | None = Field(None, ge=0)
 
 
 class QueryRequest(BaseModel):
@@ -189,6 +256,24 @@ async def health():
     return {"status": "ok", "version": "3.0.0"}
 
 
+@app.get("/api/luris/stats")
+async def luris_stats():
+    """LURIS API 호출 통계 — 1000회/일 한도 모니터링.
+
+    이번 프로세스 기간(서버 시작 이후) 캐시 적중률.
+    """
+    if luris_client is None:
+        return {"hits": 0, "misses": 0, "hit_rate": None, "cache_enabled": False}
+    total = luris_client.cache_hits + luris_client.cache_misses
+    rate = round(luris_client.cache_hits / total, 3) if total else None
+    return {
+        "hits": luris_client.cache_hits,
+        "misses": luris_client.cache_misses,
+        "hit_rate": rate,
+        "cache_enabled": luris_client._cache is not None,
+    }
+
+
 @app.get("/api/address/search")
 async def address_search(q: str = Query(..., min_length=2, description="검색 키워드")):
     """행안부 도로명주소 API — 자동완성용"""
@@ -198,13 +283,43 @@ async def address_search(q: str = Query(..., min_length=2, description="검색 �
     return {"results": results}
 
 
+@app.get("/api/land_info")
+async def land_info(
+    pnu: str | None = Query(None, description="필지번호 19자리 (우선 사용)"),
+    address: str | None = Query(None, description="주소 (PNU 없을 때 fallback)"),
+):
+    """주소/PNU 로 토지이용계획 즉시 조회 — 용도지역·지역지구·지목·공시지가 자동 채움."""
+    if land_resolver is None:
+        raise HTTPException(503, "서비스 초기화 중")
+    if not pnu and not address:
+        raise HTTPException(400, "pnu 또는 address 중 하나는 필수")
+    try:
+        info = await land_resolver.resolve(address or "", pnu=pnu or "")
+        return info
+    except Exception as e:
+        logger.exception("land_info 조회 오류: %s", e)
+        raise HTTPException(500, f"토지정보 조회 오류: {e}")
+
+
+def _attach_total_floor_area(d: dict) -> dict:
+    """floor_area_above + floor_area_below → total_floor_area 자동 계산.
+
+    용적률(far)은 지상만 사용, 그 외 계산기(parking·fire_safety 등)는 지상+지하 합계 사용.
+    엔진/계산기 호환을 위해 dict 에 둘 다 포함.
+    """
+    above = float(d.get("floor_area_above") or 0)
+    below = float(d.get("floor_area_below") or 0)
+    d["total_floor_area"] = above + below
+    return d
+
+
 @app.post("/api/diagnose")
 async def diagnose(req: DiagnoseRequest):
     """주소 + 건물 정보 → 법규 6개 카테고리 종합 진단"""
     if engine is None:
         raise HTTPException(503, "서비스 초기화 중")
     try:
-        result = await engine.run(req.model_dump())
+        result = await engine.run(_attach_total_floor_area(req.model_dump()))
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
@@ -213,71 +328,158 @@ async def diagnose(req: DiagnoseRequest):
         raise HTTPException(500, f"진단 중 오류가 발생했습니다: {e}")
 
 
-@app.post("/api/whatif")
-async def what_if(req: WhatIfRequest):
-    """What-if 시뮬레이션 — 변수 수정 즉시 재계산 (토지조회·AI 생략)."""
-    if simulator is None:
-        raise HTTPException(503, "서비스 초기화 중")
-    try:
-        payload = req.model_dump()
-        zone_use = payload.pop("zone_use")
-        land_info = payload.pop("land_info", None)
-        skip_ai = payload.pop("skip_ai", True)
-        cached_fire = payload.pop("cached_fire_safety", None)
-        result = await simulator.simulate(
-            payload,
-            zone_use=zone_use,
-            land_info=land_info,
-            skip_ai=skip_ai,
-            cached_fire_safety=cached_fire,
-        )
-        return result
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except Exception as e:
-        logger.exception("What-if 오류: %s", e)
-        raise HTTPException(500, f"What-if 시뮬레이션 오류: {e}")
+@app.post("/api/diagnose/multi")
+async def diagnose_multi(req: MultiDiagnoseRequest):
+    """합필 진단 — 여러 필지를 합쳐 단일 사업지로 진단.
 
-
-@app.post("/api/compare")
-async def compare(req: CompareRequest):
-    """시나리오 비교 — 2~4개 시나리오 동시 진단. 토지 조회는 1회만."""
+    Phase 2: 동일 용도지역 / 소규모 예외(≤330㎡) / 면적 안분 가중평균 지원.
+    """
     if engine is None or land_resolver is None:
         raise HTTPException(503, "서비스 초기화 중")
     try:
-        land = await land_resolver.resolve(req.address, pnu=req.pnu or "")
-        zone_use = land.get("zone_use", "")
+        # 1. 각 필지 용도지역 병렬 조회 + zone_use_override 반영
+        lands = await asyncio.gather(*[
+            land_resolver.resolve(p.address, pnu=p.pnu or "")
+            for p in req.parcels
+        ])
+        for p, land in zip(req.parcels, lands):
+            if p.zone_use_override:
+                land["zone_use"] = p.zone_use_override
 
-        scenarios_out: list[dict] = []
-        for sc in req.scenarios:
-            sc_req = sc.model_dump()
-            sc_req["address"] = req.address
-            sc_req["pnu"] = req.pnu or ""
-            result = await engine.diagnose_fast(
-                sc_req,
-                zone_use=zone_use,
-                land_info=land,
-                skip_ai=req.skip_ai,
-            )
-            scenarios_out.append(
+        # 2. 용도지역 정보 부족한 필지 검사
+        missing = [
+            p.address for p, l in zip(req.parcels, lands)
+            if not (l.get("zone_use") or "").strip()
+        ]
+        if missing:
+            raise HTTPException(
+                400,
                 {
-                    "name": sc.name,
-                    "input": sc_req,
-                    "result": result,
-                }
+                    "error": "ZONE_LOOKUP_FAILED",
+                    "message": (
+                        f"{len(missing)}개 필지의 용도지역 조회 실패. "
+                        "주소를 다시 선택하거나 용도지역을 직접 지정해주세요."
+                    ),
+                    "failed_addresses": missing,
+                },
             )
 
-        return {
-            "address": req.address,
-            "land_info": land,
-            "scenarios": scenarios_out,
-            "summary": _compare_summary(scenarios_out),
+        # 3. 합산 규칙 결정 (same_zone / small_part / weighted)
+        parcels_dump = [
+            {**p.model_dump(), "site_area": p.site_area}
+            for p in req.parcels
+        ]
+        agg = aggregate_zones(parcels_dump, lands)
+
+        # 4. 진단 엔진 호출 — primary_zone 기준 단일 진단
+        first = req.parcels[0]
+        above = float(req.floor_area_above)
+        below = float(req.floor_area_below or 0)
+        parking_above = float(req.floor_area_parking_above or 0)
+        refuge = float(req.floor_area_refuge or 0)
+        attic_refuge = float(req.floor_area_attic_refuge or 0)
+        agg_req = {
+            "address": first.address,
+            "pnu": first.pnu or "",
+            "building_use": req.building_use,
+            "building_use_detail": req.building_use_detail,
+            "zone_district": req.zone_district,
+            "site_area": agg["total_site_area"],
+            "building_area": req.building_area,
+            "floor_area_above": above,
+            "floor_area_below": below,
+            "floor_area_parking_above": parking_above,
+            "floor_area_refuge": refuge,
+            "floor_area_attic_refuge": attic_refuge,
+            "total_floor_area": above + below,
+            "floors_above": req.floors_above,
+            "floors_below": req.floors_below,
+            "height": req.height,
+            "units": req.units,
+            "road_width": req.road_width,
+            "provided_parking_spaces": req.provided_parking_spaces,
+            "public_open_space_area": req.public_open_space_area,
+            "landscape_area": req.landscape_area,
+            "green_grade": req.green_grade,
+            "energy_grade": req.energy_grade,
+            "smart_grade": req.smart_grade,
+            "long_life_grade": req.long_life_grade,
+            "far_limit_manual_override": req.far_limit_manual_override,
+            "relief_reason_manual": req.relief_reason_manual,
+            "urban_facility_exclude_area": req.urban_facility_exclude_area,
         }
+        base_land = dict(lands[0])
+        base_land["zone_use"] = agg["primary_zone"]
+
+        # B7: 합필 폴리곤 union → 진단 엔진의 자동 보정 경로 재사용
+        # 모든 필지의 지적 폴리곤을 합쳐 base_land["parcel_geometry"]에 주입.
+        # 사용자가 직접 urban_facility_exclude_area 를 넣은 경우 진단 엔진이
+        # manual 분기를 우선 적용하므로 union 은 무시됨.
+        try:
+            from shapely.geometry import mapping, shape
+            from shapely.ops import unary_union
+
+            polys = [
+                shape(l["parcel_geometry"])
+                for l in lands
+                if l.get("parcel_geometry")
+            ]
+            if polys:
+                union_geom = unary_union(polys)
+                base_land["parcel_geometry"] = mapping(union_geom)
+        except Exception as e:
+            logger.warning("합필 폴리곤 union 실패 — 보정 생략: %s", e)
+
+        diag = await engine.diagnose_fast(
+            agg_req,
+            zone_use=agg["primary_zone"],
+            land_info=base_land,
+            skip_ai=False,
+        )
+
+        # 5. 합산 한도 적용 (small_part / weighted 인 경우 한도/점수 재계산)
+        diag = apply_weighted_limits(diag, agg)
+
+        # 6. 응답 구성
+        return {
+            "mode": "multi_parcel",
+            "phase": 2,
+            "parcels": [
+                {
+                    "address": p.address,
+                    "pnu": p.pnu or "",
+                    "site_area": p.site_area,
+                    "zone_use": l.get("zone_use", ""),
+                    "jurisdiction_name": l.get("jurisdiction_name", ""),
+                    "zone_district": l.get("zone_district", ""),
+                }
+                for p, l in zip(req.parcels, lands)
+            ],
+            "aggregate": {
+                "total_site_area": agg["total_site_area"],
+                "calc_mode": agg["mode"],           # same_zone | small_part | weighted
+                "primary_zone": agg["primary_zone"],
+                "small_part_zone": agg["small_part_zone"],
+                "weighted_coverage_limit": agg["weighted_coverage_limit"],
+                "weighted_far_limit": agg["weighted_far_limit"],
+                "zone_breakdown": agg["zone_breakdown"],
+                "calc_method": agg["calc_method"],
+                "threshold_m2": agg.get("threshold_m2"),
+                "threshold_basis": agg.get("threshold_basis"),
+                "cross_jurisdiction": agg["cross_jurisdiction"],
+                "jurisdictions": agg["jurisdictions"],
+                "parcel_count": len(req.parcels),
+            },
+            "result": diag,
+        }
+
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
-        logger.exception("Compare 오류: %s", e)
-        raise HTTPException(500, f"시나리오 비교 오류: {e}")
+        logger.exception("멀티 진단 오류: %s", e)
+        raise HTTPException(500, f"멀티 진단 중 오류: {e}")
 
 
 @app.post("/api/query")
@@ -395,24 +597,3 @@ async def review_request(req: ReviewRequest):
         raise HTTPException(500, f"리뷰 요청 오류: {e}")
 
 
-def _compare_summary(scenarios: list[dict]) -> dict:
-    """시나리오 비교 요약 — 최고 점수, 신호별 카운트."""
-    best_name: str | None = None
-    best_score: float | None = None
-    signal_count = {"GREEN": 0, "YELLOW": 0, "RED": 0}
-    for s in scenarios:
-        r = s.get("result", {})
-        sig = r.get("signal")
-        if sig in signal_count:
-            signal_count[sig] += 1
-        score = r.get("overall_score")
-        if score is None:
-            continue
-        if best_score is None or score > best_score:
-            best_score = score
-            best_name = s.get("name")
-    return {
-        "best": best_name,
-        "best_score": best_score,
-        "signal_count": signal_count,
-    }

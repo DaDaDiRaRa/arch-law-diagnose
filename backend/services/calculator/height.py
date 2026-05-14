@@ -1,17 +1,15 @@
-"""높이·일조 계산기 (V1 간이 버전).
+"""높이·일조 계산기 — V1 안전 모드.
 
-건축법 제60조: 가로구역별 최고높이 (도로 폭 기반)
-건축법 제61조: 일조권 사선제한
-  - 전용/일반주거지역: 정북방향 인접대지경계선 9m + 1:1.25 사선
-  - 기타(공동주택 등): 정남방향 인접 4m + 1:0.5 사선
+⚠ 출처 검증 중 (2026-05-14):
+- 건축법 제60조: 가로구역 단위 최고높이는 허가권자가 지정·공고 (일반 "도로 너비 × N배" 규정 없음 — 추후 자료 확인 필요).
+- 건축법 제61조·시행령 제86조: 정북방향 일조권 / 공동주택 인동거리 — 정확한 사선식 §86 본문 확인 후 보강 예정.
 
-V1 제약: 대지 형상·인접 건물 정보 없음 → 이론 최고높이만 계산
+V1 안전 모드:
+- 도로폭 기반 자동 한도 산정 비활성화 (가로구역 별도 지정 시에만 적용 가능)
+- 일조권 사선 적용 여부만 표시 (정북 9m + 1/2 비율은 §86 원문 확인 후 정밀화)
+- pass 판정은 정보 부족(None) — 도면·인접대지 조건 미확보
 """
 from __future__ import annotations
-
-import json
-import math
-import os
 
 
 def calculate(
@@ -20,63 +18,57 @@ def calculate(
     zone_use: str,
     road_width: float | None = None,
 ) -> dict:
-    """높이·일조 진단 결과.
+    """높이·일조 진단 결과 (안전 모드).
 
     Returns:
-      {
-        category, actual_height_m, floors_above,
-        road_height_limit_m, shadow_applies, shadow_slope,
-        pass, score, confidence, source, notes
-      }
+      {category, actual_height_m, floors_above, road_width_m,
+       shadow_applies, pass, score, confidence, source, notes}
     """
-    # 도로 폭 기반 높이 한도 (건축법 제60조 — 1.5배 기준, 서울 기준)
-    road_limit = _road_height_limit(road_width, zone_use)
+    shadow_applies = _shadow_applies(zone_use)
 
-    # 일조권 사선 적용 여부
-    shadow_applies, shadow_slope = _shadow_info(zone_use)
-
-    # 패스/실패 판정
-    road_pass: bool | None = None
-    if road_limit is not None:
-        road_pass = height <= road_limit
-
-    # 종합 판정
-    if road_limit is not None:
-        passed = road_pass
+    notes: list[str] = []
+    notes.append(f"건물 높이 {height}m / 지상 {floors_above}층")
+    if road_width:
+        notes.append(
+            f"전면도로 폭 {road_width}m — 가로구역별 최고높이가 지정된 구역인지 별도 확인 필요 "
+            f"(건축법 §60). 일반 '도로폭 × N배' 자동 산정 룰은 적용하지 않음."
+        )
     else:
-        passed = None  # 정보 부족
+        notes.append("전면도로 폭 미입력")
 
-    # 점수 계산
-    if passed is False:
-        score = 0.0
-    elif passed is True and road_limit:
-        ratio = height / road_limit
-        if ratio <= 0.7:
-            score = 10.0
-        elif ratio <= 0.9:
-            score = round(10.0 - (ratio - 0.7) / 0.2 * 2.0, 1)
-        else:
-            score = round(8.0 - (ratio - 0.9) / 0.1 * 2.0, 1)
+    if shadow_applies:
+        notes.append(
+            "일조권 사선 적용 대상 (전용·일반주거지역, 건축법 §61 / 시행령 §86 ①). "
+            "정북방향 인접대지경계선 이격거리는 도면·인접대지 조건으로 별도 검토."
+        )
     else:
-        score = None
-
-    # 확신도: 도로 폭 미입력 시 낮음
-    confidence = 3 if road_width else 2
+        notes.append(
+            "정북방향 일조권 사선 미적용 용도지역. 공동주택은 §86 ② 인동거리 별도 검토."
+        )
 
     return {
         "category": "높이_일조",
         "actual_height_m": height,
         "floors_above": floors_above,
-        "road_height_limit_m": road_limit,
+        "road_width_m": road_width,
         "shadow_applies": shadow_applies,
-        "shadow_slope": shadow_slope,
-        "pass": passed,
-        "score": max(0.0, round(score, 1)) if score is not None else None,
-        "confidence": confidence,
-        "source": "건축법 제60조·제61조 (도로폭 기반 간이 계산)",
+        # 자동 한도 비활성화 — 룰 검증 완료 시 보강
+        "road_height_limit_m": None,
+        "shadow_slope": None,
+        "pass": None,
+        "score": None,
+        "confidence": 2,
+        "source": "건축법 §60·§61 + 시행령 §82·§86 (자동 산정 미적용, 도면 별도 검토)",
         "law_refs": _law_refs(),
-        "notes": _notes(height, road_limit, shadow_applies, shadow_slope, road_width, zone_use),
+        "notes": " | ".join(notes),
     }
+
+
+def _shadow_applies(zone_use: str) -> bool:
+    """정북 일조 사선 적용 여부 — 시행령 §86 ① 전용/일반주거지역 한정."""
+    if not zone_use:
+        return False
+    return ("전용주거" in zone_use) or ("일반주거" in zone_use)
 
 
 def _law_refs() -> list[dict]:
@@ -89,52 +81,12 @@ def _law_refs() -> list[dict]:
             "name": "건축법 제61조 (일조 등의 확보를 위한 높이 제한)",
             "url": "https://www.law.go.kr/법령/건축법/제61조",
         },
+        {
+            "name": "건축법 시행령 제82조 (가로구역의 높이 지정)",
+            "url": "https://www.law.go.kr/법령/건축법시행령/제82조",
+        },
+        {
+            "name": "건축법 시행령 제86조 (일조 등의 확보를 위한 건축물의 높이 제한)",
+            "url": "https://www.law.go.kr/법령/건축법시행령/제86조",
+        },
     ]
-
-
-def _road_height_limit(road_width: float | None, zone_use: str) -> float | None:
-    """건축법 제60조: 전면도로 폭 × 배율."""
-    if not road_width:
-        return None
-    # 주거지역 1.5배, 기타 4배 (서울시 조례 기준 간략화)
-    if any(k in zone_use for k in ["전용주거", "일반주거", "준주거"]):
-        multiplier = 1.5
-    else:
-        multiplier = 4.0
-    return round(road_width * multiplier, 1)
-
-
-def _shadow_info(zone_use: str) -> tuple[bool, str]:
-    """일조권 사선 적용 여부 + 기울기."""
-    residential = any(k in zone_use for k in ["전용주거", "일반주거"])
-    if residential:
-        # 정북방향 인접대지경계선 9m + 1:1.25
-        return True, "1:1.25 (정북 9m + 높이)"
-    return False, ""
-
-
-def _notes(
-    height: float,
-    road_limit: float | None,
-    shadow: bool,
-    slope: str,
-    road_width: float | None,
-    zone: str,
-) -> str:
-    parts: list[str] = []
-    if road_limit:
-        if height <= road_limit:
-            parts.append(f"도로높이 제한 {road_limit}m 이하 충족 (실제 {height}m)")
-        else:
-            parts.append(f"[주의] 도로높이 제한 {road_limit}m 초과 (실제 {height}m, 초과 {height - road_limit:.1f}m)")
-    else:
-        parts.append(
-            f"전면도로 폭 미입력 — 건축법 제60조 검토 불가 (도로 폭 입력 시 자동 계산)"
-        )
-
-    if shadow:
-        parts.append(f"일조권 사선 적용 ({slope}). 정북 이격 거리 실측 검토 필요.")
-    else:
-        parts.append("일조권 사선 미적용 용도지역.")
-
-    return " | ".join(parts)

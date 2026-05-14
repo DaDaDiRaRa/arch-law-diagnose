@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import InputForm from './components/InputForm'
 import DiagnoseResult from './components/DiagnoseResult'
-import WhatIfPanel from './components/WhatIfPanel'
-import ScenarioCompare from './components/ScenarioCompare'
 import QueryBox from './components/QueryBox'
 import { useDiagnoseStore } from './stores/diagnoseStore'
 
 const TABS = [
   { key: 'diagnose', label: '진단 결과', icon: '📋' },
-  { key: 'whatif',   label: 'What-if',  icon: '🎚️' },
-  { key: 'compare',  label: '시나리오 비교', icon: '⚖️' },
   { key: 'query',    label: '자연어 질의', icon: '💬' },
 ]
 
@@ -19,13 +15,10 @@ export default function App() {
 
   const hasOutput = result || loading || error
   const hasAddress = !!formData.address
-  const hasResult = !!result
 
   // 탭별 비활성 조건
   const tabDisabled = {
     diagnose: false,
-    whatif:   !hasResult,
-    compare:  !hasAddress,
     query:    false,
   }
 
@@ -62,11 +55,11 @@ export default function App() {
 
             {!hasOutput && (
               <div className="mt-5 rounded-xl bg-blue-50 border border-blue-100 p-4">
-                <p className="text-sm font-medium text-blue-800 mb-1">Phase 4 — 전체 기능</p>
+                <p className="text-sm font-medium text-blue-800 mb-1">기능 안내</p>
                 <ul className="text-xs text-blue-700 space-y-1 list-disc list-inside">
                   <li>6개 카테고리 종합 진단 (건폐율·용적률·높이·주차·조경·설비소방)</li>
-                  <li>What-if 시뮬레이션 — 슬라이더로 변수 조정 실시간 재계산</li>
-                  <li>시나리오 비교 매트릭스 — 안 A/B/C 동시 진단</li>
+                  <li>합필 진단 — 여러 필지 동시 진단 + 면적 안분 (국토계획법 제84조)</li>
+                  <li>용적률 4가지 제외 — 지하·지상주차장·피난안전구역·경사지붕 대피공간</li>
                   <li>자연어 질의 — 진단 컨텍스트 기반 AI 답변 + 조문 인용</li>
                   <li>사내 케이스 연계 (KUNWON_DB) — 유사 프로젝트 자동 매칭</li>
                   <li>법규 변경 모니터링 — SHA256 해시 비교 + 변경 배너</li>
@@ -107,8 +100,6 @@ export default function App() {
 
                 <div className="p-6">
                   {activeTab === 'diagnose' && <DiagnoseResult />}
-                  {activeTab === 'whatif'   && <WhatIfPanel />}
-                  {activeTab === 'compare'  && <ScenarioCompare />}
                   {activeTab === 'query'    && <QueryBox />}
                 </div>
               </div>

@@ -59,11 +59,12 @@ def calculate(
             "deficit": None,
             "score": None,
             "confidence": 3,
-            "source": "주차장법 시행령 별표 1",
+            "source": "📋 주차장법 시행령 별표 1",
             "law_refs": _law_refs(),
             "notes": (
                 f"법정 최소 주차 {required}대 필요 "
-                f"({std.get('note', '')}). 계획 대수 입력 시 적합 여부 판정."
+                f"({std.get('note', '')}). 계획 대수 입력 시 적합 여부 판정. "
+                f"※ 지자체 조례로 강화 가능 — 자치법규 확인 권장."
             ),
         }
 
@@ -85,7 +86,7 @@ def calculate(
         "deficit": deficit,
         "score": round(score, 1),
         "confidence": 4,
-        "source": "주차장법 시행령 별표 1",
+        "source": "📋 주차장법 시행령 별표 1",
         "law_refs": _law_refs(),
         "notes": _notes(passed, required, provided_spaces, deficit, std),
     }
@@ -122,10 +123,21 @@ def _calc_required(
     units: int | None,
     unit_exclusive_area: float | None,
 ) -> int:
+    # 단독주택 누적식 — 시행령 별표 1
+    if std["type"] == "cumulative":
+        exempt = std.get("exempt_max_m2", 50)         # 50㎡ 이하 면제
+        single = std.get("single_unit_max_m2", 150)   # 150㎡ 이하 1대
+        incr = std.get("incremental_unit_m2", 100)    # 150㎡ 초과분 100㎡당 +1
+        if total_floor_area <= exempt:
+            return 0
+        if total_floor_area <= single:
+            return 1
+        return 1 + math.ceil((total_floor_area - single) / incr)
+
+    # 공동주택 등 세대 기반 — 주택건설기준규정 §27
     if std["type"] == "unit_based" and units:
-        # 공동주택 세대 기반
         thresholds = std.get("thresholds", [])
-        ea = unit_exclusive_area or 85.0  # 미입력 시 85㎡ 가정
+        ea = unit_exclusive_area or 85.0  # 미입력 시 85㎡ 가정 (전용면적 60㎡ 초과 분기)
         ratio = 1.0
         for t in thresholds:
             max_ea = t.get("max_exclusive_area")
@@ -134,21 +146,22 @@ def _calc_required(
                 break
         return math.ceil(units * ratio)
 
-    # 면적 기반
-    unit_area = std.get("unit_area", 200)
+    # 면적 기반 — 시행령 별표 1
+    unit_area = std.get("unit_area", 300)
     min_units = std.get("min_units", 0)
-    if total_floor_area <= unit_area and min_units == 0:
+    if total_floor_area <= 0:
         return 0
     return max(min_units, math.ceil(total_floor_area / unit_area))
 
 
 def _notes(passed: bool, required: int, provided: int, deficit: int, std: dict) -> str:
+    suffix = " ※ 지자체 조례로 강화 가능 — 자치법규 확인 권장."
     if not passed:
         return (
             f"[주의] 주차 부족: 법정 {required}대 필요, 계획 {provided}대 ({deficit}대 부족). "
-            f"인허가 불가. ({std.get('note', '')})"
+            f"인허가 불가. ({std.get('note', '')}){suffix}"
         )
     return (
         f"주차 적합: 법정 {required}대 / 계획 {provided}대 "
-        f"({provided - required}대 여유). ({std.get('note', '')})"
+        f"({provided - required}대 여유). ({std.get('note', '')}){suffix}"
     )

@@ -5,6 +5,7 @@ SQLite 캐시 우선 조회 → 미스 시 VWorld API 호출.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 
@@ -67,15 +68,19 @@ class LandUseResolver:
             lon = geo["lon"]
             lat = geo["lat"]
 
-        # 3. VWorld WFS로 용도지역 조회
-        zone_info = await self._vworld.get_land_use(lon, lat)
+        # 3·4. 용도지역 + 공시지가·지목 + 지적 폴리곤 — 병렬 호출
+        zone_task = self._vworld.get_land_use(lon, lat)
+        info_task = self._vworld.get_land_info(pnu) if pnu else asyncio.sleep(0, result={})
+        parcel_task = self._vworld.get_parcel_polygon(lon, lat)
+        zone_info, land_extra, parcel = await asyncio.gather(
+            zone_task, info_task, parcel_task, return_exceptions=False
+        )
         if not zone_info.get("zone_use"):
             logger.warning("용도지역 조회 결과 없음: lon=%.6f lat=%.6f", lon, lat)
-
-        # 4. VWorld Data API로 공시지가·지목 조회
-        land_extra = {}
-        if pnu:
-            land_extra = await self._vworld.get_land_info(pnu)
+        parcel_geometry = parcel.get("geometry") if parcel else None
+        # PNU 보정 — 사용자가 비워서 보내도 폴리곤 props 에서 추출 가능
+        if not pnu and parcel:
+            pnu = (parcel.get("properties", {}).get("pnu") or "").strip() or pnu
 
         # 5. 결합
         result: dict = {
@@ -89,6 +94,7 @@ class LandUseResolver:
             "lon": lon,
             "lat": lat,
             "pnu": pnu,
+            "parcel_geometry": parcel_geometry,
             "jurisdiction_code": pnu[:5] if len(pnu) >= 5 else "",
             "jurisdiction_name": _parse_sido(address),
             "cache_hit": False,

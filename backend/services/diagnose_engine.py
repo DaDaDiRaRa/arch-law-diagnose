@@ -11,7 +11,7 @@
   5. 진단 이력 저장
 
 Phase 3 추가:
-  - diagnose_fast(): 토지 조회 생략. What-if·시나리오 비교용.
+  - diagnose_fast(): 토지 조회 생략. 합필 진단에서 재사용.
   - skip_ai=True: 설비_소방 AI 호출 생략 (캐시된 결과 재사용).
 """
 from __future__ import annotations
@@ -21,10 +21,23 @@ import logging
 from pathlib import Path
 
 from services.cache_manager import CacheManager
-from services.calculator import coverage, far, fire_safety, height, landscape, parking
+from services.calculator import (
+    coverage,
+    far,
+    fire_safety,
+    height,
+    land_use_act,
+    landscape,
+    parking,
+    urban_facility,
+)
+from services.far_relief import build_relief_note, compute_relief
 from services.land_use_resolver import LandUseResolver, _parse_sido as _extract_sido
 from services.llm_client import LLMClient
+from services.luris_client import LurisClient
 from services.ordinance_resolver import OrdinanceResolver
+from services.review_triggers import evaluate_reviews
+from services.urban_facility import compute_facility_overlap
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +50,27 @@ def _load_weights() -> dict[str, float]:
     return data["weights"]
 
 
+_ZONE_LIMITS_PATH = Path(__file__).parent.parent / "config" / "zone_limits.json"
+_FAR_DEFAULTS_CACHE: dict | None = None
+
+
+def _get_default_far_limit(zone_use: str) -> float | None:
+    """zone_limits.json 의 floor_area_ratio 기본 한도 조회 (완화 계산 기준)."""
+    global _FAR_DEFAULTS_CACHE
+    if _FAR_DEFAULTS_CACHE is None:
+        with open(_ZONE_LIMITS_PATH, encoding="utf-8") as f:
+            _FAR_DEFAULTS_CACHE = json.load(f).get("floor_area_ratio", {})
+    val = _FAR_DEFAULTS_CACHE.get(zone_use)
+    if val is None:
+        for k, v in _FAR_DEFAULTS_CACHE.items():
+            if k.startswith("_") or v is None:
+                continue
+            if zone_use in k or k in zone_use:
+                return float(v)
+        return None
+    return float(val)
+
+
 class DiagnoseEngine:
     def __init__(
         self,
@@ -44,11 +78,13 @@ class DiagnoseEngine:
         cache: CacheManager,
         llm: LLMClient,
         ordinance_resolver: OrdinanceResolver | None = None,
+        luris: LurisClient | None = None,
     ) -> None:
         self._resolver = land_resolver
         self._cache = cache
         self._llm = llm
         self._ordinance = ordinance_resolver
+        self._luris = luris
 
     async def run(self, req: dict) -> dict:
         """전체 진단 — 토지 조회 + 6개 카테고리 + 이력 저장."""
@@ -56,9 +92,12 @@ class DiagnoseEngine:
         pnu: str = req.get("pnu") or ""
 
         land = await self._resolver.resolve(address, pnu=pnu)
-        # 사용자가 zone_use를 직접 지정한 경우 VWorld 결과를 override
+        # 사용자가 zone_use 직접 지정한 경우 VWorld 결과 override
         if req.get("zone_use_override"):
             land["zone_use"] = req["zone_use_override"]
+        # 사용자가 zone_district 직접 지정한 경우 override
+        if req.get("zone_district"):
+            land["zone_district"] = req["zone_district"]
         return await self._diagnose(req, land, save_history=True, skip_ai=False)
 
     async def diagnose_fast(
@@ -70,7 +109,7 @@ class DiagnoseEngine:
         skip_ai: bool = False,
         cached_fire_safety: dict | None = None,
     ) -> dict:
-        """토지 조회 생략 — What-if/시나리오 비교에서 사용.
+        """토지 조회 생략 — 합필 진단(/api/diagnose/multi)에서 사용.
 
         Args:
           zone_use: 기존 진단에서 받은 용도지역 (재조회 안 함).
@@ -81,6 +120,9 @@ class DiagnoseEngine:
         land = land_info if land_info else {"zone_use": zone_use}
         if "zone_use" not in land:
             land["zone_use"] = zone_use
+        # 사용자가 zone_district 지정 시 override
+        if req.get("zone_district"):
+            land["zone_district"] = req["zone_district"]
         # VWorld WFS 없이 호출될 때 jurisdiction_name을 주소에서 보완
         if not land.get("jurisdiction_name"):
             land["jurisdiction_name"] = _extract_sido(req.get("address", ""))
@@ -104,9 +146,19 @@ class DiagnoseEngine:
         """공통 진단 본체 — 6개 계산기 + 점수 + 신호 + 응답 빌드."""
         address: str = req["address"]
         building_use: str = req["building_use"]
-        site_area: float = req["site_area"]
+        site_area_input: float = req["site_area"]
         building_area: float = req["building_area"]
         total_floor_area: float = req["total_floor_area"]
+        # 용적률 산정용 — 지상 연면적에서 부속용도 주차장 + 피난안전구역 + 경사지붕 대피공간 제외
+        # (건축법 시행령 제119조)
+        floor_area_above: float = req.get("floor_area_above", total_floor_area)
+        parking_above: float = float(req.get("floor_area_parking_above") or 0)
+        refuge_area: float = float(req.get("floor_area_refuge") or 0)
+        attic_refuge_area: float = float(req.get("floor_area_attic_refuge") or 0)
+        floor_area_for_far: float = max(
+            0.0,
+            floor_area_above - parking_above - refuge_area - attic_refuge_area,
+        )
         floors_above: int = req["floors_above"]
         floors_below: int = req.get("floors_below", 0)
         h: float = req["height"]
@@ -121,6 +173,63 @@ class DiagnoseEngine:
 
         jurisdiction_code: str = land.get("jurisdiction_code", "") or (pnu[:5] if len(pnu) >= 5 else "")
         jurisdiction_name: str = land.get("jurisdiction_name", "")
+
+        # ─── 대지면적 자동 보정 (시행령 §3) ────────────────────────────────
+        # 도시계획시설 부지는 대지면적에서 제외.
+        # 우선순위: 사용자 수동 override > 자동(폴리곤 교차) > 미보정
+        site_correction: dict = {
+            "applied": False,
+            "original_m2": site_area_input,
+            "excluded_m2": 0.0,
+            "effective_m2": site_area_input,
+            "source": None,  # "manual" | "auto" | None
+            "overlap_info": None,
+            "by_facility": [],
+            "note": "",
+        }
+        manual_excl = req.get("urban_facility_exclude_area")
+        if manual_excl not in (None, "", 0):
+            try:
+                v = float(manual_excl)
+                if v > 0:
+                    site_correction["applied"] = True
+                    site_correction["excluded_m2"] = v
+                    site_correction["effective_m2"] = max(0.0, site_area_input - v)
+                    site_correction["source"] = "manual"
+                    site_correction["note"] = (
+                        f"사용자 입력 시설부지 {v:,.1f}㎡ 제외 (시행령 §3)"
+                    )
+            except (TypeError, ValueError):
+                pass
+
+        if not site_correction["applied"] and land.get("parcel_geometry"):
+            overlap = compute_facility_overlap(
+                parcel_geometry=land["parcel_geometry"],
+                pnu=pnu or land.get("pnu"),
+            )
+            site_correction["overlap_info"] = {
+                "checked": overlap["checked"],
+                "parcel_area_m2": overlap["parcel_area_m2"],
+                "overlap_area_m2": overlap["overlap_area_m2"],
+                "overlap_ratio": overlap["overlap_ratio"],
+            }
+            site_correction["by_facility"] = overlap.get("by_facility", [])
+            if overlap["checked"] and overlap["overlap_area_m2"] > 0:
+                excl = overlap["overlap_area_m2"]
+                # 사용자 입력 site_area보다 더 큰 보정값이 나오면 안 됨 — clamp
+                excl = min(excl, site_area_input * 0.999)
+                site_correction["applied"] = True
+                site_correction["excluded_m2"] = round(excl, 2)
+                site_correction["effective_m2"] = round(site_area_input - excl, 2)
+                site_correction["source"] = "auto"
+                site_correction["note"] = (
+                    f"도시계획시설 저촉 {len(overlap['by_facility'])}건 — "
+                    f"VWorld 지적도 ∩ 시설 SHP 자동 산정 {excl:,.1f}㎡ 제외 "
+                    f"(전체 {overlap['parcel_area_m2']:,.1f}㎡의 "
+                    f"{overlap['overlap_ratio']*100:.1f}%) [시행령 §3]"
+                )
+
+        site_area: float = site_correction["effective_m2"]
 
         # 조례 수치 사전 조회 (OrdinanceResolver 있을 때만)
         cov_limit: float | None = None
@@ -139,11 +248,74 @@ class DiagnoseEngine:
             far_limit = far_res.get("value")
             far_source = _fmt_source(far_res)
 
+        # 행위제한 (LURIS API) — zone_use + building_use 적합성
+        r_land_use_act = await land_use_act.calculate(
+            self._luris,
+            zone_use=zone_use,
+            building_use=building_use,
+            jurisdiction_code=jurisdiction_code,
+        )
+
+        # 도시계획시설 저촉 (SHP 공간 검사)
+        r_urban_facility = urban_facility.calculate(
+            lat=land.get("lat"),
+            lng=land.get("lon"),
+            pnu=pnu or land.get("pnu"),
+        )
+
         # 정량 5개 (동기)
         r_coverage = coverage.calculate(building_area, site_area, zone_use, cov_limit, cov_source)
-        r_far = far.calculate(total_floor_area, site_area, zone_use, floors_below, far_limit, far_source)
+
+        # 용적률 한도에 완화 적용 (공개공지, 친환경 인증 등 + 사용자 수동 입력)
+        base_far_limit = far_limit  # 조례 우선, 없으면 None → far.py 내부에서 zone_limits.json
+        if base_far_limit is None:
+            # zone_limits.json 기본값을 미리 가져와 완화 계산에 사용
+            base_far_limit = _get_default_far_limit(zone_use)
+        public_open_space = req.get("public_open_space_area")
+        relief = compute_relief(
+            base_limit_pct=base_far_limit,
+            zone_use=zone_use,
+            building_use=building_use,
+            site_area=site_area,
+            public_open_space_area=public_open_space,
+            green_grade=req.get("green_grade"),
+            energy_grade=req.get("energy_grade"),
+            smart_grade=req.get("smart_grade"),
+            long_life_grade=req.get("long_life_grade"),
+            far_limit_manual_override=req.get("far_limit_manual_override"),
+            relief_reason_manual=req.get("relief_reason_manual"),
+        )
+        # 완화가 적용되면 final_limit_pct를 far.py 에 전달
+        far_limit_effective = relief["final_limit_pct"] if relief["applied"] else far_limit
+        far_source_effective = far_source
+        if relief["applied"]:
+            far_source_effective = (
+                "🌿 완화 적용 (자동 추정)"
+                if not relief["manual_used"]
+                else "✋ 사용자 수동 한도 (심의 결정 등)"
+            )
+
+        # 용적률: 지상 연면적 - 부속용도 주차장 - 피난안전구역 - 경사지붕 대피공간 (건축법 시행령 제119조)
+        r_far = far.calculate(
+            floor_area_for_far, site_area, zone_use, floors_below,
+            far_limit_effective, far_source_effective,
+            parking_excluded=parking_above,
+            refuge_excluded=refuge_area,
+            attic_refuge_excluded=attic_refuge_area,
+        )
+        # notes 끝에 완화 내역 + 면책 문구 추가
+        relief_note = build_relief_note(relief)
+        if relief_note:
+            r_far["notes"] = (r_far.get("notes") or "") + relief_note
+            r_far["relief_info"] = relief  # 프론트엔드에서 상세 표시용
         r_height = height.calculate(h, floors_above, zone_use, road_width)
-        r_parking = parking.calculate(building_use, total_floor_area, units=units)
+        provided_parking = req.get("provided_parking_spaces")
+        r_parking = parking.calculate(
+            building_use,
+            total_floor_area,
+            units=units,
+            provided_spaces=provided_parking,
+        )
         r_landscape = landscape.calculate(landscape_area, site_area, zone_use, building_use)
 
         # 설비_소방 — AI 호출 (선택적 스킵)
@@ -168,6 +340,8 @@ class DiagnoseEngine:
             )
 
         results = {
+            "행위제한": r_land_use_act,
+            "도시계획시설": r_urban_facility,
             "건폐율": r_coverage,
             "용적률": r_far,
             "높이_일조": r_height,
@@ -196,6 +370,9 @@ class DiagnoseEngine:
         else:
             signal = "GREEN"
 
+        # B4: 8개 심의 자동 트리거
+        applicable_reviews = evaluate_reviews(req, land)
+
         response = {
             "address": address,
             "land_info": {
@@ -211,6 +388,10 @@ class DiagnoseEngine:
                 "cache_age_days": land.get("cache_age_days", 0),
                 "cache_stale": land.get("cache_stale", False),
             },
+            "building_use_detail": req.get("building_use_detail"),
+            "public_open_space_area": req.get("public_open_space_area"),
+            "site_correction": site_correction,
+            "applicable_reviews": applicable_reviews,
             "results": results,
             "overall_score": overall,
             "signal": signal,

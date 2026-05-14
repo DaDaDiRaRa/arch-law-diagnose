@@ -1,8 +1,8 @@
 """용적률 계산기.
 
 용적률 = 지상층 연면적 합계 / 대지면적 × 100 (%)
-※ 지하층, 주차장, 피로티 등은 용적률 산정 제외 (건축법 시행령 제119조)
-  → V1에서는 사용자 입력 total_floor_area를 그대로 사용 (제외 면적 별도 입력 미구현)
+※ 지하층, 주차장, 피로티 등은 용적률 산정 제외 (건축법 시행령 제119조).
+  호출 시 floor_area_above (지상 연면적) 만 전달해야 함.
 """
 from __future__ import annotations
 
@@ -25,26 +25,30 @@ def _load_limits() -> dict[str, float]:
 
 
 def calculate(
-    total_floor_area: float,
+    floor_area_above: float,
     site_area: float,
     zone_use: str,
     floors_below: int = 0,
     limit_override: float | None = None,
     source_override: str | None = None,
+    parking_excluded: float = 0.0,
+    refuge_excluded: float = 0.0,
+    attic_refuge_excluded: float = 0.0,
 ) -> dict:
-    """용적률 진단 결과.
+    """용적률 진단 결과 — 용적률 산정용 면적 기반.
 
-    limit_override: OrdinanceResolver가 결정한 조례 수치 (없으면 zone_limits.json 사용).
-    source_override: "조례" | "시행령" 레이블.
-
-    Returns:
-      {
-        category, actual_pct, limit_pct, pass, excess_pct,
-        score, confidence, source, notes
-      }
+    Args:
+      floor_area_above: 용적률 산정용 지상 면적 (㎡). 호출 측에서 이미 부속용도 주차장,
+        피난안전구역, 경사지붕 대피공간 등 제외 면적을 차감한 값.
+        지하층은 산정 대상이 아니므로 별도 제외.
+      parking_excluded: 표시용 — 부속용도 지상 주차장 면적 (㎡). notes 안내문에 사용.
+      refuge_excluded: 표시용 — 피난안전구역 면적 (㎡, 초고층/준초고층). notes 안내문에 사용.
+      attic_refuge_excluded: 표시용 — 경사지붕 대피공간 면적 (㎡, 11층 이상). notes 안내문에 사용.
+      limit_override: OrdinanceResolver가 결정한 조례 수치 (없으면 zone_limits.json).
+      source_override: "조례" | "시행령" 레이블.
     """
     limits = _load_limits()
-    actual_pct = (total_floor_area / site_area) * 100 if site_area > 0 else 0.0
+    actual_pct = (floor_area_above / site_area) * 100 if site_area > 0 else 0.0
 
     if limit_override is not None:
         limit_pct = float(limit_override)
@@ -70,7 +74,22 @@ def calculate(
 
     note_extra = ""
     if floors_below > 0:
-        note_extra = f" (지하 {floors_below}층 면적은 용적률 제외 대상이나 V1에서는 미분리)"
+        note_extra += f" · 지하 {floors_below}층 면적은 용적률 산정 제외 (건축법 시행령 제119조)"
+    if parking_excluded > 0:
+        note_extra += (
+            f" · 지상 부속용도 주차장 {parking_excluded:.0f}㎡ 제외 "
+            f"(건축법 시행령 제119조)"
+        )
+    if refuge_excluded > 0:
+        note_extra += (
+            f" · 피난안전구역 {refuge_excluded:.0f}㎡ 제외 "
+            f"(초고층/준초고층, 건축법 시행령 제119조)"
+        )
+    if attic_refuge_excluded > 0:
+        note_extra += (
+            f" · 경사지붕 대피공간 {attic_refuge_excluded:.0f}㎡ 제외 "
+            f"(11층 이상, 건축법 시행령 제119조)"
+        )
 
     source = source_override or "국토계획법 시행령 별표 (기본값, 조례 미적용)"
 
