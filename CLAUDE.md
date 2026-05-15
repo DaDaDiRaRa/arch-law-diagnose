@@ -17,10 +17,10 @@
 
 | 서비스 | 환경변수 | 용도 |
 |---|---|---|
-| VWorld | `VWORLD_API_KEY` | 좌표 변환·용도지역·지적도·도로폭 |
+| VWorld | `VWORLD_API_KEY` | 좌표 변환·용도지역·지적도·도로폭·지적 폴리곤 |
 | Kakao Local | `KAKAO_API_KEY` | 주소 자동완성 |
 | 공공데이터포털 | `LURIS_API_KEY` 또는 `DATA_GO_KR_API_KEY` | LURIS 행위제한 (legacy) |
-| 토지이음 | `EUM_ID`, `EUM_KEY` | 법령정보·고시·개발인허가·행위제한·쉬운규제안내서 (Phase 0~3 작업 예정) |
+| 토지이음 | `EUM_ID`, `EUM_KEY` | 법령정보·고시·개발인허가·행위제한 (`eum_client.py` 완성, 진단 엔진 직통 연결은 미완) |
 | Anthropic | `ANTHROPIC_API_KEY` | Claude API |
 | Slack (선택) | `SLACK_WEBHOOK_URL` | 시니어 검토 요청 |
 
@@ -71,14 +71,65 @@
 
 ---
 
+## 주요 서비스 파일 (backend/services/)
+
+| 파일 | 상태 | 역할 |
+|---|---|---|
+| `diagnose_engine.py` | ✅ | 진단 전체 오케스트레이션 |
+| `zone_use_normalizer.py` | ✅ | 용도지역 표준명 정규화 (19종 + 별칭 61개) |
+| `eum_client.py` | ✅ | 토지이음 7개 API (법령·고시·행위제한·개발인허가) |
+| `vworld_client.py` | ⚠️ 검증 필요 | VWorld WFS 지적 폴리곤 + 지오코딩 (Phase 5 신규) |
+| `ordinance_resolver.py` | ✅ | 조례 cascade 조회 (캐시 → API → LLM fallback) |
+| `ordinance_extractor.py` | ✅ | 법령 본문 → 건폐율/용적률 수치 추출 (regex + LLM) |
+| `luris_client.py` | ✅ | LURIS 행위제한정보서비스 |
+| `land_use_resolver.py` | ✅ | 토지 정보 조회 + stale 캐시 fallback |
+| `far_relief.py` | ✅ | 용적률 완화 4종 (녹색·에너지·지능형·장수명) |
+| `multi_parcel.py` | ✅ | 합필 진단 (면적 안분 + 소규모 예외) |
+| `review_triggers.py` | ✅ | 심의 자동 트리거 8종 |
+| `law_change_tracker.py` | ⚠️ | 법규 변경 감지 (수동 호출만, Cron 미연결) |
+| `cache_manager.py` | ✅ | SQLite Lazy Cache (조례 30일 TTL + 진단 이력) |
+| `llm_client.py` | ✅ | Claude API (temp=0, prompt caching) |
+| `query_engine.py` | ⚠️ | 자연어 질의 (기본 구현, 조문 자동 인용 미완) |
+
+## 주요 프론트엔드 컴포넌트 (frontend/src/components/)
+
+| 컴포넌트 | 상태 | 역할 |
+|---|---|---|
+| `InputForm/` | ✅ | 전체 입력 폼 (모든 필드 + validation) |
+| `DiagnoseResult/` | ✅ | 8개 카테고리 진단 카드 |
+| `LegalReviewReport/` | ✅ | Phase 4 종합 검토 보고서 |
+| `DataQualityBanner/` | ✅ | 데이터 출처·fallback 여부 경고 표시 (Phase 5 신규) |
+| `LawInfoPanel/` | ✅ | 토지이음 법령 조문 펼쳐보기 (Phase 5 신규) |
+| `QueryBox/` | ✅ | 자연어 질의 입력/응답 |
+| `CaseReference/` | ✅ | 사내 유사 케이스 추천 |
+| `LawChangeAlert/` | ✅ | 법규 변경 알림 배너 |
+| `AddressSearch/` | ✅ | 카카오 주소 자동완성 |
+| `ReviewRequestButton/` | ✅ | 시니어 검토 요청 (Slack 연동) |
+
+---
+
 ## 진행 중 / 보류 작업
 
-### Phase 0~3 — 토지이음 5개 API 통합 (예정)
-- Phase 0: `EumClient` 신설 (5개 API + XML 파싱)
-- Phase 1: 법령정보 → 진단 카드에 조문 본문 펼쳐보기
-- Phase 2: 고시정보 → `law_change_tracker.py` 보강
-- Phase 3: 개발행위허가정보 → 주변 개발 동향 섹션
+### Phase 0~3 — 토지이음 5개 API 통합
+
+| Phase | 내용 | 상태 |
+|---|---|---|
+| Phase 0 | `EumClient` 신설 (7개 메서드 + XML 파싱) | ✅ 완료 (`eum_client.py` 405줄) |
+| Phase 1 | 법령정보 → 진단 카드에 조문 본문 펼쳐보기 | ⚠️ 부분 완료 — `/api/eum/law_info` 엔드포인트·`LawInfoPanel` 컴포넌트 있음. 진단 카드 자동 삽입은 미구현 |
+| Phase 2 | 고시정보 → `law_change_tracker.py` 보강 | ❌ 미시작 — EUM `get_notices()` 구현됨, tracker 연결 안 됨 |
+| Phase 3 | 개발행위허가정보 → 주변 개발 동향 섹션 | ❌ 미시작 — EUM `get_dev_permits()` 구현됨, UI 없음 |
+
 - 쉬운규제안내서: API 통합 안 함, 참고 자료로 활용
+
+### 남은 주요 작업
+
+- **조례 DB 확충** (🔴 최우선) — `ordinance_seed.json` 현재 48개, 전국 ~162개 시군구 기준 수천 건 필요. `backend/scripts/seed_ordinances.py` 아직 미실행. 실행 전까지 서울 외 지역은 시행령 기본값(fallback) 사용.
+- **진단 엔진 ↔ EUM 직통 연결** — 현재 행위제한은 LURIS만 사용. EUM `get_act_restriction()` 을 보조 소스로 병렬 조회 후 병합 예정.
+- **조경·높이 → 조례 리졸버 연동** — 현재 `landscape_standards.json` / `zone_limits.json` 기본값 직접 참조. `ordinance_resolver.py` 로 조례값 우선 적용하도록 수정 필요.
+- **What-if 슬라이더** — 사양엔 있음, 미구현. 변수(연면적·높이·주차수) 조정 → 즉시 재계산 엔드포인트 + 시나리오 비교 매트릭스 UI.
+- **법규 변경 Cron 자동화** — `law_change_tracker.py` 수동 호출만 가능. APScheduler + 법제처 API 주기 폴링 추가 필요.
+- **VWorld 폴리곤 성능 검증** — `vworld_client.py` (Phase 5 신규) 로컬 테스트 미완. 대규모 필지 쿼리 시 타임아웃 가능성 확인 필요.
+- **사내 케이스 DB** — `KUNWON_DB/cases/sample_cases.json` 더미만 있음. 실제 프로젝트 케이스 수작업 입력 필요 (코드 작업 아님).
 
 ### 보류
 - **도로폭 자동 조회** (5.3) — VWorld `lt_l_sprd` 레이어가 도로명만 반환 (폭 속성 없음). `lt_l_moctlink` 도 NOT_FOUND. 인프라(코드/DB 컬럼/UI)는 구축 완료, 데이터 소스만 보류 상태. 토지이음 API 도입 후 재검토.
@@ -106,7 +157,7 @@ SQLite 직접 조작:
 ```sql
 DELETE FROM land_info_cache WHERE pnu='...';
 ```
-또는 전체 재시작은 `./data/arch_law.db` 삭제 (조례 seed 32건은 자동 재적재됨).
+또는 전체 재시작은 `./data/arch_law.db` 삭제 (조례 seed 48건은 자동 재적재됨).
 
 ---
 
@@ -119,6 +170,11 @@ DELETE FROM land_info_cache WHERE pnu='...';
 
 ### VWorld 응답 디버깅
 - 도로폭 호출 시 `[VWorld 도로 응답 샘플] 첫 feature properties = {...}` 로그로 응답 구조 확인 가능
+- `vworld_client.py` 의 WFS 폴리곤 조회는 `VWORLD_API_KEY` 필요. 응답이 빈 feature list 이면 레이어명 오타 or 좌표계 확인.
+
+### 토지이음 API 디버깅
+- `EumClient` 는 `EUM_ID` + `EUM_KEY` 필요. 인증 실패 시 XML `<errMsg>` 반환 → 로그에 그대로 출력됨.
+- `/api/eum/health` 로 연결 상태 확인 가능.
 
 ### 브라우저 캐시
 - `frontend/src/utils/api.js` 에 `cache: 'no-store'` 적용됨
