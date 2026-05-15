@@ -113,16 +113,10 @@ def _load_weights() -> dict:
 
 
 def _get_zone_limit(zone_use: str, key: str) -> float | None:
-    """zone_limits.json에서 zone별 한도 조회 (부분 매칭 지원)."""
+    """zone_limits.json에서 zone별 한도 조회. 표준명 정규화 후 정확 매칭."""
+    from services.zone_use_normalizer import lookup_limit
     limits = _load_limits().get(key, {})
-    if zone_use in limits and limits[zone_use] is not None:
-        return float(limits[zone_use])
-    for k, v in limits.items():
-        if k.startswith("_") or v is None:
-            continue
-        if zone_use in k or k in zone_use:
-            return float(v)
-    return None
+    return lookup_limit(limits, zone_use)
 
 
 def aggregate_zones(

@@ -114,6 +114,18 @@ export default function InputForm() {
         ...(formData.urban_facility_exclude_area
           ? { urban_facility_exclude_area: parseFloat(formData.urban_facility_exclude_area) }
           : {}),
+        ...(formData.north_setback_m
+          ? { north_setback_m: parseFloat(formData.north_setback_m) }
+          : {}),
+        ...(formData.adjacent_zone_north
+          ? { adjacent_zone_north: formData.adjacent_zone_north }
+          : {}),
+        ...(formData.road_20m_adjacent
+          ? { road_20m_adjacent: formData.road_20m_adjacent === 'yes' }
+          : {}),
+        ...(formData.street_block_max_height_m
+          ? { street_block_max_height_m: parseFloat(formData.street_block_max_height_m) }
+          : {}),
         floors_above: parseInt(formData.floors_above, 10),
         floors_below: parseInt(formData.floors_below || '0', 10),
         height: parseFloat(formData.height),
@@ -150,11 +162,23 @@ export default function InputForm() {
       address: formData.address,
       pnu: formData.pnu || undefined,
       building_use: formData.building_use,
+      ...(formData.building_use_detail ? { building_use_detail: formData.building_use_detail } : {}),
+      ...(formData.zone_district ? { zone_district: formData.zone_district } : {}),
+      ...(formData.zone_use_override ? { zone_use_override: formData.zone_use_override } : {}),
       site_area: parseFloat(formData.site_area),
       building_area: parseFloat(formData.building_area),
       floor_area_above: parseFloat(formData.floor_area_above),
       ...(formData.floor_area_below
         ? { floor_area_below: parseFloat(formData.floor_area_below) }
+        : {}),
+      ...(formData.floor_area_parking_above
+        ? { floor_area_parking_above: parseFloat(formData.floor_area_parking_above) }
+        : {}),
+      ...(formData.floor_area_refuge
+        ? { floor_area_refuge: parseFloat(formData.floor_area_refuge) }
+        : {}),
+      ...(formData.floor_area_attic_refuge
+        ? { floor_area_attic_refuge: parseFloat(formData.floor_area_attic_refuge) }
         : {}),
       floors_above: parseInt(formData.floors_above, 10),
       floors_below: parseInt(formData.floors_below || '0', 10),
@@ -162,7 +186,37 @@ export default function InputForm() {
       ...(formData.road_width ? { road_width: parseFloat(formData.road_width) } : {}),
       ...(formData.landscape_area ? { landscape_area: parseFloat(formData.landscape_area) } : {}),
       ...(isApartment && formData.units ? { units: parseInt(formData.units, 10) } : {}),
-      ...(formData.zone_use_override ? { zone_use_override: formData.zone_use_override } : {}),
+      ...(formData.provided_parking_spaces
+        ? { provided_parking_spaces: parseInt(formData.provided_parking_spaces, 10) }
+        : {}),
+      ...(formData.public_open_space_area
+        ? { public_open_space_area: parseFloat(formData.public_open_space_area) }
+        : {}),
+      ...(formData.green_grade      ? { green_grade: formData.green_grade } : {}),
+      ...(formData.energy_grade     ? { energy_grade: formData.energy_grade } : {}),
+      ...(formData.smart_grade      ? { smart_grade: formData.smart_grade } : {}),
+      ...(formData.long_life_grade  ? { long_life_grade: formData.long_life_grade } : {}),
+      ...(formData.far_limit_manual_override
+        ? { far_limit_manual_override: parseFloat(formData.far_limit_manual_override) }
+        : {}),
+      ...(formData.relief_reason_manual
+        ? { relief_reason_manual: formData.relief_reason_manual }
+        : {}),
+      ...(formData.urban_facility_exclude_area
+        ? { urban_facility_exclude_area: parseFloat(formData.urban_facility_exclude_area) }
+        : {}),
+      ...(formData.north_setback_m
+        ? { north_setback_m: parseFloat(formData.north_setback_m) }
+        : {}),
+      ...(formData.adjacent_zone_north
+        ? { adjacent_zone_north: formData.adjacent_zone_north }
+        : {}),
+      ...(formData.road_20m_adjacent
+        ? { road_20m_adjacent: formData.road_20m_adjacent === 'yes' }
+        : {}),
+      ...(formData.street_block_max_height_m
+        ? { street_block_max_height_m: parseFloat(formData.street_block_max_height_m) }
+        : {}),
     }
 
     const hasInvalid = Object.values(payload).some((v) => typeof v === 'number' && isNaN(v))
@@ -540,14 +594,93 @@ export default function InputForm() {
             className={inputCls} placeholder="24" required
           />
         </Field>
-        <Field label="전면도로 폭 (m)" hint="미입력 가능">
+        <Field
+          label="전면도로 폭 (m)"
+          hint={
+            autoLandInfo?.road_width_auto != null
+              ? `🔄 자동 조회됨 ${autoLandInfo.road_width_auto}m · 다르면 수정`
+              : "미입력 가능 — 주소 선택 시 자동 조회 시도"
+          }
+        >
           <input
             type="number" name="road_width" value={formData.road_width}
             onChange={handleChange} min="1" step="0.1"
-            className={inputCls} placeholder="12"
+            className={inputCls}
+            placeholder={autoLandInfo?.road_width_auto != null ? String(autoLandInfo.road_width_auto) : "12"}
           />
         </Field>
       </div>
+
+      {/* ☀ 높이·일조 자동 판정 입력 (선택, 입력 시 자동 pass/fail) */}
+      <details className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-amber-900 select-none">
+          ☀ 높이·일조 자동 판정 입력 (선택 — 입력 시 자동 pass/fail, 미입력 시 수동검토)
+        </summary>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <Field
+            label="정북 인접대지경계선 이격거리 (m)"
+            hint="설계 도면 측정값 — 입력 시 §86 ①항 자동 비교"
+          >
+            <input
+              type="number" name="north_setback_m" value={formData.north_setback_m}
+              onChange={handleChange} min="0" step="0.01"
+              className={inputCls} placeholder="예: 4.5"
+            />
+          </Field>
+          <Field
+            label="정북 인접대지 용도지역"
+            hint="비주거 시 §86 ②항 3호 적용 제외"
+          >
+            <select
+              name="adjacent_zone_north" value={formData.adjacent_zone_north}
+              onChange={handleChange} className={inputCls}
+            >
+              <option value="">미지정</option>
+              <option value="제1종전용주거지역">제1종전용주거지역</option>
+              <option value="제2종전용주거지역">제2종전용주거지역</option>
+              <option value="제1종일반주거지역">제1종일반주거지역</option>
+              <option value="제2종일반주거지역">제2종일반주거지역</option>
+              <option value="제3종일반주거지역">제3종일반주거지역</option>
+              <option value="준주거지역">준주거지역</option>
+              <option value="중심상업지역">중심상업지역</option>
+              <option value="일반상업지역">일반상업지역</option>
+              <option value="근린상업지역">근린상업지역</option>
+              <option value="유통상업지역">유통상업지역</option>
+              <option value="전용공업지역">전용공업지역</option>
+              <option value="일반공업지역">일반공업지역</option>
+              <option value="준공업지역">준공업지역</option>
+              <option value="비주거(기타)">비주거(기타)</option>
+            </select>
+          </Field>
+          <Field
+            label="너비 20m 이상 도로 접함"
+            hint="True 시 §86 ②항 1호 적용 제외"
+          >
+            <select
+              name="road_20m_adjacent" value={formData.road_20m_adjacent}
+              onChange={handleChange} className={inputCls}
+            >
+              <option value="">미지정</option>
+              <option value="yes">예 (20m 이상)</option>
+              <option value="no">아니오</option>
+            </select>
+          </Field>
+          <Field
+            label="가로구역별 최고높이 (m)"
+            hint="허가권자 지정·공고된 경우만 (§60)"
+          >
+            <input
+              type="number" name="street_block_max_height_m" value={formData.street_block_max_height_m}
+              onChange={handleChange} min="1" step="0.1"
+              className={inputCls} placeholder="예: 30"
+            />
+          </Field>
+        </div>
+        <p className="mt-2 text-[10px] text-amber-700 leading-relaxed">
+          ※ 정북 이격거리 입력 시 §86 ①항(1.5m 이상 또는 height/2) 자동 검토.
+          가로구역 최고높이 입력 시 §60 자동 비교. 적용 제외 사유 입력 시 사선 적용 면제 처리.
+        </p>
+      </details>
 
       {/* 세대수 (공동주택) + 계획 주차대수 */}
       <div className="grid grid-cols-2 gap-3">
@@ -648,6 +781,7 @@ function AutoLandInfoBanner({ loading, info }) {
   if (info.zone_area) items.push(['용도구역', info.zone_area])
   if (info.land_category) items.push(['지목', info.land_category])
   if (info.official_price) items.push(['공시지가', `${info.official_price.toLocaleString()}원/㎡`])
+  if (info.road_width_auto != null) items.push(['전면도로 폭', `${info.road_width_auto}m (자동)`])
   if (items.length === 0) {
     return (
       <p className="mt-2 text-xs text-amber-600">⚠ 토지이용계획 조회 실패 (수동 입력 필요)</p>

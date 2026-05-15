@@ -14,6 +14,7 @@ from services.address_api_client import AddressApiClient
 from services.cache_manager import CacheManager
 from services.case_matcher import CaseMatcher
 from services.diagnose_engine import DiagnoseEngine
+from services.eum_client import EumClient
 from services.land_use_resolver import LandUseResolver
 from services.law_change_tracker import LawChangeTracker
 from services.law_go_kr_client import LawGoKrClient
@@ -22,6 +23,7 @@ from services.luris_client import LurisClient
 from services.multi_parcel import aggregate_zones, apply_weighted_limits
 from services.ordinance_extractor import OrdinanceExtractor
 from services.ordinance_resolver import OrdinanceResolver
+from services.ordinance_seed_loader import load_seed_into_db
 from services.query_engine import QueryEngine
 from services.review_notifier import ReviewNotifier
 from services.vworld_client import VWorldClient
@@ -40,6 +42,7 @@ engine: DiagnoseEngine | None = None
 query_engine: QueryEngine | None = None
 law_client: LawGoKrClient | None = None
 luris_client: LurisClient | None = None
+eum_client: EumClient | None = None
 case_matcher: CaseMatcher | None = None
 law_tracker: LawChangeTracker | None = None
 review_notifier: ReviewNotifier | None = None
@@ -50,9 +53,10 @@ async def lifespan(app: FastAPI):
     global cache_manager, address_client, vworld_client, land_resolver, llm_client
     global ordinance_extractor, ordinance_resolver
     global engine, query_engine
-    global law_client, luris_client, case_matcher, law_tracker, review_notifier
+    global law_client, luris_client, eum_client, case_matcher, law_tracker, review_notifier
     cache_manager = CacheManager()
     await cache_manager.init()
+    seed_stats = await load_seed_into_db(cache_manager)
     address_client = AddressApiClient()
     vworld_client = VWorldClient()
     land_resolver = LandUseResolver(vworld_client, cache_manager)
@@ -66,6 +70,9 @@ async def lifespan(app: FastAPI):
     # LURIS — 행위제한정보 (토지이용규제정보서비스), SQLite 캐시 주입 (1000회/일 한도 절약)
     luris_client = LurisClient(cache=cache_manager)
 
+    # 토지이음 표준연계 (Phase 0 — EumClient. 5개 메인 + 2개 헬퍼 API)
+    eum_client = EumClient()
+
     engine = DiagnoseEngine(land_resolver, cache_manager, llm_client, ordinance_resolver, luris_client)
     query_engine = QueryEngine(llm_client)
 
@@ -74,11 +81,27 @@ async def lifespan(app: FastAPI):
     law_tracker = LawChangeTracker(cache_manager, law_client)
     review_notifier = ReviewNotifier()
 
+    _status = {
+        "VWorld":   "✅" if vworld_client._key  else "❌ VWORLD_API_KEY 미설정",
+        "LURIS":    "✅" if luris_client._key   else "❌ LURIS_API_KEY / DATA_GO_KR_API_KEY 미설정",
+        "주소검색":  "✅" if address_client._key else "❌ KAKAO_API_KEY 미설정",
+        "AI(Claude)": "✅" if llm_client.available else "❌ ANTHROPIC_API_KEY 미설정",
+        "토지이음":  "✅" if eum_client.available else "❌ EUM_ID / EUM_KEY 미설정",
+        "Slack":    "✅" if review_notifier.slack_configured else "⚠ 미설정(로그만)",
+    }
+    for svc, st in _status.items():
+        logger.info("  %-12s %s", svc, st)
+    if any("❌" in st for st in _status.values()):
+        logger.warning(
+            "일부 외부 API가 비활성 상태입니다. "
+            "해당 진단 항목은 '확인필요(YELLOW)'로 처리됩니다."
+        )
     logger.info(
-        "arch-law-diagnose backend ready (AI: %s · Slack: %s · OrdinanceResolver: 활성)",
-        "활성" if llm_client.available else "비활성",
-        "활성" if review_notifier.slack_configured else "비활성(로그만)",
+        "조례 seed: %d건 신규 삽입, %d건 기존값 보존 (%s)",
+        seed_stats["inserted"], seed_stats["skipped"],
+        ", ".join(seed_stats["jurisdictions"]) or "없음",
     )
+    logger.info("arch-law-diagnose backend ready")
     yield
     await cache_manager.close()
     await address_client.close()
@@ -86,6 +109,7 @@ async def lifespan(app: FastAPI):
     await llm_client.close()
     await law_client.close()
     await luris_client.close()
+    await eum_client.close()
     await review_notifier.close()
 
 
@@ -172,6 +196,22 @@ class DiagnoseRequest(BaseModel):
         description="대지면적에서 제외할 시설부지 면적 (선택). 자동 추정 결과를 무시하고 수동 지정.",
     )
 
+    # 높이·일조 보강 입력 (선택, 입력 시 자동 pass/fail)
+    north_setback_m: float | None = Field(
+        None, ge=0,
+        description="정북 인접대지경계선까지 실제 이격거리 (m). 입력 시 §86 ①항 자동 판정.",
+    )
+    adjacent_zone_north: str | None = Field(
+        None, description="정북 방향 인접대지 용도지역 (비주거이면 §86 ②항 3호 적용 제외)",
+    )
+    road_20m_adjacent: bool | None = Field(
+        None, description="너비 20m 이상 도로 접함 여부 (True 시 §86 ②항 1호 적용 제외)",
+    )
+    street_block_max_height_m: float | None = Field(
+        None, gt=0,
+        description="가로구역별 최고높이 지정값 (m). 입력 시 §60 자동 비교.",
+    )
+
 
 class ParcelInput(BaseModel):
     address: str = Field(..., description="필지 주소")
@@ -217,6 +257,12 @@ class MultiDiagnoseRequest(BaseModel):
     # B7: 도시계획시설 저촉 면적 (선택)
     urban_facility_exclude_area: float | None = Field(None, ge=0)
 
+    # 높이·일조 보강 입력 (선택)
+    north_setback_m: float | None = Field(None, ge=0)
+    adjacent_zone_north: str | None = None
+    road_20m_adjacent: bool | None = None
+    street_block_max_height_m: float | None = Field(None, gt=0)
+
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, description="자연어 질문")
@@ -256,6 +302,93 @@ async def health():
     return {"status": "ok", "version": "3.0.0"}
 
 
+@app.get("/api/eum/health")
+async def eum_health():
+    """토지이음 API 연결·인증 검증 — 시군구 코드 조회 (가장 가벼운 호출).
+
+    Returns:
+      {"available": bool, "area_count": int, "sample": [first 3 items]}
+    """
+    if eum_client is None or not eum_client.available:
+        return {"available": False, "area_count": 0, "sample": [], "reason": "EUM_ID / EUM_KEY 미설정"}
+    areas = await eum_client.search_area_codes()
+    return {
+        "available": True,
+        "area_count": len(areas),
+        "sample": areas[:3],
+    }
+
+
+@app.get("/api/eum/law_info")
+async def eum_law_info(
+    area_cd: str = Query(..., min_length=5, max_length=5, description="시군구코드 5자리"),
+    zone_use: str = Query("", description="용도지역명 (예: 제2종일반주거지역)"),
+    zone_district: str = Query("", description="지역지구명 (콤마 구분 가능)"),
+):
+    """토지이용규제 법령정보 — Phase 1.
+
+    1. zone_use + zone_district → 토지이음 UCODE 변환 (searchZone)
+    2. iuLawInfo 호출 → 법령 본문 받기
+    3. UCODE별로 그룹화해서 반환
+
+    Returns:
+      {
+        ucode_count, total_items,
+        groups: [{ucode, uname, law_cd, law_nm, items: [{law_contents, law_level, ...}]}]
+      }
+    """
+    if eum_client is None or not eum_client.available:
+        raise HTTPException(503, "토지이음 API 비활성 (EUM_ID/EUM_KEY 확인)")
+
+    names: list[str] = []
+    if zone_use.strip():
+        names.append(zone_use.strip())
+    if zone_district.strip():
+        for d in zone_district.split(","):
+            ds = d.strip()
+            if ds:
+                names.append(ds)
+    if not names:
+        return {"ucode_count": 0, "total_items": 0, "groups": [], "warning": "zone_use 또는 zone_district 필요"}
+
+    ucode_info = await eum_client.resolve_zone_ucodes(area_cd, names)
+    if not ucode_info:
+        return {
+            "ucode_count": 0,
+            "total_items": 0,
+            "groups": [],
+            "warning": "토지이음 표준명 매칭 실패 — 입력값과 일치하는 UCODE 없음",
+        }
+
+    ucode_list = [u["ucode"] for u in ucode_info if u["ucode"]]
+    laws = await eum_client.get_law_info(area_cd, ucode_list)
+
+    # UCODE별 그룹화 + level 순 정렬
+    groups: dict[str, dict] = {
+        u["ucode"]: {
+            "ucode": u["ucode"],
+            "uname": u["uname"],
+            "law_cd": u["law_cd"],
+            "law_nm": u["law_nm"],
+            "items": [],
+        }
+        for u in ucode_info
+    }
+    for law in laws:
+        if law["ucode"] in groups:
+            groups[law["ucode"]]["items"].append({
+                "law_contents": law["law_contents"],
+                "law_level": law["law_level"],  # 0=조, 1=항, 2=호, 3=목
+                "law_full_cd": law["law_full_cd"],
+            })
+
+    return {
+        "ucode_count": len(ucode_info),
+        "total_items": len(laws),
+        "groups": list(groups.values()),
+    }
+
+
 @app.get("/api/luris/stats")
 async def luris_stats():
     """LURIS API 호출 통계 — 1000회/일 한도 모니터링.
@@ -280,7 +413,11 @@ async def address_search(q: str = Query(..., min_length=2, description="검색 �
     if address_client is None:
         raise HTTPException(503, "서비스 초기화 중")
     results = await address_client.search(q)
-    return {"results": results}
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        content={"results": results},
+        headers={"Cache-Control": "no-store"},  # 빈 응답 캐싱 방지
+    )
 
 
 @app.get("/api/land_info")
@@ -407,6 +544,10 @@ async def diagnose_multi(req: MultiDiagnoseRequest):
             "far_limit_manual_override": req.far_limit_manual_override,
             "relief_reason_manual": req.relief_reason_manual,
             "urban_facility_exclude_area": req.urban_facility_exclude_area,
+            "north_setback_m": req.north_setback_m,
+            "adjacent_zone_north": req.adjacent_zone_north,
+            "road_20m_adjacent": req.road_20m_adjacent,
+            "street_block_max_height_m": req.street_block_max_height_m,
         }
         base_land = dict(lands[0])
         base_land["zone_use"] = agg["primary_zone"]

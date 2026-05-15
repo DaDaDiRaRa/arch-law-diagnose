@@ -3,6 +3,7 @@ const BASE = '/api'
 async function request(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',  // 브라우저 디스크 캐시 우회 — 빈 응답 캐싱 방지
     ...options,
   })
   if (!res.ok) {
@@ -55,4 +56,11 @@ export const api = {
 
   requestReview: (payload) =>
     request('/review/request', { method: 'POST', body: JSON.stringify(payload) }),
+
+  eumLawInfo: ({ areaCd, zoneUse, zoneDistrict }) => {
+    const qs = new URLSearchParams({ area_cd: areaCd })
+    if (zoneUse) qs.set('zone_use', zoneUse)
+    if (zoneDistrict) qs.set('zone_district', zoneDistrict)
+    return request(`/eum/law_info?${qs.toString()}`)
+  },
 }

@@ -33,11 +33,40 @@ class AddressApiClient:
     async def search(self, keyword: str, count: int = 10) -> list[dict]:
         """키워드로 주소 목록 반환 (도로명 + 지번 모두 지원).
 
+        Kakao API 의 지번주소 검색이 공백/동명에 민감해서, 1차 결과가 빈 경우
+        query 변형(공백 정규화·번지 분리 등)으로 재시도하고 결과를 합친다.
+
         Returns: [{road_addr, jibun_addr, zip_no, pnu, legal_dong_code, ...}]
         """
         if not self._key:
             return []
 
+        # 1차 — 사용자 입력 그대로
+        items = await self._search_once(keyword, count)
+        if items:
+            return items
+
+        # 2차 — 변형 query 들로 재시도
+        variants = _generate_query_variants(keyword)
+        seen_pnu: set[str] = set()
+        merged: list[dict] = []
+        for v in variants:
+            if v == keyword:
+                continue
+            extra = await self._search_once(v, count)
+            for it in extra:
+                key = it.get("pnu") or it.get("jibun_addr") or it.get("road_addr")
+                if key and key not in seen_pnu:
+                    seen_pnu.add(key)
+                    merged.append(it)
+            if len(merged) >= count:
+                break
+        if merged:
+            logger.info("주소 검색 fallback 성공: '%s' → %d건 (변형 query 사용)", keyword, len(merged))
+        return merged
+
+    async def _search_once(self, keyword: str, count: int) -> list[dict]:
+        """단일 query → Kakao API 호출."""
         params = {
             "query": keyword,
             "analyze_type": "similar",
@@ -49,9 +78,8 @@ class AddressApiClient:
             r.raise_for_status()
             body = r.json()
         except Exception as e:
-            logger.error("카카오 주소 API 오류: %s", e)
+            logger.error("카카오 주소 API 오류 (query='%s'): %s", keyword, e)
             return []
-
         documents = body.get("documents", []) or []
         return [self._parse_item(d) for d in documents]
 
@@ -87,6 +115,61 @@ class AddressApiClient:
             "lnbr_slno": sub_no,
             "pnu": pnu,
         }
+
+
+def _generate_query_variants(keyword: str) -> list[str]:
+    """Kakao 지번주소 검색 실패 시 시도할 query 변형 목록.
+
+    핵심 변형:
+        - 끝에 공백 추가 (Kakao analyze_type=similar 의 본번 완성 인식 트릭)
+        - 동·번지 공백 정규화
+        - 시도 prefix 제거
+        - "번지" 접미사
+
+    예: "영등포구 당산동3가 385" →
+        - "영등포구 당산동3가 385 "  (trailing space — 가장 자주 작동)
+        - "영등포구 당산동3가385"     (동·번지 붙이기)
+        - "영등포구 당산동 3가 385"   (가 분리)
+        - "영등포구 당산동3가 385번지"
+        - "당산동3가 385"              (앞부분 제거)
+    """
+    import re
+    s = keyword.strip()
+    variants: list[str] = []
+
+    # 0. ⭐ trailing space — Kakao 의 알려진 quirk. 지번주소에서 가장 자주 통함
+    variants.append(s + " ")
+
+    # 1. 공백 정규화 (다중 공백 → 단일)
+    normalized = re.sub(r"\s+", " ", s)
+    if normalized != s:
+        variants.append(normalized)
+        variants.append(normalized + " ")  # 정규화 + trailing space
+
+    # 2. 동명 뒤 번지 사이 공백 제거: "당산동3가 385" → "당산동3가385"
+    no_space_lot = re.sub(r"([가-힣]+(?:동|가)\d*)\s+(\d)", r"\1\2", normalized)
+    if no_space_lot != normalized:
+        variants.append(no_space_lot)
+
+    # 3. 동·가 분리: "당산동3가" → "당산동 3가"
+    split_ga = re.sub(r"([가-힣]+동)(\d+가)", r"\1 \2", normalized)
+    if split_ga != normalized:
+        variants.append(split_ga)
+        variants.append(split_ga + " ")
+
+    # 4. "번지" 접미사 추가
+    if re.search(r"\d+(-\d+)?\s*$", normalized):
+        variants.append(normalized + "번지")
+
+    # 5. 시·도 prefix 제거 시도 (시/구 단위만 유지)
+    parts = normalized.split()
+    if len(parts) > 2:
+        variants.append(" ".join(parts[1:]))   # 첫 토큰 빼기 (시도 제거)
+        variants.append(" ".join(parts[1:]) + " ")
+        if len(parts) > 3:
+            variants.append(" ".join(parts[2:]))  # 시군구만 유지
+
+    return variants
 
 
 def _build_pnu(legal_dong_code: str, mt_yn: str, mnnm: str, slno: str) -> str:

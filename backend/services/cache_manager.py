@@ -133,6 +133,19 @@ class CacheManager:
             )
         except Exception:
             pass  # 이미 존재
+        # 5.3 도로폭 자동 조회 컬럼 — 구버전 DB 호환
+        try:
+            await self._db.execute(
+                "ALTER TABLE land_info_cache ADD COLUMN road_width_auto REAL"
+            )
+        except Exception:
+            pass
+        try:
+            await self._db.execute(
+                "ALTER TABLE land_info_cache ADD COLUMN road_width_source TEXT"
+            )
+        except Exception:
+            pass
         await self._db.commit()
         logger.info("SQLite DB 초기화 완료: %s", DB_PATH)
 
@@ -171,8 +184,8 @@ class CacheManager:
             """INSERT INTO land_info_cache
                (pnu, address, jurisdiction_code, zone_use, zone_district, zone_area,
                 district_plan, urban_facility, land_category, official_price, lon, lat,
-                fetched_at, parcel_geometry_json)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                fetched_at, parcel_geometry_json, road_width_auto, road_width_source)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(pnu) DO UPDATE SET
                address=excluded.address, jurisdiction_code=excluded.jurisdiction_code,
                zone_use=excluded.zone_use, zone_district=excluded.zone_district,
@@ -180,7 +193,9 @@ class CacheManager:
                urban_facility=excluded.urban_facility, land_category=excluded.land_category,
                official_price=excluded.official_price, lon=excluded.lon, lat=excluded.lat,
                fetched_at=excluded.fetched_at,
-               parcel_geometry_json=excluded.parcel_geometry_json""",
+               parcel_geometry_json=excluded.parcel_geometry_json,
+               road_width_auto=excluded.road_width_auto,
+               road_width_source=excluded.road_width_source""",
             (
                 pnu, address,
                 data.get("jurisdiction_code", ""),
@@ -195,6 +210,8 @@ class CacheManager:
                 data.get("lat"),
                 now,
                 geom_json,
+                data.get("road_width_auto"),
+                data.get("road_width_source"),
             ),
         )
         await self._db.commit()

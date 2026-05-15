@@ -180,6 +180,112 @@ class VWorldClient:
             "zone_area": ", ".join(zone_areas) if zone_areas else "",
         }
 
+    # ─── 전면도로 폭 자동 조회 ──────────────────────────────────────────
+
+    async def get_road_width(self, lon: float, lat: float, buffer_m: float = 30.0) -> dict | None:
+        """좌표 근처 도로의 폭(m) 조회.
+
+        VWorld Data API 도로구간 레이어 검색. buffer_m 영역 내 도로 중
+        가장 넓은 폭을 전면도로로 가정하여 반환.
+
+        환경변수:
+          VWORLD_ROAD_LAYER  — Data API data 파라미터 (기본: LT_L_FRSTCRCL)
+          VWORLD_ROAD_WIDTH_FIELDS  — 폭 속성명 후보 콤마구분 (기본: wdth,road_width,rd_wth,wdth_clss)
+
+        Returns:
+          {road_width_m, source, layer, candidate_count} 또는 None (조회 실패).
+        """
+        if not self._key:
+            return None
+
+        layer = os.getenv("VWORLD_ROAD_LAYER", "LT_L_FRSTCRCL")
+        field_csv = os.getenv("VWORLD_ROAD_WIDTH_FIELDS", "wdth,road_width,rd_wth,wdth_clss,WDTH,ROAD_BT,ROA_WDTH")
+        width_fields = [f.strip() for f in field_csv.split(",") if f.strip()]
+
+        # buffer 영역 BBOX (lon/lat ± delta) — 1도 ≈ 111km
+        delta = buffer_m / 111_000.0
+        bbox_geom = (
+            f"POLYGON(({lon - delta} {lat - delta},{lon + delta} {lat - delta},"
+            f"{lon + delta} {lat + delta},{lon - delta} {lat + delta},"
+            f"{lon - delta} {lat - delta}))"
+        )
+
+        params = {
+            "service": "data",
+            "request": "GetFeature",
+            "data": layer,
+            "key": self._key,
+            "format": "json",
+            "size": 30,
+            "page": 1,
+            "geometry": "false",
+            "attribute": "true",
+            "crs": "EPSG:4326",
+            "geomFilter": bbox_geom,
+        }
+        try:
+            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
+            r.raise_for_status()
+            body = r.json()
+        except Exception as e:
+            logger.warning("VWorld 도로폭 조회 실패 (layer=%s): %s", layer, e)
+            return None
+
+        status = body.get("response", {}).get("status", "")
+        if status != "OK":
+            logger.warning(
+                "VWorld 도로폭 응답 status=%s (layer=%s — 환경변수 VWORLD_ROAD_LAYER 확인 필요)",
+                status, layer,
+            )
+            return None
+
+        features = (
+            body.get("response", {})
+            .get("result", {})
+            .get("featureCollection", {})
+            .get("features", [])
+        )
+        if not features:
+            logger.debug("VWorld 도로 features 없음: lon=%.6f lat=%.6f buffer=%.0fm", lon, lat, buffer_m)
+            return None
+
+        widths: list[float] = []
+        for feat in features:
+            props = feat.get("properties", {}) or {}
+            for f in width_fields:
+                v = props.get(f)
+                if v is None:
+                    continue
+                try:
+                    w = float(v)
+                    if 0 < w < 200:  # sanity: 200m 넘는 도로는 배제 (속성 단위 오류 의심)
+                        widths.append(w)
+                        break
+                except (TypeError, ValueError):
+                    continue
+
+        if not widths:
+            # 첫 feature 의 모든 properties 키/값을 출력 → 정확한 폭 속성명 파악
+            sample_props = features[0].get("properties", {}) if features else {}
+            logger.warning(
+                "VWorld 도로 features %d건 발견했으나 폭 속성 추출 실패 "
+                "— 환경변수 VWORLD_ROAD_WIDTH_FIELDS 확인 필요 (시도: %s)",
+                len(features), field_csv,
+            )
+            logger.warning(
+                "[VWorld 도로 응답 샘플] 첫 feature properties = %s",
+                sample_props,
+            )
+            return None
+
+        max_width = max(widths)
+        return {
+            "road_width_m": round(max_width, 1),
+            "source": "VWorld",
+            "layer": layer,
+            "candidate_count": len(widths),
+        }
+
     # ─── 토지 기본 정보 (공시지가, 지목 등) ─────────────────────────────
 
     async def get_land_info(self, pnu: str) -> dict:

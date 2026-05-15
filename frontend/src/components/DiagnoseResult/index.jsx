@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import CaseReference from '../CaseReference'
+import DataQualityBanner from '../DataQualityBanner'
 import LawChangeAlert from '../LawChangeAlert'
+import LawInfoPanel from '../LawInfoPanel'
 import LegalReviewReport from '../LegalReviewReport'
 import ReviewRequestButton from '../ReviewRequestButton'
 
@@ -83,6 +85,9 @@ export default function DiagnoseResult() {
       {/* Phase 4 — 법규 변경 배너 (최상단) */}
       <LawChangeAlert />
 
+      {/* 데이터 품질 배너 */}
+      <DataQualityBanner dataQuality={result.data_quality} />
+
       {/* 합필 진단 — 필지별 내역 + 합산 정보 */}
       {multiInfo && <MultiParcelSummary info={multiInfo} />}
 
@@ -130,6 +135,15 @@ export default function DiagnoseResult() {
         <LandInfoCard info={result.land_info} />
       )}
 
+      {/* 토지이음 법령 본문 (Phase 1) */}
+      {result.land_info?.zone_use && (
+        <LawInfoPanel
+          areaCd={(result.land_info?.pnu || '').slice(0, 5)}
+          zoneUse={result.land_info?.zone_use}
+          zoneDistrict={result.land_info?.zone_district}
+        />
+      )}
+
       {/* 대지면적 자동 보정 (도시계획시설 저촉) */}
       {result.site_correction?.applied && (
         <SiteCorrectionCard correction={result.site_correction} />
@@ -172,6 +186,28 @@ export default function DiagnoseResult() {
           ))}
         </div>
       )}
+
+      {/* 필수 수동검토 항목 (높이·일조 등) */}
+      {(() => {
+        const manualItems = Object.entries(result.results || {})
+          .filter(([_, c]) => c.needs_manual_review)
+        if (manualItems.length === 0) return null
+        return (
+          <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+            <p className="text-sm font-semibold text-amber-800">
+              📐 필수 수동검토 ({manualItems.length}건) — 입력값 부족으로 자동 판정 불가
+            </p>
+            {manualItems.map(([key, c]) => (
+              <div key={key} className="text-xs text-amber-800 border-l-2 border-amber-300 pl-2">
+                <span className="font-medium">{CATEGORY_LABELS[key] || key}:</span> {c.notes}
+              </div>
+            ))}
+            <p className="text-[10px] text-amber-700 leading-relaxed mt-1">
+              상단 입력 폼의 "☀ 높이·일조 자동 판정 입력" 섹션에 정북 이격거리 등을 입력하면 자동 판정됩니다.
+            </p>
+          </div>
+        )
+      })()}
 
       {/* 카테고리별 상세 */}
       <div className="space-y-3">
@@ -536,11 +572,13 @@ function LandInfoCard({ info }) {
           <InfoRow label="공시지가" value={`${info.official_price.toLocaleString()}원/㎡`} />
         )}
       </div>
-      {info.cache_hit && (
-        <p className="mt-2 text-xs text-gray-400">
-          캐시 데이터 ({info.cache_age_days}일 전)
-          {info.cache_stale && ' · 오래된 데이터'}
-        </p>
+      {info.cache_hit && !info.cache_stale && (
+        <p className="mt-2 text-xs text-gray-400">캐시 데이터 ({info.cache_age_days}일 전)</p>
+      )}
+      {info.cache_stale && (
+        <div className="mt-2 rounded bg-orange-50 border border-orange-200 px-2.5 py-1.5 text-xs text-orange-700">
+          ⚠ {info.cache_age_days}일 전 캐시 — VWorld 재조회 실패. 용도지역·지목 등이 변경됐을 수 있습니다.
+        </div>
       )}
     </div>
   )
@@ -592,8 +630,17 @@ function CategoryCard({ label, cat }) {
             {cat.actual_height_m !== undefined && (
               <span>높이: <b>{cat.actual_height_m}m</b></span>
             )}
-            {cat.road_height_limit_m && (
-              <span>도로제한: <b>{cat.road_height_limit_m}m</b></span>
+            {cat.street_block_max_height_m && (
+              <span>가로구역 한도: <b>{cat.street_block_max_height_m}m</b></span>
+            )}
+            {cat.north_setback_m !== undefined && cat.north_setback_m !== null && (
+              <span>정북 이격: <b>{cat.north_setback_m}m</b></span>
+            )}
+            {cat.shadow_min_setback_m && (
+              <span>필요 이격: <b>{cat.shadow_min_setback_m}m</b></span>
+            )}
+            {cat.parcel_north_depth_m && (
+              <span className="text-gray-400">필지 N-S 깊이: <b>≈{cat.parcel_north_depth_m}m</b></span>
             )}
             {cat.required_spaces !== undefined && (
               <span>법정: <b>{cat.required_spaces}대</b></span>

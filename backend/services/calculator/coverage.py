@@ -84,13 +84,9 @@ def calculate(
 
 
 def _get_limit(limits: dict, zone_use: str) -> float | None:
-    if zone_use in limits:
-        return float(limits[zone_use])
-    # 부분 매칭 (예: '제1종일반주거' → '제1종일반주거지역')
-    for key, val in limits.items():
-        if zone_use in key or key in zone_use:
-            return float(val)
-    return None
+    """표준명 정규화 후 정확 매칭. 매칭 실패 시 None ('확인필요' 처리)."""
+    from services.zone_use_normalizer import lookup_limit
+    return lookup_limit(limits, zone_use)
 
 
 def _notes(passed: bool, actual: float, limit: float, zone: str) -> str:

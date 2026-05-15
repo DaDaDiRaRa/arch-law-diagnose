@@ -32,6 +32,12 @@ const emptyFormData = {
 
   urban_facility_exclude_area: '', // 도시계획시설 저촉 면적 (선택, 자동 추정 override)
 
+  // 높이·일조 보강 입력 (선택)
+  north_setback_m: '',              // 정북 인접대지경계선까지 실제 이격거리 (m)
+  adjacent_zone_north: '',          // 정북 인접대지 용도지역
+  road_20m_adjacent: '',            // 너비 20m+ 도로 접함 (yes/no/'')
+  street_block_max_height_m: '',    // 가로구역별 최고높이 지정값 (m)
+
   pnu: '',
 }
 
@@ -95,6 +101,7 @@ export const useDiagnoseStore = create((set) => ({
             ...s.formData,
             zone_use_override: s.formData.zone_use_override || info.zone_use || '',
             zone_district: s.formData.zone_district || info.zone_district || '',
+            road_width: s.formData.road_width || (info.road_width_auto != null ? String(info.road_width_auto) : ''),
           },
         }))
       })

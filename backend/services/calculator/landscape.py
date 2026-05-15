@@ -197,18 +197,18 @@ def calculate(
 
 def _is_green_zone(zone_use: str) -> bool:
     """녹지지역 — 시행령 §27 ①항 1호 면제."""
-    if not zone_use:
-        return False
-    return any(kw in zone_use for kw in ("보전녹지", "생산녹지", "자연녹지"))
+    from services.zone_use_normalizer import category_of
+    return category_of(zone_use) == "녹지"
 
 
 def _is_conservation_or_management_zone(zone_use: str) -> bool:
     """자연환경보전·농림·관리지역 — 시행령 §27 ①항 9호 면제 (지구단위계획구역 제외)."""
-    if not zone_use:
-        return False
-    return any(kw in zone_use for kw in (
-        "자연환경보전", "농림지역", "보전관리", "생산관리", "계획관리",
-    ))
+    from services.zone_use_normalizer import category_of, normalize
+    cat = category_of(zone_use)
+    if cat == "관리":
+        return True
+    canonical = normalize(zone_use)
+    return canonical in ("농림지역", "자연환경보전지역")
 
 
 def _required_ratio(
@@ -233,14 +233,11 @@ def _required_ratio(
         elif isinstance(val, (int, float)):
             return float(val)
 
+    from services.zone_use_normalizer import normalize as _norm_zone
     by_zone = std.get("by_zone", {})
-    if zone_use in by_zone and not zone_use.startswith("_"):
-        return float(by_zone[zone_use])
-    for key, val in by_zone.items():
-        if key.startswith("_"):
-            continue
-        if zone_use and (zone_use in key or key in zone_use):
-            return float(val)
+    canonical = _norm_zone(zone_use)
+    if canonical and canonical in by_zone and by_zone[canonical] is not None:
+        return float(by_zone[canonical])
 
     return float(std.get("default_required_pct", 15))
 

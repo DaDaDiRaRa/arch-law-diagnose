@@ -308,6 +308,42 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
           </table>
         </section>
 
+        {/* 필수 수동검토 — 자동 판정 불가 항목 */}
+        {(() => {
+          const manual = categories.filter(([_, c]) => c.needs_manual_review)
+          if (manual.length === 0) return null
+          return (
+            <section className="lr-section">
+              <h2>필수 수동검토 항목 ({manual.length}건)</h2>
+              <p className="lr-note">
+                아래 항목은 입력값 부족으로 자동 pass/fail 판정이 불가합니다.
+                설계 도면을 확인하여 수동 검토가 필요합니다.
+              </p>
+              <table className="lr-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '20%' }}>항목</th>
+                    <th>검토 사유 / 필요 입력값</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {manual.map(([key, c]) => (
+                    <tr key={key}>
+                      <td><strong>{CATEGORY_LABELS[key] || key}</strong></td>
+                      <td style={{ fontSize: '0.9em' }}>{c.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )
+        })()}
+
+        {/* 데이터 품질·출처 */}
+        {result.data_quality && (
+          <DataQualitySection dq={result.data_quality} />
+        )}
+
         {/* 위험·주의 요약 */}
         {(result.risks?.length > 0 || result.warnings?.length > 0) && (
           <section className="lr-section">
@@ -448,16 +484,87 @@ function CategoryRow({ label, cat }) {
   // 법정기준 / 설계내용
   const standardDesign = buildStandardDesign(cat)
 
+  // 설비·소방 — items 별 상세
+  const fireSafetyItems = cat.items && cat.items.length > 0 ? cat.items : null
+
   return (
     <tr>
       <td><strong>{label}</strong></td>
       <td className="lr-law-cell">{lawRefs}</td>
-      <td className="lr-standard-cell">{standardDesign}</td>
+      <td className="lr-standard-cell">
+        {standardDesign}
+        {fireSafetyItems && (
+          <div className="lr-fire-items">
+            {fireSafetyItems.map((it, i) => {
+              const statusLabel =
+                it.status === 'required' ? '의무'
+                : it.status === 'not_required' ? '면제'
+                : it.status === 'needs_review' ? '검토필요' : '미정'
+              return (
+                <div key={i} className="lr-fire-item">
+                  <strong>· {it.name}</strong> [{statusLabel}]
+                  {it.basis && <span className="lr-note-sm"> {it.basis}</span>}
+                  {it.note && <div className="lr-note-sm">  {it.note}</div>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </td>
       <td className={`lr-compliance ${compliance.cls}`}>{compliance.label}</td>
       <td className="right">
         {cat.score != null ? `${cat.score}/10` : '—'}
       </td>
     </tr>
+  )
+}
+
+function DataQualitySection({ dq }) {
+  const issues = dq.issues || []
+  const sources = []
+  if (dq.zone_use_source === 'user') sources.push('용도지역: 사용자 직접 지정')
+  else if (dq.zone_use_source === 'vworld') sources.push('용도지역: VWorld 자동 조회')
+  else sources.push('용도지역: 미확인')
+  sources.push(dq.ordinance_used ? '조례: 실제 조례값' : '조례: 시행령 기본값(fallback)')
+  sources.push(dq.luris_used ? 'LURIS: 활성' : 'LURIS: 비활성')
+  sources.push(dq.llm_used ? 'AI(Claude): 활성' : 'AI(Claude): 비활성')
+  if (dq.land_cache_stale) {
+    sources.push(`토지정보 캐시: ${dq.land_cache_age_days}일 전 (stale)`)
+  }
+  return (
+    <section className="lr-section">
+      <h2>데이터 품질·출처</h2>
+      <table className="lr-table">
+        <tbody>
+          <tr>
+            <th style={{ width: '20%' }}>데이터 출처</th>
+            <td style={{ fontSize: '0.9em' }}>{sources.join(' · ')}</td>
+          </tr>
+        </tbody>
+      </table>
+      {issues.length > 0 && (
+        <table className="lr-table" style={{ marginTop: '8px' }}>
+          <thead>
+            <tr>
+              <th style={{ width: '12%' }}>구분</th>
+              <th>주의 사항</th>
+            </tr>
+          </thead>
+          <tbody>
+            {issues.map((iss, i) => {
+              const lvl = iss.level === 'error' ? '🔴 오류'
+                : iss.level === 'warn' ? '⚠ 주의' : 'ℹ 정보'
+              return (
+                <tr key={i}>
+                  <td>{lvl}</td>
+                  <td style={{ fontSize: '0.9em' }}>{iss.msg}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   )
 }
 
@@ -484,8 +591,20 @@ function buildStandardDesign(cat) {
     }
   } else if (cat.actual_height_m != null) {
     lines.push(`• 설계내용: 높이 ${cat.actual_height_m}m`)
-    if (cat.road_height_limit_m) {
-      lines.push(`• 법정기준: 도로사선 ${cat.road_height_limit_m}m`)
+    if (cat.street_block_max_height_m) {
+      lines.push(`• 법정기준 §60: 가로구역 최고 ${cat.street_block_max_height_m}m`)
+    }
+    if (cat.shadow_min_setback_m) {
+      lines.push(`• 법정기준 §86 ①: 정북 이격 ${cat.shadow_min_setback_m}m 이상`)
+    }
+    if (cat.north_setback_m != null) {
+      lines.push(`• 설계내용: 정북 이격 ${cat.north_setback_m}m`)
+    }
+    if (cat.exemptions && cat.exemptions.length > 0) {
+      lines.push(`• 적용 제외: ${cat.exemptions.join(' / ')}`)
+    }
+    if (cat.parcel_north_depth_m) {
+      lines.push(`• 참고: 폴리곤 N-S 깊이 ≈ ${cat.parcel_north_depth_m}m`)
     }
   }
 
@@ -565,6 +684,8 @@ const styles = `
 .lr-main-table td { font-size: 12px; vertical-align: top; }
 .lr-law-cell { white-space: pre-line; font-size: 11px; color: #4b5563; }
 .lr-standard-cell { white-space: pre-line; font-size: 11.5px; }
+.lr-fire-items { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #d1d5db; }
+.lr-fire-item { font-size: 11px; margin-bottom: 3px; }
 .lr-compliance { text-align: center; font-weight: 600; }
 .lr-compliance.compliant { background: #ecfdf5; color: #047857; }
 .lr-compliance.non-compliant { background: #fef2f2; color: #b91c1c; }

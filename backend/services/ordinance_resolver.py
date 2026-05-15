@@ -172,14 +172,21 @@ class OrdinanceResolver:
         return result
 
     def _fallback(self, zone_use: str, category: str, reason: str) -> dict:
+        from .zone_use_normalizer import lookup_limit, normalize
         baseline_map: dict = _ZONE_LIMITS.get(category, {})
-        value = baseline_map.get(zone_use)
+        value = lookup_limit(baseline_map, zone_use)
         if value is None:
+            canonical = normalize(zone_use)
+            detail = (
+                "미정 — 용도지역 표준명 매칭 실패, 별도 확인 필요"
+                if canonical is None
+                else f"미정 — '{canonical}' zone_limits.json 미수록"
+            )
             logger.debug("zone_limits.json에도 없음: %s %s", zone_use, category)
             return {
                 "value": None,
                 "source": "시행령",
-                "source_detail": "미정 — 별도 확인 필요",
+                "source_detail": detail,
                 "is_ordinance": False,
                 "needs_review": True,
             }

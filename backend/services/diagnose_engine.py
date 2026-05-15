@@ -60,15 +60,8 @@ def _get_default_far_limit(zone_use: str) -> float | None:
     if _FAR_DEFAULTS_CACHE is None:
         with open(_ZONE_LIMITS_PATH, encoding="utf-8") as f:
             _FAR_DEFAULTS_CACHE = json.load(f).get("floor_area_ratio", {})
-    val = _FAR_DEFAULTS_CACHE.get(zone_use)
-    if val is None:
-        for k, v in _FAR_DEFAULTS_CACHE.items():
-            if k.startswith("_") or v is None:
-                continue
-            if zone_use in k or k in zone_use:
-                return float(v)
-        return None
-    return float(val)
+    from services.zone_use_normalizer import lookup_limit
+    return lookup_limit(_FAR_DEFAULTS_CACHE, zone_use)
 
 
 class DiagnoseEngine:
@@ -164,6 +157,11 @@ class DiagnoseEngine:
         h: float = req["height"]
         units: int | None = req.get("units")
         road_width: float | None = req.get("road_width")
+        # 자동 도로폭 fallback — 사용자 미입력 + 토지정보에 자동조회 값 있으면 사용
+        road_width_source: str = "user"
+        if road_width is None and land.get("road_width_auto"):
+            road_width = float(land["road_width_auto"])
+            road_width_source = land.get("road_width_source") or "auto"
         landscape_area: float | None = req.get("landscape_area")
         pnu: str = req.get("pnu") or ""
 
@@ -308,7 +306,14 @@ class DiagnoseEngine:
         if relief_note:
             r_far["notes"] = (r_far.get("notes") or "") + relief_note
             r_far["relief_info"] = relief  # 프론트엔드에서 상세 표시용
-        r_height = height.calculate(h, floors_above, zone_use, road_width)
+        r_height = height.calculate(
+            h, floors_above, zone_use, road_width,
+            north_setback_m=req.get("north_setback_m"),
+            adjacent_zone_north=req.get("adjacent_zone_north"),
+            road_20m_adjacent=req.get("road_20m_adjacent"),
+            street_block_max_height_m=req.get("street_block_max_height_m"),
+            parcel_geometry=land.get("parcel_geometry"),
+        )
         provided_parking = req.get("provided_parking_spaces")
         r_parking = parking.calculate(
             building_use,
@@ -373,6 +378,82 @@ class DiagnoseEngine:
         # B4: 8개 심의 자동 트리거
         applicable_reviews = evaluate_reviews(req, land)
 
+        # ─── 데이터 품질 요약 ──────────────────────────────────────────────
+        dq_issues: list[dict] = []
+
+        from services.zone_use_normalizer import normalize as _norm_zone
+        canonical_zone = _norm_zone(zone_use)
+        if not zone_use:
+            dq_issues.append({
+                "level": "error",
+                "code": "NO_ZONE_USE",
+                "msg": "용도지역 미확인 — 건폐율·용적률·높이 결과 신뢰도 매우 낮음",
+            })
+        elif canonical_zone is None:
+            dq_issues.append({
+                "level": "error",
+                "code": "ZONE_UNRECOGNIZED",
+                "msg": f"용도지역 '{zone_use}' 표준명 매칭 실패 — 한도 자동 조회 불가, 직접 확인 필요",
+            })
+        elif req.get("zone_use_override"):
+            dq_issues.append({
+                "level": "info",
+                "code": "ZONE_USER_OVERRIDE",
+                "msg": f"용도지역 사용자 직접 지정 ({canonical_zone}) — VWorld 자동 조회 미사용",
+            })
+
+        if land.get("cache_stale"):
+            age = land.get("cache_age_days", 0)
+            dq_issues.append({
+                "level": "warn",
+                "code": "STALE_CACHE",
+                "msg": f"토지 정보가 {age}일 전 캐시 데이터입니다 — VWorld 재조회 실패. 용도지역이 변경됐을 수 있습니다.",
+            })
+
+        ordinance_used = cov_source is not None and "조례" in cov_source
+        if not ordinance_used:
+            dq_issues.append({
+                "level": "warn",
+                "code": "NO_ORDINANCE",
+                "msg": "조례 수치 미조회 — 국토계획법 시행령 기본값 사용 (지자체 강화 조례 미반영 가능)",
+            })
+
+        if not self._llm.available:
+            dq_issues.append({
+                "level": "warn",
+                "code": "NO_LLM",
+                "msg": "AI(Claude) 미설정 — 설비·소방 항목 자동 판단 불가, 수동 검토 필요",
+            })
+
+        if self._luris and not self._luris._key:
+            dq_issues.append({
+                "level": "warn",
+                "code": "NO_LURIS",
+                "msg": "LURIS 미설정 — 행위제한 적합성 자동 조회 불가 (API 키 확인 필요)",
+            })
+
+        if road_width_source == "auto" and road_width:
+            dq_issues.append({
+                "level": "info",
+                "code": "ROAD_WIDTH_AUTO",
+                "msg": f"전면도로 폭 {road_width}m 자동 조회됨 (VWorld) — 실제와 다르면 수동 입력으로 override",
+            })
+
+        data_quality = {
+            "issues": dq_issues,
+            "ordinance_used": ordinance_used,
+            "llm_used": self._llm.available,
+            "luris_used": bool(self._luris and self._luris._key),
+            "zone_use_source": (
+                "user" if req.get("zone_use_override")
+                else ("vworld" if zone_use else "unknown")
+            ),
+            "road_width_source": road_width_source,
+            "road_width_used": road_width,
+            "land_cache_stale": land.get("cache_stale", False),
+            "land_cache_age_days": land.get("cache_age_days", 0),
+        }
+
         response = {
             "address": address,
             "land_info": {
@@ -397,6 +478,7 @@ class DiagnoseEngine:
             "signal": signal,
             "risks": risks,
             "warnings": warnings,
+            "data_quality": data_quality,
             "phase": "Phase3",
         }
 
