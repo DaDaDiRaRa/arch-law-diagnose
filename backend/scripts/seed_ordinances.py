@@ -1,4 +1,4 @@
-"""7대 광역시 도시계획조례 건폐율·용적률 수집 스크립트.
+"""전국 17개 시도 도시계획조례 건폐율·용적률 수집 스크립트.
 
 저장 방식: jurisdiction_code = 시도코드(2자리) + "000" (예: 서울 → "11000")
   → ordinance_resolver.py 가 시군구 코드 미스 시 "XX000" 으로 fallback 조회.
@@ -7,8 +7,13 @@
   # 조회만 (기본값) — DB 저장 없음
   python -m scripts.seed_ordinances
 
-  # 특정 도시만
+  # 특정 시도만
   python -m scripts.seed_ordinances --city 서울
+  python -m scripts.seed_ordinances --city 경기
+
+  # 광역시만 / 도만
+  python -m scripts.seed_ordinances --type metro
+  python -m scripts.seed_ordinances --type province
 
   # 카테고리 한정
   python -m scripts.seed_ordinances --category building_coverage_ratio
@@ -18,6 +23,7 @@
 
   # 조합
   python -m scripts.seed_ordinances --city 부산 --commit
+  python -m scripts.seed_ordinances --type province --commit
 """
 from __future__ import annotations
 
@@ -42,17 +48,39 @@ from services.law_go_kr_client import LawGoKrClient
 from services.llm_client import LLMClient
 from services.ordinance_extractor import OrdinanceExtractor
 
-# ── 대상 도시 ─────────────────────────────────────────────────────────────────
+# ── 대상 시도 ─────────────────────────────────────────────────────────────────
+# 법제처 조례 검색 키워드: 광역시·특별시는 "도시계획 조례",
+# 도 단위는 "도시계획 조례" 또는 "도시계획조례" 둘 다 시도.
+# 세종특별자치시: 자체 도시계획조례 있음.
 
-CITIES: list[dict] = [
-    {"name": "서울특별시",  "code": "11"},
-    {"name": "부산광역시",  "code": "26"},
-    {"name": "대구광역시",  "code": "27"},
-    {"name": "인천광역시",  "code": "28"},
-    {"name": "광주광역시",  "code": "29"},
-    {"name": "대전광역시",  "code": "30"},
-    {"name": "울산광역시",  "code": "31"},
+METRO_CITIES: list[dict] = [
+    {"name": "서울특별시",       "code": "11", "type": "metro"},
+    {"name": "부산광역시",       "code": "26", "type": "metro"},
+    {"name": "대구광역시",       "code": "27", "type": "metro"},
+    {"name": "인천광역시",       "code": "28", "type": "metro"},
+    {"name": "광주광역시",       "code": "29", "type": "metro"},
+    {"name": "대전광역시",       "code": "30", "type": "metro"},
+    {"name": "울산광역시",       "code": "31", "type": "metro"},
+    {"name": "세종특별자치시",   "code": "36", "type": "metro"},
 ]
+
+PROVINCES: list[dict] = [
+    {"name": "경기도",           "code": "41", "type": "province"},
+    {"name": "강원특별자치도",   "code": "42", "type": "province"},
+    {"name": "충청북도",         "code": "43", "type": "province"},
+    {"name": "충청남도",         "code": "44", "type": "province"},
+    {"name": "전북특별자치도",   "code": "45", "type": "province"},
+    {"name": "전라남도",         "code": "46", "type": "province"},
+    {"name": "경상북도",         "code": "47", "type": "province"},
+    {"name": "경상남도",         "code": "48", "type": "province"},
+    {"name": "제주특별자치도",   "code": "50", "type": "province"},
+]
+
+# 전체 17개 시도
+CITIES: list[dict] = METRO_CITIES + PROVINCES
+
+# 도 단위는 "도시계획 조례" 외에 "도시계획조례"(붙여쓰기)로도 검색
+_PROVINCE_LAW_KEYWORDS: list[str] = ["도시계획 조례", "도시계획조례"]
 
 CATEGORIES = ["building_coverage_ratio", "floor_area_ratio"]
 
@@ -73,6 +101,7 @@ async def run(
     commit: bool,
     city_filter: str | None,
     category_filter: str | None,
+    type_filter: str | None,
 ) -> None:
     cache = CacheManager()
     await cache.init()
@@ -84,13 +113,20 @@ async def run(
     categories = (
         [category_filter] if category_filter else CATEGORIES
     )
+
+    candidates = CITIES
+    if type_filter == "metro":
+        candidates = METRO_CITIES
+    elif type_filter == "province":
+        candidates = PROVINCES
+
     cities = (
-        [c for c in CITIES if city_filter in c["name"]]
-        if city_filter else CITIES
+        [c for c in candidates if city_filter in c["name"]]
+        if city_filter else candidates
     )
 
     if not cities:
-        print(f"[오류] 도시를 찾을 수 없습니다: {city_filter}")
+        print(f"[오류] 시도를 찾을 수 없습니다: {city_filter}")
         await _cleanup(cache, law_client, llm)
         return
 
@@ -107,12 +143,24 @@ async def run(
         print(f"{'='*60}")
 
         # 법제처에서 조례 본문 가져오기
-        print(f"  → 법제처 조례 조회 중 ({LAW_KEYWORD})...")
-        try:
-            articles = await law_client.fetch_ordinance(jname, LAW_KEYWORD)
-        except Exception as e:
-            print(f"  ✗ 법제처 API 오류: {e}")
-            articles = []
+        # 도 단위는 키워드 변형("도시계획조례" 붙여쓰기)도 시도
+        keywords = (
+            _PROVINCE_LAW_KEYWORDS
+            if city.get("type") == "province"
+            else [LAW_KEYWORD]
+        )
+        articles = []
+        used_keyword = None
+        for kw in keywords:
+            print(f"  → 법제처 조례 조회 중 ({kw})...")
+            try:
+                articles = await law_client.fetch_ordinance(jname, kw)
+            except Exception as e:
+                print(f"  ✗ 법제처 API 오류: {e}")
+                articles = []
+            if articles:
+                used_keyword = kw
+                break
 
         if not articles:
             print(f"  ✗ 조례 없음 — 이 도시는 시행령 기본값으로 대체됩니다.")
@@ -130,7 +178,7 @@ async def run(
             continue
 
         law_nm = articles[0].get("law_nm", "조례")
-        print(f"  ✓ 조례 로드: {law_nm} ({len(articles)}개 조문)")
+        print(f"  ✓ 조례 로드: {law_nm} ({len(articles)}개 조문, 키워드: {used_keyword})")
 
         for cat in categories:
             cat_label = "건폐율" if cat == "building_coverage_ratio" else "용적률"
@@ -247,14 +295,20 @@ async def _cleanup(cache: CacheManager, law_client: LawGoKrClient, llm: LLMClien
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="7대 광역시 조례 수치 수집")
+    parser = argparse.ArgumentParser(description="전국 17개 시도 조례 수치 수집")
     parser.add_argument(
         "--commit", action="store_true",
         help="결과를 DB에 저장 (기본값: dry-run)"
     )
     parser.add_argument(
         "--city", type=str, default=None,
-        help="특정 도시만 처리 (예: 서울, 부산)"
+        help="특정 시도만 처리 (예: 서울, 경기, 강원)"
+    )
+    parser.add_argument(
+        "--type", type=str, default=None,
+        choices=["metro", "province"],
+        dest="type_filter",
+        help="metro=광역시·특별시·세종, province=9개 도"
     )
     parser.add_argument(
         "--category", type=str, default=None,
@@ -265,13 +319,15 @@ def main() -> None:
 
     mode = "commit" if args.commit else "dry-run"
     city_str = args.city or "전체"
+    type_str = args.type_filter or "전체"
     cat_str = args.category or "전체"
-    print(f"seed_ordinances - 모드={mode}, 도시={city_str}, 카테고리={cat_str}")
+    print(f"seed_ordinances - 모드={mode}, 시도={city_str}, 타입={type_str}, 카테고리={cat_str}")
 
     asyncio.run(run(
         commit=args.commit,
         city_filter=args.city,
         category_filter=args.category,
+        type_filter=args.type_filter,
     ))
 
 
