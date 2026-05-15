@@ -1,0 +1,61 @@
+[
+  {"code": "41110", "name": "수원시", "sido": "경기도", "parent": null},
+  {"code": "41111", "name": "수원시 장안구", "sido": "경기도", "parent": "41110"},
+  {"code": "41113", "name": "수원시 권선구", "sido": "경기도", "parent": "41110"},
+  {"code": "41115", "name": "수원시 팔달구", "sido": "경기도", "parent": "41110"},
+  {"code": "41117", "name": "수원시 영통구", "sido": "경기도", "parent": "41110"},
+
+  {"code": "41130", "name": "성남시", "sido": "경기도", "parent": null},
+  {"code": "41131", "name": "성남시 수정구", "sido": "경기도", "parent": "41130"},
+  {"code": "41133", "name": "성남시 중원구", "sido": "경기도", "parent": "41130"},
+  {"code": "41135", "name": "성남시 분당구", "sido": "경기도", "parent": "41130"},
+
+  {"code": "41150", "name": "의정부시", "sido": "경기도", "parent": null},
+
+  {"code": "41170", "name": "안양시", "sido": "경기도", "parent": null},
+  {"code": "41171", "name": "안양시 만안구", "sido": "경기도", "parent": "41170"},
+  {"code": "41173", "name": "안양시 동안구", "sido": "경기도", "parent": "41170"},
+
+  {"code": "41190", "name": "부천시", "sido": "경기도", "parent": null},
+
+  {"code": "41210", "name": "광명시", "sido": "경기도", "parent": null},
+  {"code": "41220", "name": "평택시", "sido": "경기도", "parent": null},
+  {"code": "41250", "name": "동두천시", "sido": "경기도", "parent": null},
+
+  {"code": "41270", "name": "안산시", "sido": "경기도", "parent": null},
+  {"code": "41271", "name": "안산시 상록구", "sido": "경기도", "parent": "41270"},
+  {"code": "41273", "name": "안산시 단원구", "sido": "경기도", "parent": "41270"},
+
+  {"code": "41280", "name": "고양시", "sido": "경기도", "parent": null},
+  {"code": "41281", "name": "고양시 덕양구", "sido": "경기도", "parent": "41280"},
+  {"code": "41285", "name": "고양시 일산동구", "sido": "경기도", "parent": "41280"},
+  {"code": "41287", "name": "고양시 일산서구", "sido": "경기도", "parent": "41280"},
+
+  {"code": "41290", "name": "과천시", "sido": "경기도", "parent": null},
+  {"code": "41310", "name": "구리시", "sido": "경기도", "parent": null},
+  {"code": "41360", "name": "남양주시", "sido": "경기도", "parent": null},
+  {"code": "41370", "name": "오산시", "sido": "경기도", "parent": null},
+  {"code": "41390", "name": "시흥시", "sido": "경기도", "parent": null},
+  {"code": "41410", "name": "군포시", "sido": "경기도", "parent": null},
+  {"code": "41430", "name": "의왕시", "sido": "경기도", "parent": null},
+  {"code": "41450", "name": "하남시", "sido": "경기도", "parent": null},
+
+  {"code": "41460", "name": "용인시", "sido": "경기도", "parent": null},
+  {"code": "41461", "name": "용인시 처인구", "sido": "경기도", "parent": "41460"},
+  {"code": "41463", "name": "용인시 기흥구", "sido": "경기도", "parent": "41460"},
+  {"code": "41465", "name": "용인시 수지구", "sido": "경기도", "parent": "41460"},
+
+  {"code": "41480", "name": "파주시", "sido": "경기도", "parent": null},
+  {"code": "41500", "name": "이천시", "sido": "경기도", "parent": null},
+  {"code": "41550", "name": "안성시", "sido": "경기도", "parent": null},
+  {"code": "41570", "name": "김포시", "sido": "경기도", "parent": null},
+  {"code": "41590", "name": "화성시", "sido": "경기도", "parent": null},
+  {"code": "41610", "name": "광주시", "sido": "경기도", "parent": null},
+  {"code": "41630", "name": "양주시", "sido": "경기도", "parent": null},
+  {"code": "41650", "name": "포천시", "sido": "경기도", "parent": null},
+  {"code": "41670", "name": "여주시", "sido": "경기도", "parent": null},
+
+  {"code": "41800", "name": "연천군", "sido": "경기도", "parent": null},
+  {"code": "41820", "name": "가평군", "sido": "경기도", "parent": null},
+  {"code": "41830", "name": "양평군", "sido": "경기도", "parent": null}
+]

@@ -44,6 +44,9 @@ def calculate(
     site_area: float,
     zone_use: str,
     building_use: str,
+    limit_override: float | None = None,
+    source_override: str | None = None,
+    is_estimate_override: bool = False,
 ) -> dict:
     """조경 진단 결과.
 
@@ -52,6 +55,11 @@ def calculate(
       site_area: 대지면적(㎡).
       zone_use: 용도지역.
       building_use: 건축물 용도.
+      limit_override: OrdinanceResolver가 결정한 의무 비율(%). 시행령 §27 ①항
+        면제 분기 통과 후 ②항 비율에 적용. by_zone JSON 평균값보다 우선.
+      source_override: "조례" | "시행령" 레이블 (resolver 결과).
+      is_estimate_override: resolver가 반환한 값이 시행령 평균 추정값임을 표시.
+        True면 source 라벨과 confidence 를 추정값 기준으로 낮춤.
 
     Returns:
       {category, actual_pct, required_pct, exempt, pass, deficit_m2,
@@ -103,18 +111,38 @@ def calculate(
             f"(시행령 §27 ②항 4호 적용 외)"
         )
     else:
-        # ②항 4호: 200~300㎡ 미만은 10% 의무 (시행령 직접 명시)
+        # ②항 4호: 200~300㎡ 미만은 10% 의무 (시행령 직접 명시 — 조례로 변경 불가)
         if site_area < 300:
             required_pct = 10.0
         else:
-            # 그 외 비율은 시·도 조례 위임. by_zone JSON은 평균 추정값.
-            required_pct = _required_ratio(building_use, site_area, zone_use, std)
+            # 그 외 비율은 시·도 조례 위임. resolver 결과(limit_override) 우선,
+            # 없으면 by_use_override → by_zone JSON 평균 → default 순.
+            if limit_override is not None:
+                required_pct = float(limit_override)
+            else:
+                required_pct = _required_ratio(building_use, site_area, zone_use, std)
         if required_pct == 0:
             exempt = True
             exempt_reason = f"용도 '{building_use}' 별 면제"
 
     required_area = round(site_area * required_pct / 100, 2)
     law_refs = _law_refs()
+
+    # 비면제 분기에서 사용할 source/confidence — 조례 적용 시 갱신
+    # 시행령 ②항 4호 (200~300㎡=10%) 는 조례 변경 불가이므로 site_area >= 300 일 때만 조례값 적용
+    ordinance_applied = (
+        not exempt and limit_override is not None and site_area >= 300
+    )
+    if ordinance_applied and not is_estimate_override:
+        nonexempt_source = source_override or "지자체 도시계획조례 (의무 조경 비율)"
+        nonexempt_confidence = 5
+    elif ordinance_applied and is_estimate_override:
+        # 시도 평균 추정값(seed) — 시군구 조례 미수집 상태
+        nonexempt_source = source_override or "시행령 §27 평균 추정값 (지자체 조례 확인 필요)"
+        nonexempt_confidence = 4
+    else:
+        nonexempt_source = "건축법 시행령 제27조 별표 (지자체 조례 평균)"
+        nonexempt_confidence = 3
 
     # 조경면적 미입력 처리
     if landscape_area is None:
@@ -140,8 +168,8 @@ def calculate(
             passed=None,
             deficit=None,
             score=None,
-            confidence=3,
-            source="건축법 시행령 제27조 별표 (지자체 조례 평균)",
+            confidence=nonexempt_confidence,
+            source=nonexempt_source,
             law_refs=law_refs,
             notes=(
                 f"조경 의무 {required_pct:.0f}% 이상 (≈ {required_area:.0f}㎡). "
@@ -188,8 +216,8 @@ def calculate(
         passed=passed,
         deficit=round(deficit, 2),
         score=round(score, 1),
-        confidence=3,
-        source="건축법 시행령 제27조 별표 (지자체 조례 평균)",
+        confidence=nonexempt_confidence,
+        source=nonexempt_source,
         law_refs=law_refs,
         notes=_notes(passed, actual_pct, required_pct, deficit, zone_use),
     )

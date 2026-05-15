@@ -77,6 +77,7 @@ class OrdinanceResolver:
             "source_detail": str,       # 조례명/조문 or "zone_limits.json"
             "is_ordinance": bool,
             "needs_review": bool,
+            "is_estimate": bool,        # 시행령 평균 추정값 (실제 조례 본문에서 추출한 값이 아님)
           }
         """
         # VWorld WFS 실패 등으로 PNU 없을 때: jurisdiction_name으로 시도 코드 유도
@@ -91,13 +92,18 @@ class OrdinanceResolver:
         # ── 1단계: DB 캐시 (시군구 정확 매칭) ────────────────────────
         row = await self._cache.get_zone_limit(jurisdiction_code, zone_use, category)
         if row is not None:
-            logger.debug("조례 DB 히트(시군구): %s %s %s = %.1f%%", jurisdiction_code, zone_use, category, row["value"])
+            is_est = bool(row.get("is_estimate"))
+            logger.debug(
+                "조례 DB 히트(시군구): %s %s %s = %.1f%% (estimate=%s)",
+                jurisdiction_code, zone_use, category, row["value"], is_est,
+            )
             return {
                 "value": row["value"],
-                "source": "조례",
+                "source": "추정값" if is_est else "조례",
                 "source_detail": row.get("source_article") or "DB 캐시",
-                "is_ordinance": True,
+                "is_ordinance": not is_est,
                 "needs_review": bool(row.get("needs_review")),
+                "is_estimate": is_est,
             }
 
         # ── 1-b단계: DB 캐시 (시도 레벨 — seed로 저장된 광역시 조례) ──
@@ -105,13 +111,18 @@ class OrdinanceResolver:
         if sido_code != jurisdiction_code:
             row = await self._cache.get_zone_limit(sido_code, zone_use, category)
             if row is not None:
-                logger.debug("조례 DB 히트(시도): %s %s %s = %.1f%%", sido_code, zone_use, category, row["value"])
+                is_est = bool(row.get("is_estimate"))
+                logger.debug(
+                    "조례 DB 히트(시도): %s %s %s = %.1f%% (estimate=%s)",
+                    sido_code, zone_use, category, row["value"], is_est,
+                )
                 return {
                     "value": row["value"],
-                    "source": "조례",
+                    "source": "추정값" if is_est else "조례",
                     "source_detail": row.get("source_article") or f"DB 캐시 ({sido_code})",
-                    "is_ordinance": True,
+                    "is_ordinance": not is_est,
                     "needs_review": bool(row.get("needs_review")),
+                    "is_estimate": is_est,
                 }
 
         # ── 2단계: 법제처 API + 추출 ─────────────────────────────────
@@ -134,6 +145,7 @@ class OrdinanceResolver:
                 "source_detail": extracted.get("source_article", ""),
                 "is_ordinance": True,
                 "needs_review": extracted.get("needs_review", False),
+                "is_estimate": False,
             }
 
         # ── 3단계: JSON fallback ──────────────────────────────────────
@@ -189,6 +201,7 @@ class OrdinanceResolver:
                 "source_detail": detail,
                 "is_ordinance": False,
                 "needs_review": True,
+                "is_estimate": False,
             }
         logger.debug("시행령 fallback (%s): %s %s = %.1f%%", reason, zone_use, category, value)
         return {
@@ -197,4 +210,5 @@ class OrdinanceResolver:
             "source_detail": "국토계획법 시행령 별표 (zone_limits.json)",
             "is_ordinance": False,
             "needs_review": False,
+            "is_estimate": False,
         }

@@ -32,6 +32,7 @@ async def load_seed_into_db(cache: CacheManager) -> dict:
         seed = json.load(f)
 
     inserted = 0
+    updated = 0
     skipped = 0
     jurisdictions = []
 
@@ -39,7 +40,14 @@ async def load_seed_into_db(cache: CacheManager) -> dict:
         code = jur["code"]
         name = jur["name"]
         source = jur.get("source", "")
+        estimate_cats = set(jur.get("estimate_categories", []))
+        cat_sources: dict = jur.get("category_sources", {})
+
         for category, zone_map in jur.get("limits", {}).items():
+            is_estimate = category in estimate_cats
+            cat_source = cat_sources.get(category, source)
+            source_article = f"seed: {cat_source}"
+
             for zone_use, value in zone_map.items():
                 if value is None:
                     continue
@@ -54,10 +62,31 @@ async def load_seed_into_db(cache: CacheManager) -> dict:
                         continue
                     zone_use = canonical
 
-                # 기존 row 확인 — 있으면 건너뛰기 (추출값 보호)
                 existing = await cache.get_zone_limit(code, zone_use, category)
                 if existing is not None:
-                    skipped += 1
+                    # 기존 row가 추출값이면 (source가 'seed:'로 시작 안함) 절대 덮어쓰지 않음
+                    existing_src = (existing.get("source_article") or "").strip()
+                    if not existing_src.startswith("seed:"):
+                        skipped += 1
+                        continue
+                    # seed 출처 row면 메타(is_estimate / source_article)가 바뀐 경우만 갱신
+                    same_estimate = bool(existing.get("is_estimate")) == is_estimate
+                    same_source = existing_src == source_article
+                    same_value = float(existing.get("value", 0)) == float(value)
+                    if same_estimate and same_source and same_value:
+                        skipped += 1
+                        continue
+                    await cache.set_zone_limit(
+                        jurisdiction_code=code,
+                        jurisdiction_name=name,
+                        zone_use=zone_use,
+                        category=category,
+                        value=float(value),
+                        source_article=source_article,
+                        needs_review=False,
+                        is_estimate=is_estimate,
+                    )
+                    updated += 1
                     continue
 
                 await cache.set_zone_limit(
@@ -66,14 +95,20 @@ async def load_seed_into_db(cache: CacheManager) -> dict:
                     zone_use=zone_use,
                     category=category,
                     value=float(value),
-                    source_article=f"seed: {source}",
+                    source_article=source_article,
                     needs_review=False,
+                    is_estimate=is_estimate,
                 )
                 inserted += 1
         jurisdictions.append(name)
 
     logger.info(
-        "조례 seed 로드 완료: %d개 지자체, %d건 신규 삽입, %d건 기존값 보존",
-        len(jurisdictions), inserted, skipped,
+        "조례 seed 로드 완료: %d개 지자체, 신규 %d건, 메타 갱신 %d건, 보존 %d건",
+        len(jurisdictions), inserted, updated, skipped,
     )
-    return {"inserted": inserted, "skipped": skipped, "jurisdictions": jurisdictions}
+    return {
+        "inserted": inserted,
+        "updated": updated,
+        "skipped": skipped,
+        "jurisdictions": jurisdictions,
+    }

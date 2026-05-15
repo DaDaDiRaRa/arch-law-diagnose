@@ -18,6 +18,10 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.eum_client import EumClient
 from pathlib import Path
 
 from services.cache_manager import CacheManager
@@ -72,12 +76,14 @@ class DiagnoseEngine:
         llm: LLMClient,
         ordinance_resolver: OrdinanceResolver | None = None,
         luris: LurisClient | None = None,
+        eum: "EumClient | None" = None,
     ) -> None:
         self._resolver = land_resolver
         self._cache = cache
         self._llm = llm
         self._ordinance = ordinance_resolver
         self._luris = luris
+        self._eum = eum
 
     async def run(self, req: dict) -> dict:
         """전체 진단 — 토지 조회 + 6개 카테고리 + 이력 저장."""
@@ -234,6 +240,9 @@ class DiagnoseEngine:
         cov_source: str | None = None
         far_limit: float | None = None
         far_source: str | None = None
+        landscape_limit: float | None = None
+        landscape_source: str | None = None
+        landscape_is_estimate: bool = False
         if self._ordinance and (jurisdiction_code or jurisdiction_name) and zone_use:
             cov_res = await self._ordinance.resolve(
                 jurisdiction_code, jurisdiction_name, zone_use, "building_coverage_ratio"
@@ -241,17 +250,27 @@ class DiagnoseEngine:
             far_res = await self._ordinance.resolve(
                 jurisdiction_code, jurisdiction_name, zone_use, "floor_area_ratio"
             )
+            landscape_res = await self._ordinance.resolve(
+                jurisdiction_code, jurisdiction_name, zone_use, "landscape_ratio"
+            )
             cov_limit = cov_res.get("value")
             cov_source = _fmt_source(cov_res)
             far_limit = far_res.get("value")
             far_source = _fmt_source(far_res)
+            # 조경: 조례 출처 또는 시도 평균 추정값(seed)일 때 override.
+            # 순수 시행령 fallback(zone_limits.json)은 calculator 내부에서 처리.
+            if landscape_res.get("is_ordinance") or landscape_res.get("is_estimate"):
+                landscape_limit = landscape_res.get("value")
+                landscape_source = _fmt_source(landscape_res)
+                landscape_is_estimate = bool(landscape_res.get("is_estimate"))
 
-        # 행위제한 (LURIS API) — zone_use + building_use 적합성
+        # 행위제한 (LURIS + EUM 교차검증) — zone_use + building_use 적합성
         r_land_use_act = await land_use_act.calculate(
             self._luris,
             zone_use=zone_use,
             building_use=building_use,
             jurisdiction_code=jurisdiction_code,
+            eum=self._eum,
         )
 
         # 도시계획시설 저촉 (SHP 공간 검사)
@@ -321,7 +340,11 @@ class DiagnoseEngine:
             units=units,
             provided_spaces=provided_parking,
         )
-        r_landscape = landscape.calculate(landscape_area, site_area, zone_use, building_use)
+        r_landscape = landscape.calculate(
+            landscape_area, site_area, zone_use, building_use,
+            limit_override=landscape_limit, source_override=landscape_source,
+            is_estimate_override=landscape_is_estimate,
+        )
 
         # 설비_소방 — AI 호출 (선택적 스킵)
         if skip_ai and cached_fire_safety is not None:
@@ -495,6 +518,9 @@ def _fmt_source(res: dict) -> str | None:
     """OrdinanceResolver 결과 → source 문자열."""
     if not res or res.get("value") is None:
         return None
+    if res.get("is_estimate"):
+        detail = res.get("source_detail") or "시행령 평균 추정값"
+        return f"⚠ 추정값 — {detail}"
     if res.get("is_ordinance"):
         detail = res.get("source_detail") or ""
         tag = "🏛 조례"

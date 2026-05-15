@@ -12,9 +12,13 @@ from __future__ import annotations
 import logging
 import os
 import xml.etree.ElementTree as ET
+from typing import TYPE_CHECKING
 
 import httpx
 from dotenv import load_dotenv
+
+if TYPE_CHECKING:
+    from services.cache_manager import CacheManager
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -28,7 +32,7 @@ class EumClient:
     id/key 미설정 시 available=False — 모든 메서드가 빈 결과 반환 (graceful degrade).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, cache: "CacheManager | None" = None) -> None:
         self._id = os.getenv("EUM_ID", "")
         self._key = os.getenv("EUM_KEY", "")
         if not self._id or not self._key:
@@ -36,6 +40,10 @@ class EumClient:
         self._http = httpx.AsyncClient(timeout=15)
         # zone_code 메모리 캐시: (area_cd, uname) → [matched_ucodes]
         self._zone_code_cache: dict[tuple[str, str], list[dict]] = {}
+        self._cache = cache
+        # 행위제한 캐시 통계
+        self.act_cache_hits = 0
+        self.act_cache_misses = 0
 
     @property
     def available(self) -> bool:
@@ -288,6 +296,46 @@ class EumClient:
                 "qnode_conds": qnode_conds,
             })
         return results
+
+    # ─── 3.5-b 행위제한 캐시 wrapper (단일 ucode + landUseNm 조회) ─────
+
+    async def get_act_restriction_cached(
+        self,
+        area_cd: str,
+        ucode: str,
+        land_use_nm: str,
+    ) -> list[dict] | None:
+        """LURIS와 동일한 시그니처로 단일 ucode 행위제한을 캐시 포함 조회.
+
+        Returns:
+          - list[dict]: act_reg 결과 (빈 list 가능)
+          - None: API 미응답 (네트워크/한도 등) — 호출자가 결정
+        """
+        if not self.available or not area_cd or not ucode or not land_use_nm:
+            return None
+
+        if self._cache is not None:
+            hit, cached = await self._cache.get_eum_act_restriction(area_cd, ucode, land_use_nm)
+            if hit:
+                self.act_cache_hits += 1
+                logger.debug("EUM 행위제한 캐시 적중: %s/%s/%s", area_cd, ucode, land_use_nm)
+                return cached if cached is not None else []
+            self.act_cache_misses += 1
+
+        try:
+            data = await self.get_act_restriction(area_cd, [ucode], land_use_nm=land_use_nm)
+        except Exception as e:
+            logger.error("EUM 행위제한 조회 오류: %s", e)
+            return None
+
+        if self._cache is not None:
+            try:
+                await self._cache.set_eum_act_restriction(
+                    area_cd, ucode, land_use_nm, data if data else None,
+                )
+            except Exception as e:
+                logger.warning("EUM 행위제한 캐시 저장 실패: %s", e)
+        return data
 
     # ─── 3.6 고시정보 ─────────────────────────────────────────────────────
 

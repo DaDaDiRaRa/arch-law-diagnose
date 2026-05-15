@@ -220,23 +220,23 @@ class LawGoKrClient:
 
 
 def _parse_law_xml(xml_text: str) -> list[dict]:
-    """DRF XML 조문 파싱.
+    """DRF 자치법규 XML 조문 파싱.
 
-    실제 DRF XML 구조 (확인됨 2026-05-15):
-      <조문단위>
-        <조문번호>27</조문번호>
-        <조문제목>대지의 조경</조문제목>
-        <조문내용>제27조(대지의 조경)</조문내용>
-        <조문여부>조문</조문여부>
-        <항>
-          <항번호>①</항번호>
-          <항내용>...</항내용>
-          <호>
-            <호번호>1</호번호>
-            <호내용>녹지지역에 건축하는 건축물</호내용>
-          </호>
-        </항>
-      </조문단위>
+    실제 응답 스키마 (확인됨 2026-05-15, target=ordin):
+      <LawService>
+        <조문>
+          <조 조문번호="000100">
+            <조문번호>000100</조문번호>
+            <조문여부>Y</조문여부>          # Y=조문, N=장/절 구분자
+            <조제목><![CDATA[목적]]></조제목>
+            <조내용><![CDATA[제1조(목적) ...
+              ① ...
+              1. ...]]></조내용>           # 항·호는 본문에 인라인
+          </조>
+          ...
+        </조문>
+        <별표> ... </별표>                  # 첨부파일(hwp) 참조라 텍스트 없음 — 파싱 안 함
+      </LawService>
     """
     articles: list[dict] = []
     try:
@@ -245,37 +245,39 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
         logger.error("법령 XML 파싱 오류: %s", e)
         return []
 
-    for jo in root.iter("조문단위"):
-        # 장/절 같은 구분자 제외 (실제 조문만)
-        yn_text = (jo.findtext("조문여부") or "").strip()
-        if yn_text and yn_text != "조문":
+    for jo in root.iter("조"):
+        if (jo.findtext("조문여부") or "").strip() != "Y":
             continue
 
         no_text = (jo.findtext("조문번호") or "").strip()
-        title_text = (jo.findtext("조문제목") or "").strip()
-        content_text = (jo.findtext("조문내용") or "").strip()
+        title_text = (jo.findtext("조제목") or "").strip()
+        content_text = (jo.findtext("조내용") or "").strip()
 
-        # 항 + 호까지 모아 전체 본문 구성
-        parts: list[str] = [content_text] if content_text else []
-        for hang in jo.findall("항"):
-            hang_no = (hang.findtext("항번호") or "").strip()
-            hang_text = (hang.findtext("항내용") or "").strip()
-            if hang_text:
-                parts.append(f"{hang_no} {hang_text}" if hang_no else hang_text)
-            for ho in hang.findall("호"):
-                ho_no = (ho.findtext("호번호") or "").strip()
-                ho_text = (ho.findtext("호내용") or "").strip()
-                if ho_text:
-                    parts.append(f"  {ho_no}. {ho_text}" if ho_no else f"  {ho_text}")
-
-        body = "\n".join(parts).strip()
-        if body:
+        if content_text:
             articles.append({
                 "article_no": no_text,
                 "title": title_text,
-                "content": body,
+                "content": content_text,
             })
 
+    # 별표 — 본문은 hwp 첨부라 비어있지만 제목·URL 은 article 로 보존
+    # (진단 시 "별표 N 참조 필요" 신호로 사용)
+    for byp in root.iter("별표단위"):
+        bp_title = (byp.findtext("별표제목") or "").strip()
+        if not bp_title:
+            continue
+        bp_no = (byp.findtext("별표번호") or "").strip()
+        bp_url = (byp.findtext("별표첨부파일명") or "").strip()
+        content = "본문은 별도 첨부파일(hwp) 참조 — 자동 추출 불가."
+        if bp_url:
+            content += f"\n첨부: {bp_url}"
+        articles.append({
+            "article_no": f"별표{bp_no}".strip(),
+            "title": bp_title,
+            "content": content,
+        })
+
+    # 폴백 — 파싱 0건일 때 전체 XML 통째 (예전 스키마 또는 응답 이상 대응)
     if not articles and xml_text.strip():
         try:
             articles = [{

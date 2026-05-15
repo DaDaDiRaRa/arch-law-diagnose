@@ -71,9 +71,13 @@ async def lifespan(app: FastAPI):
     luris_client = LurisClient(cache=cache_manager)
 
     # 토지이음 표준연계 (Phase 0 — EumClient. 5개 메인 + 2개 헬퍼 API)
-    eum_client = EumClient()
+    # cache 주입 → 행위제한 교차검증 캐시(eum_act_restriction_cache) 활용
+    eum_client = EumClient(cache=cache_manager)
 
-    engine = DiagnoseEngine(land_resolver, cache_manager, llm_client, ordinance_resolver, luris_client)
+    engine = DiagnoseEngine(
+        land_resolver, cache_manager, llm_client,
+        ordinance_resolver, luris_client, eum=eum_client,
+    )
     query_engine = QueryEngine(llm_client)
 
     # Phase 4

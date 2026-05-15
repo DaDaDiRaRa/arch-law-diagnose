@@ -124,8 +124,9 @@
 ### 남은 주요 작업
 
 - **조례 DB 확충** (🔴 최우선) — `ordinance_seed.json` 현재 48개, 전국 ~162개 시군구 기준 수천 건 필요. `backend/scripts/seed_ordinances.py` 아직 미실행. 실행 전까지 서울 외 지역은 시행령 기본값(fallback) 사용.
-- **진단 엔진 ↔ EUM 직통 연결** — 현재 행위제한은 LURIS만 사용. EUM `get_act_restriction()` 을 보조 소스로 병렬 조회 후 병합 예정.
-- **조경·높이 → 조례 리졸버 연동** — 현재 `landscape_standards.json` / `zone_limits.json` 기본값 직접 참조. `ordinance_resolver.py` 로 조례값 우선 적용하도록 수정 필요.
+- **진단 엔진 ↔ EUM 직통 연결** — ✅ 완료. [land_use_act.py](backend/services/calculator/land_use_act.py) 가 LURIS + EUM `get_act_restriction()` 을 병렬 조회 후 머지. 일치(confidence 5 / "교차검증"), 단일소스(confidence 4-5), 불일치(pass=None, confidence 2 / "❗ 불일치"), 둘 다 미수록(confidence 1). 캐시: [cache_manager.py](backend/services/cache_manager.py) `eum_act_restriction_cache` 테이블.
+- **조경 → 조례 리졸버 연동** — ✅ 완료. [landscape.py](backend/services/calculator/landscape.py) 가 `ordinance_resolver` 의 `landscape_ratio` 카테고리 우선 적용. [ordinance_seed.json](backend/config/ordinance_seed.json) 에 17개 시도 평균 추정값 적재 (시군구 정확값은 (b) 에서). 시행령 §27 ②항 4호(200~300㎡=10%) 와 ①항 면제는 시행령 우선 (조례 변경 불가).
+- **높이 → 별도 데이터 소스 필요** — 가로구역별 최고높이(§60) 는 **조례 위임 아닌 허가권자 공고**라 `ordinance_resolver` 부적합. 정북 사선(§86 ①항) 은 시행령 직접 명시. 별도 테이블/소스 설계 필요 (보류).
 - **What-if 슬라이더** — 사양엔 있음, 미구현. 변수(연면적·높이·주차수) 조정 → 즉시 재계산 엔드포인트 + 시나리오 비교 매트릭스 UI.
 - **법규 변경 Cron 자동화** — `law_change_tracker.py` 수동 호출만 가능. APScheduler + 법제처 API 주기 폴링 추가 필요.
 - **VWorld 폴리곤 성능 검증** — `vworld_client.py` (Phase 5 신규) 로컬 테스트 미완. 대규모 필지 쿼리 시 타임아웃 가능성 확인 필요.
@@ -184,6 +185,20 @@ DELETE FROM land_info_cache WHERE pnu='...';
 ---
 
 ## 코딩 컨벤션 (이 프로젝트)
+
+### 작업 방식 (LLM 코딩 원칙)
+
+- **가정 먼저 드러내기** — 요구사항이 모호하면 추측으로 진행 금지. 어떤 가정을 했는지 명시하고, 해석이 갈리면 골라서 질문. 특히 법규·조례 해석 영역에서는 무단 해석 금지 (환각으로 가짜 조문 인용 위험)
+- **단순함 우선** — 요청 범위 밖의 기능·추상화 추가 금지. 단일 호출용 코드에 "유연성/설정값" 미리 빼두지 않기. 일어날 수 없는 시나리오에 대한 방어 코드 금지 (실제 발생 가능한 API 실패는 graceful degrade 로 별도 처리)
+- **외과적 수정** — 요청된 부분만 수정. 주변 코드 정리·포맷팅·"개선" 금지. 기존 스타일이 본인 취향과 달라도 따라가기. 무관한 dead code 발견 시 삭제 말고 사용자에게 보고만. 단, 본인 수정으로 안 쓰이게 된 import/변수/함수는 함께 정리
+- **검증 가능한 완료 기준** — 작업 시작 전 "끝났다"의 정의 명시. 다단계 작업은 단계별 확인 항목 포함 (예: 진단 응답 필드 추가 → 계산기 반환값 + `cache_manager` 스키마 + 프론트 표시까지 모두 확인)
+
+### 사용자 커뮤니케이션
+
+- **내부 사고는 전문적으로, 사용자에게는 쉽게** — 코드/설계/법규는 정확하게 다루되, 사용자에게 보고할 때는 전문 용어를 풀어서 설명. 예: "confidence를 4로 낮춘다" → "이 값은 추정값이라 신뢰도를 한 단계 낮춰서 표시". 어쩔 수 없이 기술 용어가 필요하면 한 줄로 풀이를 곁들이기.
+- **결과 요약은 ① 무엇이 바뀌었는지 ② 사용자가 실제 어떻게 보게 되는지 순서로** — 파일/메서드/스키마 나열보다 "이제 진단할 때 ~게 보입니다" 식이 우선.
+
+### 프로젝트 규칙
 
 - **새 zone_use 매칭 로직 작성 금지** — 무조건 `services.zone_use_normalizer` 사용
 - **LLM 응답 파싱은 `llm_client.judge_json()` 거치기** — 자동 복구 파이프라인 통과

@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS ordinance_zone_limits (
     ef_date           TEXT,
     fetched_at        TEXT NOT NULL,
     needs_review      INTEGER NOT NULL DEFAULT 0,
+    is_estimate       INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (jurisdiction_code, zone_use, category)
 );
 CREATE INDEX IF NOT EXISTS idx_ozl_code ON ordinance_zone_limits(jurisdiction_code);
@@ -107,6 +108,17 @@ CREATE INDEX IF NOT EXISTS idx_ozl_code ON ordinance_zone_limits(jurisdiction_co
 -- LURIS 행위제한 응답 캐시 (1000회/일 한도 대응)
 -- info_json IS NULL → API가 데이터 없음 응답한 것도 캐싱 (재호출 절약)
 CREATE TABLE IF NOT EXISTS luris_act_info_cache (
+    area_cd     TEXT NOT NULL,
+    ucode       TEXT NOT NULL,
+    land_use_nm TEXT NOT NULL,
+    info_json   TEXT,
+    fetched_at  TEXT NOT NULL,
+    PRIMARY KEY (area_cd, ucode, land_use_nm)
+);
+
+-- 토지이음(EUM) 행위제한 응답 캐시 — LURIS와 교차검증용
+-- info_json IS NULL → 빈 응답도 캐싱 (재호출 절약)
+CREATE TABLE IF NOT EXISTS eum_act_restriction_cache (
     area_cd     TEXT NOT NULL,
     ucode       TEXT NOT NULL,
     land_use_nm TEXT NOT NULL,
@@ -143,6 +155,13 @@ class CacheManager:
         try:
             await self._db.execute(
                 "ALTER TABLE land_info_cache ADD COLUMN road_width_source TEXT"
+            )
+        except Exception:
+            pass
+        # 시행령 평균 추정값 명시 컬럼 — 구버전 DB 호환
+        try:
+            await self._db.execute(
+                "ALTER TABLE ordinance_zone_limits ADD COLUMN is_estimate INTEGER NOT NULL DEFAULT 0"
             )
         except Exception:
             pass
@@ -301,14 +320,20 @@ class CacheManager:
         source_article: str | None = None,
         ef_date: str | None = None,
         needs_review: bool = False,
+        is_estimate: bool = False,
     ) -> None:
-        """조례 수치를 UPSERT."""
+        """조례 수치를 UPSERT.
+
+        is_estimate: 실제 조례에서 추출한 값이 아니라 시행령 평균 추정값일 때 True.
+          시도 광역 seed로 미수집 시군구를 임시 채우는 경우 등.
+        """
         now = datetime.utcnow().isoformat()
         await self._db.execute(
             """INSERT INTO ordinance_zone_limits
                (jurisdiction_code, jurisdiction_name, zone_use, category,
-                value, source_law_id, source_article, ef_date, fetched_at, needs_review)
-               VALUES (?,?,?,?,?,?,?,?,?,?)
+                value, source_law_id, source_article, ef_date, fetched_at,
+                needs_review, is_estimate)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(jurisdiction_code, zone_use, category) DO UPDATE SET
                jurisdiction_name=excluded.jurisdiction_name,
                value=excluded.value,
@@ -316,11 +341,13 @@ class CacheManager:
                source_article=excluded.source_article,
                ef_date=excluded.ef_date,
                fetched_at=excluded.fetched_at,
-               needs_review=excluded.needs_review""",
+               needs_review=excluded.needs_review,
+               is_estimate=excluded.is_estimate""",
             (
                 jurisdiction_code, jurisdiction_name, zone_use, category,
                 value, source_law_id, source_article, ef_date, now,
                 1 if needs_review else 0,
+                1 if is_estimate else 0,
             ),
         )
         await self._db.commit()
@@ -380,6 +407,62 @@ class CacheManager:
         payload = json.dumps(info, ensure_ascii=False) if info is not None else None
         await self._db.execute(
             """INSERT INTO luris_act_info_cache
+               (area_cd, ucode, land_use_nm, info_json, fetched_at)
+               VALUES (?,?,?,?,?)
+               ON CONFLICT(area_cd, ucode, land_use_nm) DO UPDATE SET
+               info_json=excluded.info_json,
+               fetched_at=excluded.fetched_at""",
+            (area_cd, ucode, land_use_nm, payload, now),
+        )
+        await self._db.commit()
+
+    # ─── EUM 행위제한 캐시 ───────────────────────────────────────────────
+
+    async def get_eum_act_restriction(
+        self,
+        area_cd: str,
+        ucode: str,
+        land_use_nm: str,
+    ) -> tuple[bool, list | None]:
+        """EUM 행위제한 응답 캐시 조회.
+
+        Returns:
+          (hit, list_data)
+            hit=False: 캐시 미스
+            hit=True, list_data=None: 빈 응답 캐싱됨 (재호출 불필요)
+            hit=True, list_data=list: 정상 캐시
+        """
+        row = await self._fetchone(
+            """SELECT info_json, fetched_at FROM eum_act_restriction_cache
+               WHERE area_cd=? AND ucode=? AND land_use_nm=?""",
+            (area_cd, ucode, land_use_nm),
+        )
+        if not row:
+            return False, None
+        fetched_at = _parse_dt(row["fetched_at"])
+        age_days = (datetime.utcnow() - fetched_at).days
+        if age_days > LURIS_TTL_DAYS:
+            return False, None
+        raw = row["info_json"]
+        if raw is None:
+            return True, None
+        try:
+            return True, json.loads(raw)
+        except json.JSONDecodeError:
+            return False, None
+
+    async def set_eum_act_restriction(
+        self,
+        area_cd: str,
+        ucode: str,
+        land_use_nm: str,
+        info: list | None,
+    ) -> None:
+        """EUM 행위제한 응답 저장 (info=None / 빈 list도 캐싱)."""
+        now = datetime.utcnow().isoformat()
+        payload = json.dumps(info, ensure_ascii=False) if info else None
+        await self._db.execute(
+            """INSERT INTO eum_act_restriction_cache
                (area_cd, ucode, land_use_nm, info_json, fetched_at)
                VALUES (?,?,?,?,?)
                ON CONFLICT(area_cd, ucode, land_use_nm) DO UPDATE SET
