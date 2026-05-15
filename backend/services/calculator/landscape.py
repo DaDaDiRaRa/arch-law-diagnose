@@ -1,14 +1,23 @@
 """조경 계산기.
 
-건축법 제42조: 조경 등의 조치
-건축법 시행령 제27조 + 별표 1: 대지 안의 조경 의무 비율
+건축법 제42조 + 시행령 제27조 — 대지 안의 조경 의무.
 
-면제:
-- 대지면적 200㎡ 미만
-- 공장(1500㎡ 미만 등) 면적 구간별 특례
+시행령 §27 ①항 면제 대상 (법제처 API 확인, 2026 현행):
+  1호. 녹지지역에 건축하는 건축물
+  2호. 면적 5천㎡ 미만 대지의 공장
+  3호. 연면적 1,500㎡ 미만 공장
+  4호. 산업단지의 공장
+  5호. 염분/용도 특성상 곤란 — 건축조례
+  6호. 축사
+  7호. 가설건축물
+  8호. 1,500㎡ 미만 물류시설 (주거·상업 제외)
+  9호. 자연환경보전·농림·관리지역 (지구단위계획구역 제외)
+  10호. 그 밖에 건축조례
 
-V1 한계: 지자체 도시계획조례 평균값 사용. 실제 의무비율은 지역별 편차가 크므로
-충족 시에도 confidence 3 (지자체 조례 확인 필요).
+시행령 §27 ②항 — 의무 비율:
+  4호. 면적 200~300㎡ 미만 대지: 대지면적의 10% 이상
+  그 외 일반 건축물 비율은 건축조례에 위임 — by_zone JSON은 지자체 평균 추정값.
+  confidence 3 (지자체 조례 확인 필요).
 """
 from __future__ import annotations
 
@@ -53,26 +62,56 @@ def calculate(
 
     exempt = False
     exempt_reason: str | None = None
+    required_pct: float = 0.0
 
-    # 시행령 §27 ②항 1호: 녹지지역 건축 면제 (가장 확실한 면제 조항)
+    # ── 시행령 §27 ①항 면제 (우선순위 순) ──────────────────────────────────
+    # 1호: 녹지지역
     if _is_green_zone(zone_use):
         exempt = True
         exempt_reason = (
-            f"녹지지역({zone_use}) 건축 — 조경 의무 면제 (건축법 시행령 §27 ②항 1호)"
+            f"{zone_use} 건축 — 조경 면제 (시행령 §27 ①항 1호: 녹지지역)"
         )
-        required_pct: float = 0.0
+    # 9호: 자연환경보전·농림·관리지역 (단, 지구단위계획구역은 제외)
+    elif _is_conservation_or_management_zone(zone_use):
+        # 지구단위계획구역인지 확인은 사용자 입력 zone_district 등에 단서 필요.
+        # 현재 calculator에는 그 정보가 없으므로 보수적으로 면제 처리 + 안내.
+        exempt = True
+        exempt_reason = (
+            f"{zone_use} 건축 — 조경 면제 (시행령 §27 ①항 9호: "
+            f"자연환경보전·농림·관리지역). 지구단위계획구역이면 면제 제외 — 별도 확인 필요"
+        )
+    # 6호: 축사
+    elif "축사" in (building_use or ""):
+        exempt = True
+        exempt_reason = "축사 — 조경 면제 (시행령 §27 ①항 6호)"
+    # 7호: 가설건축물
+    elif "가설" in (building_use or ""):
+        exempt = True
+        exempt_reason = "가설건축물 — 조경 면제 (시행령 §27 ①항 7호)"
+    # 2호: 면적 5천㎡ 미만 대지의 공장
+    elif "공장" in (building_use or "") and site_area < 5000:
+        exempt = True
+        exempt_reason = (
+            f"공장 + 대지 {site_area:.0f}㎡ < 5,000㎡ — 조경 면제 "
+            f"(시행령 §27 ①항 2호)"
+        )
+    # 200㎡ 미만 대지 (시행령 §27 ②항 4호의 반대 — 200㎡ 이상부터 의무)
     elif site_area < exempt_threshold:
         exempt = True
         exempt_reason = (
-            f"대지면적 {site_area:.0f}㎡ < {exempt_threshold}㎡ — 조경 의무 면제 "
-            f"(건축법 시행령 §27 ②항 2호)"
+            f"대지면적 {site_area:.0f}㎡ < {exempt_threshold}㎡ — 조경 의무 없음 "
+            f"(시행령 §27 ②항 4호 적용 외)"
         )
-        required_pct = 0.0
     else:
-        required_pct = _required_ratio(building_use, site_area, zone_use, std)
+        # ②항 4호: 200~300㎡ 미만은 10% 의무 (시행령 직접 명시)
+        if site_area < 300:
+            required_pct = 10.0
+        else:
+            # 그 외 비율은 시·도 조례 위임. by_zone JSON은 평균 추정값.
+            required_pct = _required_ratio(building_use, site_area, zone_use, std)
         if required_pct == 0:
             exempt = True
-            exempt_reason = f"용도 '{building_use}' 면적 구간 면제"
+            exempt_reason = f"용도 '{building_use}' 별 면제"
 
     required_area = round(site_area * required_pct / 100, 2)
     law_refs = _law_refs()
@@ -157,10 +196,19 @@ def calculate(
 
 
 def _is_green_zone(zone_use: str) -> bool:
-    """녹지지역 — 시행령 §27 ②항 1호 조경 의무 면제 대상."""
+    """녹지지역 — 시행령 §27 ①항 1호 면제."""
     if not zone_use:
         return False
     return any(kw in zone_use for kw in ("보전녹지", "생산녹지", "자연녹지"))
+
+
+def _is_conservation_or_management_zone(zone_use: str) -> bool:
+    """자연환경보전·농림·관리지역 — 시행령 §27 ①항 9호 면제 (지구단위계획구역 제외)."""
+    if not zone_use:
+        return False
+    return any(kw in zone_use for kw in (
+        "자연환경보전", "농림지역", "보전관리", "생산관리", "계획관리",
+    ))
 
 
 def _required_ratio(

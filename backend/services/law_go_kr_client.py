@@ -81,7 +81,13 @@ class LawGoKrClient:
                     m = re.search(r"MST=(\d+)", link)
                     law_id = m.group(1) if m else ""
             else:
-                law_id = item.get("법령ID", "")
+                # 법령ID(통합 ID)가 아니라 법령일련번호(MST)를 사용해야 lawService.do 가 동작.
+                # 상세링크 fallback 으로 MST 추출하기도 함.
+                law_id = item.get("법령일련번호", "")
+                if not law_id:
+                    link = item.get("법령상세링크", "")
+                    m = re.search(r"MST=(\d+)", link)
+                    law_id = m.group(1) if m else ""
                 law_nm = item.get("법령명한글", "")
 
             if law_id and law_nm:
@@ -216,8 +222,21 @@ class LawGoKrClient:
 def _parse_law_xml(xml_text: str) -> list[dict]:
     """DRF XML 조문 파싱.
 
-    구조: <LawService> > <조문> > <조> 반복
-      <조문번호>, <조문제목>, <조문내용>
+    실제 DRF XML 구조 (확인됨 2026-05-15):
+      <조문단위>
+        <조문번호>27</조문번호>
+        <조문제목>대지의 조경</조문제목>
+        <조문내용>제27조(대지의 조경)</조문내용>
+        <조문여부>조문</조문여부>
+        <항>
+          <항번호>①</항번호>
+          <항내용>...</항내용>
+          <호>
+            <호번호>1</호번호>
+            <호내용>녹지지역에 건축하는 건축물</호내용>
+          </호>
+        </항>
+      </조문단위>
     """
     articles: list[dict] = []
     try:
@@ -226,30 +245,44 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
         logger.error("법령 XML 파싱 오류: %s", e)
         return []
 
-    for jo in root.iter("조"):
-        no_el = jo.find("조문번호")
-        title_el = jo.find("조제목")      # DRF 실제 태그명
-        content_el = jo.find("조내용")    # DRF 실제 태그명
-
-        no_text = (no_el.text or "").strip() if no_el is not None else ""
-        title_text = (title_el.text or "").strip() if title_el is not None else ""
-        content_text = (content_el.text or "").strip() if content_el is not None else ""
-
-        # 조문여부 Y인 것만 (장/절 구분자 제외)
-        yn_el = jo.find("조문여부")
-        if yn_el is not None and (yn_el.text or "").strip() != "Y":
+    for jo in root.iter("조문단위"):
+        # 장/절 같은 구분자 제외 (실제 조문만)
+        yn_text = (jo.findtext("조문여부") or "").strip()
+        if yn_text and yn_text != "조문":
             continue
 
-        if content_text:
+        no_text = (jo.findtext("조문번호") or "").strip()
+        title_text = (jo.findtext("조문제목") or "").strip()
+        content_text = (jo.findtext("조문내용") or "").strip()
+
+        # 항 + 호까지 모아 전체 본문 구성
+        parts: list[str] = [content_text] if content_text else []
+        for hang in jo.findall("항"):
+            hang_no = (hang.findtext("항번호") or "").strip()
+            hang_text = (hang.findtext("항내용") or "").strip()
+            if hang_text:
+                parts.append(f"{hang_no} {hang_text}" if hang_no else hang_text)
+            for ho in hang.findall("호"):
+                ho_no = (ho.findtext("호번호") or "").strip()
+                ho_text = (ho.findtext("호내용") or "").strip()
+                if ho_text:
+                    parts.append(f"  {ho_no}. {ho_text}" if ho_no else f"  {ho_text}")
+
+        body = "\n".join(parts).strip()
+        if body:
             articles.append({
                 "article_no": no_text,
                 "title": title_text,
-                "content": content_text,
+                "content": body,
             })
 
     if not articles and xml_text.strip():
         try:
-            articles = [{"article_no": "", "title": "전문", "content": ET.tostring(root, encoding="unicode")}]
+            articles = [{
+                "article_no": "",
+                "title": "전문",
+                "content": ET.tostring(root, encoding="unicode"),
+            }]
         except Exception:
             pass
 
