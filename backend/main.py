@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -417,6 +418,89 @@ async def eum_law_info(
         "ucode_count": len(ucode_info),
         "total_items": len(laws),
         "groups": list(groups.values()),
+    }
+
+
+@app.get("/api/eum/notices")
+async def eum_notices(
+    area_cd: str = Query(..., min_length=5, max_length=5, description="시군구코드 5자리"),
+    days: int = Query(90, ge=1, le=365, description="조회 기간 (일)"),
+    page_no: int = Query(1, ge=1, description="페이지 번호 (30건/페이지)"),
+):
+    """토지이음 행정 고시 — Phase 2.
+
+    시군구의 최근 N일간 고시 목록 (도시계획결정·지정·변경고시 등).
+    `LawChangeAlert` 에서 진단 지역의 최근 행정 변화를 자동 노출.
+
+    Returns:
+      {area_cd, period: {start, end, days}, total_size, total_page,
+       list_size, page_no, items: [{title, author, ntc_date, link, summary}]}
+    """
+    if eum_client is None or not eum_client.available:
+        return {
+            "area_cd": area_cd,
+            "period": {"start": "", "end": "", "days": days},
+            "total_size": 0, "total_page": 0, "list_size": 0,
+            "page_no": page_no, "items": [],
+            "warning": "토지이음 API 비활성 (EUM_ID/EUM_KEY 확인)",
+        }
+    end_dt = datetime.now().strftime("%Y%m%d")
+    start_dt = (datetime.now() - timedelta(days=days)).strftime("%Y%m%d")
+    try:
+        result = await eum_client.get_notices(area_cd, start_dt, end_dt, page_no)
+    except Exception as e:
+        logger.exception("EUM 고시 조회 오류: %s", e)
+        raise HTTPException(500, f"EUM 고시 조회 실패: {e}")
+    return {
+        "area_cd": area_cd,
+        "period": {"start": start_dt, "end": end_dt, "days": days},
+        **result,
+    }
+
+
+@app.get("/api/eum/dev_permits")
+async def eum_dev_permits(
+    area_cd: str = Query(..., min_length=5, max_length=5, description="시군구코드 5자리"),
+    days: int = Query(14, ge=1, le=30, description="조회 기간 (일, 최대 30)"),
+):
+    """토지이음 개발 인허가 목록 — Phase 3.
+
+    EUM API는 단일 날짜만 받으므로 최근 N일을 병렬 집계.
+    주변 개발 동향(인접 필지에서 어떤 개발이 진행 중인지)을 한눈에.
+
+    Returns:
+      {area_cd, period: {start, end, days}, total, items: [{...permit fields..., _permit_date}]}
+    """
+    if eum_client is None or not eum_client.available:
+        return {
+            "area_cd": area_cd,
+            "period": {"start": "", "end": "", "days": days},
+            "total": 0, "items": [],
+            "warning": "토지이음 API 비활성 (EUM_ID/EUM_KEY 확인)",
+        }
+    today = datetime.now()
+    dates = [(today - timedelta(days=i)).strftime("%Y%m%d") for i in range(days)]
+    tasks = [eum_client.get_dev_permits(area_cd, d, 1) for d in dates]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    all_items: list[dict] = []
+    errors = 0
+    for d, r in zip(dates, results):
+        if isinstance(r, Exception):
+            errors += 1
+            continue
+        for item in (r.get("list", []) or []):
+            all_items.append({**item, "_permit_date": d})
+
+    # 날짜 내림차순 — 본 API의 list 내 순서는 보존하면서 일자 단위로 정렬
+    all_items.sort(key=lambda x: x.get("_permit_date", ""), reverse=True)
+
+    return {
+        "area_cd": area_cd,
+        "period": {"start": dates[-1], "end": dates[0], "days": days},
+        "total": len(all_items),
+        "items": all_items[:100],  # 응답 비대 방지 — 첫 100건
+        "fetch_errors": errors,
     }
 
 

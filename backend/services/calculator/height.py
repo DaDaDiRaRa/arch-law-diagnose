@@ -51,7 +51,27 @@ def calculate(
       parcel_geometry: VWorld 지적도 폴리곤 (GeoJSON dict) — 보조 정보로 정북 방향 필지 깊이 계산
     """
     shadow_applies = _shadow_applies(zone_use)
-    shadow_min_setback_m = round(max(1.5, height / 2), 2) if shadow_applies else None
+    # 시행령 §86 ①항 — 부분별 이격거리 룰
+    #   1호. 높이 10m 이하 부분: 1.5m 이상
+    #   2호. 높이 10m 초과 부분: 해당 부분 높이의 1/2 이상
+    # 단순 직립 외벽 가정 시, 전체 건물에 적용되는 최소 이격은
+    #   - 건물높이 ≤ 10m → 1.5m
+    #   - 건물높이 > 10m → height/2 (10m 초과부 최고점 기준, 1.5m보다 항상 큼)
+    if shadow_applies:
+        if height <= 10.0:
+            shadow_min_setback_m = 1.5
+            shadow_setback_rule = (
+                f"10m 이하 부분 1호 적용 — 건물 {height}m → 필요 이격 1.5m"
+            )
+        else:
+            shadow_min_setback_m = round(height / 2, 2)
+            shadow_setback_rule = (
+                f"10m 초과 부분 2호 적용 — 건물 {height}m → 필요 이격 {shadow_min_setback_m}m "
+                "(=높이/2; 하단 10m 부분만 보면 1.5m, 상단 외벽을 단계적으로 후퇴시키면 절감 가능)"
+            )
+    else:
+        shadow_min_setback_m = None
+        shadow_setback_rule = None
 
     # ─── 적용 제외 사유 판단 (§86 ②항) ──────────────────────────────────
     exemptions: list[str] = []
@@ -141,7 +161,7 @@ def calculate(
                 score = 4
             confidence = 2
             judgement_notes.append(
-                f"⚠ 정북 일조 사선 적용 대상 (필요 이격 {shadow_min_setback_m}m). "
+                f"⚠ 정북 일조 사선 적용 대상 — {shadow_setback_rule}. "
                 "정북 이격거리 미입력 — 자동 판정 불가, 필수 수동검토."
             )
 
@@ -182,6 +202,7 @@ def calculate(
         "shadow_applies": effective_shadow_applies,
         "shadow_applies_base": shadow_applies,
         "shadow_min_setback_m": shadow_min_setback_m,
+        "shadow_setback_rule": shadow_setback_rule,
         "north_setback_m": north_setback_m,
         "adjacent_zone_north": adjacent_zone_north,
         "road_20m_adjacent": road_20m_adjacent,

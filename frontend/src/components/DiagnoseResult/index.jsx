@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import CaseReference from '../CaseReference'
 import DataQualityBanner from '../DataQualityBanner'
+import DevTrendPanel from '../DevTrendPanel'
 import LawChangeAlert from '../LawChangeAlert'
 import LawInfoPanel from '../LawInfoPanel'
 import LegalReviewReport from '../LegalReviewReport'
@@ -83,11 +84,11 @@ export default function DiagnoseResult() {
   const siteAreaNum = formData?.site_area ? parseFloat(formData.site_area) : undefined
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[440px_minmax(0,1fr)] gap-5 items-start">
+    <div className="grid grid-cols-1 xl:grid-cols-[295px_minmax(0,1fr)] gap-5 items-start">
       {/* ── 좌측: 종합진단 + What-if (sticky) ──────────────── */}
       <div className="space-y-5 xl:sticky xl:top-4">
-      {/* Phase 4 — 법규 변경 배너 (최상단) */}
-      <LawChangeAlert />
+      {/* Phase 4 — 법규 변경 배너 + Phase 2 — 토지이음 행정 고시 (최상단) */}
+      <LawChangeAlert areaCd={(result.land_info?.pnu || '').slice(0, 5)} />
 
       {/* 데이터 품질 배너 */}
       <DataQualityBanner dataQuality={result.data_quality} />
@@ -222,6 +223,11 @@ export default function DiagnoseResult() {
               zoneUse={result.land_info?.zone_use}
               zoneDistrict={result.land_info?.zone_district}
             />
+          )}
+
+          {/* 주변 개발 인허가 동향 (Phase 3) */}
+          {result.land_info?.pnu && (
+            <DevTrendPanel areaCd={(result.land_info?.pnu || '').slice(0, 5)} />
           )}
 
           {/* 대지면적 자동 보정 (도시계획시설 저촉) */}
@@ -640,7 +646,7 @@ function CategoryCard({ label, cat }) {
   ].filter(Boolean)
 
   // 위험·확인필요는 기본 펼침, 적합은 기본 접힘
-  const [open, setOpen] = useState(passed !== true)
+  const [open, setOpen] = useState(false)
 
   const hasDetail =
     cat.notes ||

@@ -35,6 +35,7 @@ from services.calculator import (
     parking,
     urban_facility,
 )
+from services import building_agreement
 from services.far_relief import build_relief_note, compute_relief
 from services.land_use_resolver import LandUseResolver, _parse_sido as _extract_sido
 from services.llm_client import LLMClient
@@ -56,6 +57,7 @@ def _load_weights() -> dict[str, float]:
 
 _ZONE_LIMITS_PATH = Path(__file__).parent.parent / "config" / "zone_limits.json"
 _FAR_DEFAULTS_CACHE: dict | None = None
+_COV_DEFAULTS_CACHE: dict | None = None
 
 
 def _get_default_far_limit(zone_use: str) -> float | None:
@@ -66,6 +68,16 @@ def _get_default_far_limit(zone_use: str) -> float | None:
             _FAR_DEFAULTS_CACHE = json.load(f).get("floor_area_ratio", {})
     from services.zone_use_normalizer import lookup_limit
     return lookup_limit(_FAR_DEFAULTS_CACHE, zone_use)
+
+
+def _get_default_cov_limit(zone_use: str) -> float | None:
+    """zone_limits.json 의 building_coverage_ratio 법정 상한 조회."""
+    global _COV_DEFAULTS_CACHE
+    if _COV_DEFAULTS_CACHE is None:
+        with open(_ZONE_LIMITS_PATH, encoding="utf-8") as f:
+            _COV_DEFAULTS_CACHE = json.load(f).get("building_coverage_ratio", {})
+    from services.zone_use_normalizer import lookup_limit
+    return lookup_limit(_COV_DEFAULTS_CACHE, zone_use)
 
 
 class DiagnoseEngine:
@@ -169,6 +181,7 @@ class DiagnoseEngine:
             road_width = float(land["road_width_auto"])
             road_width_source = land.get("road_width_source") or "auto"
         landscape_area: float | None = req.get("landscape_area")
+        rooftop_landscape_area: float | None = req.get("rooftop_landscape_area")
         pnu: str = req.get("pnu") or ""
 
         zone_use: str = land.get("zone_use", "")
@@ -263,6 +276,44 @@ class DiagnoseEngine:
                 landscape_limit = landscape_res.get("value")
                 landscape_source = _fmt_source(landscape_res)
                 landscape_is_estimate = bool(landscape_res.get("is_estimate"))
+
+        # ─── T3 특례 토글 — cov_limit / far_limit 사전 조정 ───────────────────
+        # T3-2: 재정비촉진지구 (도시재정비촉진법 §19)
+        #   건폐율: 법정 상한(zone_limits)까지 완화
+        #   용적률: 법정 상한 × 1.2배 (단, §19 ②항 3호 명시 상한)
+        if req.get("rema_zone"):
+            legal_cov = _get_default_cov_limit(zone_use)
+            legal_far = _get_default_far_limit(zone_use)
+            if legal_cov and (cov_limit is None or cov_limit < legal_cov):
+                cov_limit = legal_cov
+                cov_source = "재정비촉진지구 특례 — 법정 상한까지 완화 (도시재정비촉진법 §19 ②항 2호)"
+            if legal_far:
+                far_rema = round(legal_far * 1.2, 2)
+                if far_limit is None or far_limit < far_rema:
+                    far_limit = far_rema
+                    far_source = f"재정비촉진지구 특례 — 법정 상한 {legal_far}% × 1.2 = {far_rema}% (§19 ②항 3호)"
+
+        # T3-3: 리모델링이 쉬운 구조 (건축법 시행령 §6의5 ②항, 공동주택 한정)
+        #   용적률 한도 × 1.2배
+        if req.get("easy_remodel") and building_use == "공동주택":
+            base = far_limit or _get_default_far_limit(zone_use) or 0
+            if base > 0:
+                far_remodel = round(base * 1.2, 2)
+                far_limit = far_remodel
+                far_source = f"리모델링이 쉬운 구조 특례 — 기본 한도 {base}% × 1.2 = {far_remodel}% (시행령 §6의5 ②항)"
+
+        # T3-4: 공공지원민간임대주택 (민간임대주택특별법 §21)
+        #   건폐율·용적률 → 조례 상한 초과, 법정 상한까지 완화
+        #   조건: 공공지원민간임대 연면적 비율 50% 이상
+        if req.get("public_rental"):
+            legal_cov = _get_default_cov_limit(zone_use)
+            legal_far = _get_default_far_limit(zone_use)
+            if legal_cov and (cov_limit is None or cov_limit < legal_cov):
+                cov_limit = legal_cov
+                cov_source = "공공지원민간임대 특례 — 법정 상한까지 완화 (민간임대주택법 §21 1호)"
+            if legal_far and (far_limit is None or far_limit < legal_far):
+                far_limit = legal_far
+                far_source = "공공지원민간임대 특례 — 법정 상한까지 완화 (민간임대주택법 §21 2호)"
 
         # 행위제한 (LURIS + EUM 교차검증) — zone_use + building_use 적합성
         r_land_use_act = await land_use_act.calculate(
@@ -369,7 +420,33 @@ class DiagnoseEngine:
             landscape_area, site_area, zone_use, building_use,
             limit_override=landscape_limit, source_override=landscape_source,
             is_estimate_override=landscape_is_estimate,
+            rooftop_landscape_area=rooftop_landscape_area,
         )
+
+        # ─── 건축협정 §110의7 완화 사후 적용 ─────────────────────────────────
+        agreement_on = bool(req.get("building_agreement"))
+        if agreement_on:
+            agreement_landscape_road = bool(req.get("agreement_landscape_road_facing"))
+            r_coverage = building_agreement.apply_to_coverage(
+                r_coverage, applied=True, zone_use=zone_use,
+            )
+            r_far = building_agreement.apply_to_far(
+                r_far, applied=True, zone_use=zone_use,
+            )
+            r_landscape = building_agreement.apply_to_landscape(
+                r_landscape, applied=True,
+                road_facing_integrated=agreement_landscape_road,
+            )
+            r_height = building_agreement.apply_to_height(
+                r_height, applied=True, road_width=road_width,
+            )
+            # §86 ③항 인동거리(공동주택 한정) 완화는 현재 진단 외 — 안내만
+            if (building_use or "") == "공동주택":
+                r_height["notes"] = (
+                    (r_height.get("notes") or "")
+                    + " · ℹ️ 공동주택은 건축협정 시 §86 ③항 인동거리도 1.2배 완화 가능 "
+                    "(§110의7 5호 — 현재 자동 진단 외)"
+                )
 
         # 설비_소방 — AI 호출 (선택적 스킵)
         if skip_ai and cached_fire_safety is not None:

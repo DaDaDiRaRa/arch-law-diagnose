@@ -42,7 +42,7 @@ export default function App() {
       </header>
 
       <main className="w-full px-6 py-6">
-        <div className={`grid gap-6 ${hasOutput || hasAddress ? 'grid-cols-1 lg:grid-cols-[400px_minmax(0,1fr)]' : 'grid-cols-1 max-w-2xl'}`}>
+        <div className={`grid gap-6 ${hasOutput || hasAddress ? 'grid-cols-1 lg:grid-cols-[545px_minmax(0,1fr)]' : 'grid-cols-1 max-w-2xl'}`}>
 
           {/* 입력 패널 */}
           <section>

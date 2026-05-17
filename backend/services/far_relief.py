@@ -56,8 +56,8 @@ def compute_relief(
     """
     rules = _load_rules()
     caps = rules.get("_caps", {})
-    cert_cap = float(caps.get("certification_sum_cap_pct", 12))
-    overall_cap_ratio = float(caps.get("total_overall_cap_ratio", 1.2))
+    cert_cap = float(caps.get("certification_sum_cap_pct", 15))
+    overall_cap_ratio = float(caps.get("total_overall_cap_ratio", 1.15))
 
     # 사용자 수동 한도가 입력되면 그것이 최우선 (도시계획심의·지구단위 등)
     if far_limit_manual_override is not None and far_limit_manual_override > 0:
@@ -134,7 +134,7 @@ def compute_relief(
                 "label": _kind_label(kind, grade),
                 "relief_pct": relief,
                 "basis": rule.get("law", ""),
-                "note": f"{grade} 등급",
+                "note": f"{grade} 등급 · 완화율은 국토부 고시 기준 추정값 — 실제 고시 확인 필요",
             })
             cert_total += relief
 
@@ -167,12 +167,12 @@ def compute_relief(
     cap_note = ""
     if capped_by_cert_cap and capped_by_overall:
         cap_note = (
-            f"인증 합산 캡 {cert_cap}% + 전체 캡 1.2배 (={overall_cap:.0f}%) 동시 적용"
+            f"인증 합산 캡 {cert_cap}% + 전체 캡 {overall_cap_ratio}배 (={overall_cap:.0f}%) 동시 적용"
         )
     elif capped_by_cert_cap:
         cap_note = f"인증 합산 캡 {cert_cap}%로 일부 완화율 축소"
     elif capped_by_overall:
-        cap_note = f"전체 캡 1.2배 (={overall_cap:.0f}%) 적용 — 추가 완화 무효화"
+        cap_note = f"전체 캡 {overall_cap_ratio}배 (={overall_cap:.0f}%) 적용 — 추가 완화 무효화"
 
     return {
         "applied": len(items) > 0,

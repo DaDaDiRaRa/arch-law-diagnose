@@ -66,4 +66,21 @@ export const api = {
     if (zoneDistrict) qs.set('zone_district', zoneDistrict)
     return request(`/eum/law_info?${qs.toString()}`)
   },
+
+  eumNotices: ({ areaCd, days = 90, pageNo = 1 }) => {
+    const qs = new URLSearchParams({
+      area_cd: areaCd,
+      days: String(days),
+      page_no: String(pageNo),
+    })
+    return request(`/eum/notices?${qs.toString()}`)
+  },
+
+  eumDevPermits: ({ areaCd, days = 14 }) => {
+    const qs = new URLSearchParams({
+      area_cd: areaCd,
+      days: String(days),
+    })
+    return request(`/eum/dev_permits?${qs.toString()}`)
+  },
 }

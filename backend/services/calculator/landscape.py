@@ -47,6 +47,7 @@ def calculate(
     limit_override: float | None = None,
     source_override: str | None = None,
     is_estimate_override: bool = False,
+    rooftop_landscape_area: float | None = None,
 ) -> dict:
     """조경 진단 결과.
 
@@ -177,7 +178,22 @@ def calculate(
             ),
         )
 
-    actual_pct = (landscape_area / site_area * 100) if site_area > 0 else 0.0
+    # 시행령 §27 ③항 — 옥상조경 인정
+    #   - 옥상 조경면적의 2/3 인정
+    #   - 의무 조경면적의 50%까지만 인정 (상한 캡)
+    rooftop_credit = 0.0
+    rooftop_credit_note = ""
+    if rooftop_landscape_area and rooftop_landscape_area > 0 and not exempt:
+        cap = required_area * 0.5
+        rooftop_credit = round(min(rooftop_landscape_area * (2 / 3), cap), 2)
+        rooftop_credit_note = (
+            f"옥상조경 {rooftop_landscape_area:.0f}㎡ × 2/3 = "
+            f"{rooftop_landscape_area * 2/3:.1f}㎡, "
+            f"의무면적 50% 캡 {cap:.1f}㎡ → 인정 {rooftop_credit:.1f}㎡ (시행령 §27 ③항)"
+        )
+
+    effective_landscape = (landscape_area or 0.0) + rooftop_credit
+    actual_pct = (effective_landscape / site_area * 100) if site_area > 0 else 0.0
 
     if exempt:
         return _result(
@@ -195,7 +211,7 @@ def calculate(
         )
 
     passed = actual_pct >= required_pct
-    deficit = max(0.0, required_area - landscape_area)
+    deficit = max(0.0, required_area - effective_landscape)
 
     if not passed:
         score = 0.0
@@ -208,6 +224,9 @@ def calculate(
         else:
             score = round(7.0 + margin_ratio / 0.1 * 1.0, 1)
 
+    base_notes = _notes(passed, actual_pct, required_pct, deficit, zone_use)
+    notes = (base_notes + " " + rooftop_credit_note).strip() if rooftop_credit_note else base_notes
+
     return _result(
         actual_pct=round(actual_pct, 2),
         required_pct=required_pct,
@@ -219,7 +238,9 @@ def calculate(
         confidence=nonexempt_confidence,
         source=nonexempt_source,
         law_refs=law_refs,
-        notes=_notes(passed, actual_pct, required_pct, deficit, zone_use),
+        notes=notes,
+        rooftop_landscape_area=rooftop_landscape_area or 0.0,
+        rooftop_credit_m2=rooftop_credit,
     )
 
 
@@ -304,6 +325,8 @@ def _result(**kwargs) -> dict:
         "source": kwargs["source"],
         "law_refs": kwargs["law_refs"],
         "notes": kwargs["notes"],
+        "rooftop_landscape_area_m2": kwargs.get("rooftop_landscape_area", 0.0),
+        "rooftop_credit_m2": kwargs.get("rooftop_credit_m2", 0.0),
     }
 
 

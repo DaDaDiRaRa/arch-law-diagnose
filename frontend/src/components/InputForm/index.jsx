@@ -105,6 +105,13 @@ export default function InputForm() {
         ...(formData.energy_grade     ? { energy_grade: formData.energy_grade } : {}),
         ...(formData.smart_grade      ? { smart_grade: formData.smart_grade } : {}),
         ...(formData.long_life_grade  ? { long_life_grade: formData.long_life_grade } : {}),
+        ...(formData.building_agreement ? { building_agreement: true } : {}),
+        ...(formData.agreement_landscape_road_facing
+          ? { agreement_landscape_road_facing: true }
+          : {}),
+        ...(formData.rema_zone ? { rema_zone: true } : {}),
+        ...(formData.easy_remodel ? { easy_remodel: true } : {}),
+        ...(formData.public_rental ? { public_rental: true } : {}),
         ...(formData.far_limit_manual_override
           ? { far_limit_manual_override: parseFloat(formData.far_limit_manual_override) }
           : {}),
@@ -131,6 +138,7 @@ export default function InputForm() {
         height: parseFloat(formData.height),
         ...(formData.road_width ? { road_width: parseFloat(formData.road_width) } : {}),
         ...(formData.landscape_area ? { landscape_area: parseFloat(formData.landscape_area) } : {}),
+        ...(formData.rooftop_landscape_area ? { rooftop_landscape_area: parseFloat(formData.rooftop_landscape_area) } : {}),
         ...(isApartment && formData.units ? { units: parseInt(formData.units, 10) } : {}),
       }
 
@@ -185,6 +193,7 @@ export default function InputForm() {
       height: parseFloat(formData.height),
       ...(formData.road_width ? { road_width: parseFloat(formData.road_width) } : {}),
       ...(formData.landscape_area ? { landscape_area: parseFloat(formData.landscape_area) } : {}),
+      ...(formData.rooftop_landscape_area ? { rooftop_landscape_area: parseFloat(formData.rooftop_landscape_area) } : {}),
       ...(isApartment && formData.units ? { units: parseInt(formData.units, 10) } : {}),
       ...(formData.provided_parking_spaces
         ? { provided_parking_spaces: parseInt(formData.provided_parking_spaces, 10) }
@@ -196,6 +205,13 @@ export default function InputForm() {
       ...(formData.energy_grade     ? { energy_grade: formData.energy_grade } : {}),
       ...(formData.smart_grade      ? { smart_grade: formData.smart_grade } : {}),
       ...(formData.long_life_grade  ? { long_life_grade: formData.long_life_grade } : {}),
+      ...(formData.building_agreement ? { building_agreement: true } : {}),
+      ...(formData.agreement_landscape_road_facing
+        ? { agreement_landscape_road_facing: true }
+        : {}),
+      ...(formData.rema_zone ? { rema_zone: true } : {}),
+      ...(formData.easy_remodel ? { easy_remodel: true } : {}),
+      ...(formData.public_rental ? { public_rental: true } : {}),
       ...(formData.far_limit_manual_override
         ? { far_limit_manual_override: parseFloat(formData.far_limit_manual_override) }
         : {}),
@@ -468,6 +484,8 @@ export default function InputForm() {
 
       <FloorAreaSummary formData={formData} />
 
+      <RatioPanel formData={formData} />
+
       {/* 용적률 완화 입력 (선택) */}
       <details className="rounded border border-emerald-200 bg-emerald-50/60 px-3 py-2">
         <summary className="text-xs text-emerald-800 cursor-pointer select-none font-medium">
@@ -541,9 +559,96 @@ export default function InputForm() {
           </Field>
         </div>
         <p className="mt-2 text-[10px] text-emerald-700 leading-relaxed">
-          ※ 인증 등급별 완화율은 자동 합산 (합산 캡 12%, 전체 캡 기본 한도의 1.2배).
+          ※ 인증 등급별 완화율은 자동 합산 (합산 캡 15%, 전체 캡 기본 한도의 1.15배 — 녹색건축물법 §15).
           한도 직접 지정 시 인증 등급 합산 대신 그 값 사용.
-          모든 완화는 자동 추정이며 <b>실제 인허가 심의에서 인정받아야 효력</b> 발생합니다.
+          등급별 %는 국토부 고시 추정값이며, 모든 완화는 <b>실제 인허가 심의에서 인정받아야 효력</b> 발생합니다.
+        </p>
+      </details>
+
+      {/* 🤝 건축협정 — §110의7 */}
+      <details className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-amber-900 select-none">
+          🤝 건축협정 (선택 — 건축법 시행령 §110의7)
+        </summary>
+        <div className="mt-3 space-y-3">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="building_agreement"
+              checked={!!formData.building_agreement}
+              onChange={(e) =>
+                setFormData({ building_agreement: e.target.checked })
+              }
+              className="w-4 h-4 accent-amber-600"
+            />
+            <span>건축협정 체결 (건폐율·용적률 1.2배, 국계법 법정 상한 캡)</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer ml-6">
+            <input
+              type="checkbox"
+              name="agreement_landscape_road_facing"
+              checked={!!formData.agreement_landscape_road_facing}
+              onChange={(e) =>
+                setFormData({ agreement_landscape_road_facing: e.target.checked })
+              }
+              disabled={!formData.building_agreement}
+              className="w-4 h-4 accent-amber-600"
+            />
+            <span className={!formData.building_agreement ? 'text-gray-400' : ''}>
+              조경을 도로면 통합 조성 (조경 의무 0.8배 추가 완화 — §110의7 1호)
+            </span>
+          </label>
+        </div>
+        <p className="mt-3 text-[10px] text-amber-700 leading-relaxed">
+          ※ 높이 §60 완화는 너비 6m 이상 도로 접함 시 자동 적용,
+          일조 §61 인동거리 완화는 공동주택 한정 (현재 자동 진단 외 — 안내만 표시).
+          모든 협정 완화는 <b>건축협정 인가 + 심의 통과 시에만 효력</b> 발생합니다.
+        </p>
+      </details>
+
+      {/* 📋 특별 지구·인증 특례 토글 */}
+      <details className="rounded-lg border border-purple-200 bg-purple-50/40 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-purple-900 select-none">
+          📋 특별 지구·인증 특례 (선택)
+        </summary>
+        <div className="mt-3 space-y-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="rema_zone"
+              checked={!!formData.rema_zone}
+              onChange={(e) => setFormData({ rema_zone: e.target.checked })}
+              className="w-4 h-4 accent-purple-600"
+            />
+            <span>재정비촉진지구 — 용적률 법정 상한 ×1.2, 건폐율 법정 상한 (도시재정비촉진법 §19)</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="easy_remodel"
+              checked={!!formData.easy_remodel}
+              onChange={(e) => setFormData({ easy_remodel: e.target.checked })}
+              disabled={!isApartment}
+              className="w-4 h-4 accent-purple-600"
+            />
+            <span className={!isApartment ? 'text-gray-400' : ''}>
+              리모델링이 쉬운 구조 인증 — 용적률 한도 ×1.2 (공동주택 한정, 시행령 §6의5 ②항)
+            </span>
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              name="public_rental"
+              checked={!!formData.public_rental}
+              onChange={(e) => setFormData({ public_rental: e.target.checked })}
+              className="w-4 h-4 accent-purple-600"
+            />
+            <span>공공지원민간임대주택 — 건폐율·용적률 법정 상한까지 완화 (민간임대주택법 §21, 연면적 50% 이상 조건)</span>
+          </label>
+        </div>
+        <p className="mt-2 text-[10px] text-purple-700 leading-relaxed">
+          ※ 각 특례는 해당 지구 지정·인증 취득·계획 승인이 완료된 경우에만 효력 발생.
+          자동 추정값이며 <b>실제 인허가 단계에서 검토 필수</b>.
         </p>
       </details>
 
@@ -574,7 +679,7 @@ export default function InputForm() {
       </details>
 
       {/* 층수 + 높이 */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Field label="지상 층수" required>
           <input
             type="number" name="floors_above" value={formData.floors_above}
@@ -614,7 +719,7 @@ export default function InputForm() {
       {/* ☀ 높이·일조 자동 판정 입력 (선택, 입력 시 자동 pass/fail) */}
       <details className="rounded-lg border border-amber-200 bg-amber-50/40 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-amber-900 select-none">
-          ☀ 높이·일조 자동 판정 입력 (선택 — 입력 시 자동 pass/fail, 미입력 시 수동검토)
+          ☀ 높이·일조 자동 판정 입력 (선택 — 자동 pass/fail, 미입력 시 수동검토)
         </summary>
         <div className="grid grid-cols-2 gap-3 mt-3">
           <Field
@@ -693,7 +798,7 @@ export default function InputForm() {
             />
           </Field>
         ) : <div />}
-        <Field label="계획 주차대수 (선택)" hint="법정 대수와 비교">
+        <Field label="계획 주차대수" hint="선택 - 법정 대수와 비교">
           <input
             type="number" name="provided_parking_spaces" value={formData.provided_parking_spaces}
             onChange={handleChange} min="0"
@@ -704,7 +809,7 @@ export default function InputForm() {
 
       {/* 공개공지 + 조경 — 각각 우측에 % 자동 표시 */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="공개공지 면적 (㎡)" hint="선택, 입력 시 % 자동 표시">
+        <Field label="공개공지 면적 (㎡)" hint="선택">
           <AreaWithRatio
             name="public_open_space_area"
             value={formData.public_open_space_area}
@@ -713,13 +818,22 @@ export default function InputForm() {
             placeholder="150"
           />
         </Field>
-        <Field label="조경면적 (㎡)" hint="선택, 입력 시 % 자동 표시">
+        <Field label="조경면적 (㎡)" hint="선택">
           <AreaWithRatio
             name="landscape_area"
             value={formData.landscape_area}
             onChange={handleChange}
             siteArea={formData.site_area}
             placeholder="75"
+          />
+        </Field>
+        <Field label="옥상조경면적 (㎡)" hint="선택 — §27 ③항: 2/3 인정">
+          <AreaWithRatio
+            name="rooftop_landscape_area"
+            value={formData.rooftop_landscape_area}
+            onChange={handleChange}
+            siteArea={formData.site_area}
+            placeholder="30"
           />
         </Field>
       </div>
@@ -801,6 +915,41 @@ function AutoLandInfoBanner({ loading, info }) {
       <p className="mt-1 text-blue-600 text-[10px]">
         ↓ 아래 입력란에 자동 반영됨. 실제와 다르면 수정하세요.
       </p>
+    </div>
+  )
+}
+
+function RatioPanel({ formData }) {
+  const site = parseFloat(formData.site_area) || 0
+  const building = parseFloat(formData.building_area) || 0
+  const above = parseFloat(formData.floor_area_above) || 0
+  const parking = parseFloat(formData.floor_area_parking_above) || 0
+  const refuge = parseFloat(formData.floor_area_refuge) || 0
+  const attic = parseFloat(formData.floor_area_attic_refuge) || 0
+  const farArea = Math.max(0, above - parking - refuge - attic)
+
+  const coverage = site > 0 && building > 0 ? (building / site) * 100 : null
+  const far = site > 0 && above > 0 ? (farArea / site) * 100 : null
+
+  if (coverage === null && far === null) return null
+
+  return (
+    <div className="rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3">
+      <p className="text-[11px] font-medium text-blue-900 mb-1.5">📐 자동 계산</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="text-center">
+          <p className="text-[10px] text-gray-500 mb-0.5">건폐율 (건축 ÷ 대지)</p>
+          <p className="text-lg font-bold text-blue-700 tabular-nums">
+            {coverage !== null ? `${coverage.toFixed(2)}%` : '—'}
+          </p>
+        </div>
+        <div className="text-center border-l border-blue-200">
+          <p className="text-[10px] text-gray-500 mb-0.5">용적률 (산정 연면적 ÷ 대지)</p>
+          <p className="text-lg font-bold text-blue-700 tabular-nums">
+            {far !== null ? `${far.toFixed(2)}%` : '—'}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
