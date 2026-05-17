@@ -24,6 +24,9 @@ from services.multi_parcel import aggregate_zones, apply_weighted_limits
 from services.ordinance_extractor import OrdinanceExtractor
 from services.ordinance_resolver import OrdinanceResolver
 from services.ordinance_seed_loader import load_seed_into_db
+from services.street_block_heights_loader import (
+    load_seed_into_db as load_street_block_heights,
+)
 from services.query_engine import QueryEngine
 from services.review_notifier import ReviewNotifier
 from services.vworld_client import VWorldClient
@@ -46,6 +49,7 @@ eum_client: EumClient | None = None
 case_matcher: CaseMatcher | None = None
 law_tracker: LawChangeTracker | None = None
 review_notifier: ReviewNotifier | None = None
+law_change_scheduler = None  # APScheduler 인스턴스 (lifespan 안에서 시작)
 
 
 @asynccontextmanager
@@ -57,6 +61,7 @@ async def lifespan(app: FastAPI):
     cache_manager = CacheManager()
     await cache_manager.init()
     seed_stats = await load_seed_into_db(cache_manager)
+    sbh_stats = await load_street_block_heights(cache_manager)
     address_client = AddressApiClient()
     vworld_client = VWorldClient()
     land_resolver = LandUseResolver(vworld_client, cache_manager)
@@ -105,8 +110,19 @@ async def lifespan(app: FastAPI):
         seed_stats["inserted"], seed_stats["skipped"],
         ", ".join(seed_stats["jurisdictions"]) or "없음",
     )
+    logger.info(
+        "가로구역 최고높이 seed: %d건 적재 (총 %d건 중)",
+        sbh_stats.get("loaded", 0), sbh_stats.get("total", 0),
+    )
+    # 법규 변경 cron — 매주 일요일 03:00 KST 기본 (ENABLE_LAW_CHANGE_CRON=false 로 끔)
+    from services.law_change_scheduler import start_scheduler as _start_law_cron
+    global law_change_scheduler
+    law_change_scheduler = _start_law_cron(law_tracker)
+
     logger.info("arch-law-diagnose backend ready")
     yield
+    if law_change_scheduler is not None:
+        law_change_scheduler.shutdown(wait=False)
     await cache_manager.close()
     await address_client.close()
     await vworld_client.close()
@@ -214,6 +230,17 @@ class DiagnoseRequest(BaseModel):
     street_block_max_height_m: float | None = Field(
         None, gt=0,
         description="가로구역별 최고높이 지정값 (m). 입력 시 §60 자동 비교.",
+    )
+
+
+class WhatIfRequest(DiagnoseRequest):
+    """What-if 재진단 요청 — DiagnoseRequest 모든 필드 + 캐시.
+
+    토지 정보(VWorld) 는 PNU 캐시 적중에 의존하므로 별도 입력 불필요.
+    설비·소방 카드는 비싸므로 원본 결과를 cached_fire_safety 로 받아 재사용.
+    """
+    cached_fire_safety: dict | None = Field(
+        None, description="원본 진단 결과의 '설비_소방' 카드. AI 재호출 절약용.",
     )
 
 
@@ -469,6 +496,48 @@ async def diagnose(req: DiagnoseRequest):
         raise HTTPException(500, f"진단 중 오류가 발생했습니다: {e}")
 
 
+@app.post("/api/diagnose/whatif")
+async def diagnose_whatif(req: WhatIfRequest):
+    """What-if 재진단 — 변수 조정 후 빠른 재계산.
+
+    설비·소방 카드는 cached_fire_safety 재사용으로 AI 호출 생략(skip_ai=True).
+    토지 정보는 PNU 캐시 적중으로 VWorld 재호출 생략.
+    """
+    if engine is None or land_resolver is None:
+        raise HTTPException(503, "서비스 초기화 중")
+    try:
+        payload = _attach_total_floor_area(
+            req.model_dump(exclude={"cached_fire_safety"})
+        )
+        address = payload["address"]
+        pnu = payload.get("pnu") or ""
+        # land_info_cache 적중 시 VWorld 재호출 안 함
+        land = await land_resolver.resolve(address, pnu=pnu)
+        if payload.get("zone_use_override"):
+            land["zone_use"] = payload["zone_use_override"]
+        if payload.get("zone_district"):
+            land["zone_district"] = payload["zone_district"]
+        zone_use = land.get("zone_use", "")
+        if not zone_use:
+            raise HTTPException(
+                400,
+                "용도지역 미확인 — 원본 진단을 먼저 실행하거나 zone_use_override 입력 필요",
+            )
+        diag = await engine.diagnose_fast(
+            payload, zone_use=zone_use, land_info=land,
+            skip_ai=True,
+            cached_fire_safety=req.cached_fire_safety,
+        )
+        return diag
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("What-if 진단 오류: %s", e)
+        raise HTTPException(500, f"What-if 진단 중 오류: {e}")
+
+
 @app.post("/api/diagnose/multi")
 async def diagnose_multi(req: MultiDiagnoseRequest):
     """합필 진단 — 여러 필지를 합쳐 단일 사업지로 진단.
@@ -719,6 +788,39 @@ async def law_changes_seed_demo(
     if law_tracker is None:
         raise HTTPException(503, "서비스 초기화 중")
     return await law_tracker.seed_demo_change(jurisdiction_code, law_type)
+
+
+@app.post("/api/law/scan_now")
+async def law_scan_now():
+    """17개 시도 도시계획조례 즉시 일괄 스캔 (운영자/관리자용).
+
+    스케줄러가 정기 실행하는 작업과 동일. 변경 감지 결과를 반환.
+    실행 시간: 약 30초~1분 (시도 17곳 × 평균 1.5초).
+    """
+    if law_tracker is None:
+        raise HTTPException(503, "서비스 초기화 중")
+    from services.law_change_scheduler import scan_all_sido
+    try:
+        return await scan_all_sido(law_tracker)
+    except Exception as e:
+        logger.exception("law_scan_now 오류: %s", e)
+        raise HTTPException(500, f"법규 일괄 스캔 오류: {e}")
+
+
+@app.get("/api/law/scheduler_status")
+async def law_scheduler_status():
+    """법규 변경 cron 스케줄러 상태 (다음 실행 시각 등)."""
+    if law_change_scheduler is None:
+        return {"enabled": False, "reason": "ENABLE_LAW_CHANGE_CRON=false 또는 미초기화"}
+    job = law_change_scheduler.get_job("law_change_scan")
+    if job is None:
+        return {"enabled": True, "running": False, "next_run_time": None}
+    return {
+        "enabled": True,
+        "running": True,
+        "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+        "trigger": str(job.trigger),
+    }
 
 
 @app.post("/api/review/request")

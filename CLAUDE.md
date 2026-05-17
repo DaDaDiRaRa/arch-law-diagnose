@@ -126,10 +126,10 @@
 - **조례 DB 확충** (🔴 최우선) — `ordinance_seed.json` 현재 48개, 전국 ~162개 시군구 기준 수천 건 필요. `backend/scripts/seed_ordinances.py` 아직 미실행. 실행 전까지 서울 외 지역은 시행령 기본값(fallback) 사용.
 - **진단 엔진 ↔ EUM 직통 연결** — ✅ 완료. [land_use_act.py](backend/services/calculator/land_use_act.py) 가 LURIS + EUM `get_act_restriction()` 을 병렬 조회 후 머지. 일치(confidence 5 / "교차검증"), 단일소스(confidence 4-5), 불일치(pass=None, confidence 2 / "❗ 불일치"), 둘 다 미수록(confidence 1). 캐시: [cache_manager.py](backend/services/cache_manager.py) `eum_act_restriction_cache` 테이블.
 - **조경 → 조례 리졸버 연동** — ✅ 완료. [landscape.py](backend/services/calculator/landscape.py) 가 `ordinance_resolver` 의 `landscape_ratio` 카테고리 우선 적용. [ordinance_seed.json](backend/config/ordinance_seed.json) 에 17개 시도 평균 추정값 적재 (시군구 정확값은 (b) 에서). 시행령 §27 ②항 4호(200~300㎡=10%) 와 ①항 면제는 시행령 우선 (조례 변경 불가).
-- **높이 → 별도 데이터 소스 필요** — 가로구역별 최고높이(§60) 는 **조례 위임 아닌 허가권자 공고**라 `ordinance_resolver` 부적합. 정북 사선(§86 ①항) 은 시행령 직접 명시. 별도 테이블/소스 설계 필요 (보류).
+- **높이 §60 데이터 소스** — ✅ 인프라 구축 완료. `street_block_max_heights` 테이블(bbox + max_height_m + source) + [config/street_block_heights.json](backend/config/street_block_heights.json) seed JSON + idempotent loader. 진단 시 좌표 bbox 매칭으로 자동 적용, 사용자 입력(`street_block_max_height_m`) 우선. 데이터 채우기는 운영자가 자주 진단하는 구역부터 JSON에 추가하는 방식 — 시드 빈 상태로 시작. 정북 사선(§86 ①항)은 height.py 자동 판정 (변경 없음).
 - **What-if 슬라이더** — 사양엔 있음, 미구현. 변수(연면적·높이·주차수) 조정 → 즉시 재계산 엔드포인트 + 시나리오 비교 매트릭스 UI.
-- **법규 변경 Cron 자동화** — `law_change_tracker.py` 수동 호출만 가능. APScheduler + 법제처 API 주기 폴링 추가 필요.
-- **VWorld 폴리곤 성능 검증** — `vworld_client.py` (Phase 5 신규) 로컬 테스트 미완. 대규모 필지 쿼리 시 타임아웃 가능성 확인 필요.
+- **법규 변경 Cron 자동화** — ✅ 완료. [law_change_scheduler.py](backend/services/law_change_scheduler.py) APScheduler 기반. 매주 일요일 03:00 KST 17개 시도 도시계획조례 일괄 스캔, 해시 변경 시 `ordinance_versions` 누적 → 프론트 `LawChangeAlert` 자동 표시. 환경변수 `ENABLE_LAW_CHANGE_CRON` / `LAW_CHANGE_CRON` 으로 ON/OFF·주기 변경, `POST /api/law/scan_now` 즉시 트리거, `GET /api/law/scheduler_status` 다음 실행 시각 조회. 시군구 200곳 스캔은 차후 보강 (군계획·관리계획 등 매칭 로직 재사용 필요).
+- **VWorld 폴리곤 성능 검증** — ✅ 완료. 작은 도심 필지~큰 산림 필지(vertex 800개+) 모두 단일 호출 50ms 이내. 합필 시뮬레이션(5개 필지 × VWorld 4건 = 총 20건 동시) 0.5초 이내. 현재 `timeout=15초` 충분, 진단 흐름의 병목 아님. 별개로 도로폭(`LT_L_FRSTCRCL` 레이어 ERROR)은 알려진 데이터 소스 이슈 — 보류 항목으로 별도 처리.
 - **사내 케이스 DB** — `KUNWON_DB/cases/sample_cases.json` 더미만 있음. 실제 프로젝트 케이스 수작업 입력 필요 (코드 작업 아님).
 
 ### 보류

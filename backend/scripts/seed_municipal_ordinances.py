@@ -67,28 +67,52 @@ def _load_municipalities() -> list[dict]:
 async def _find_exact_ordinance(
     law_client: LawGoKrClient, muni_name: str
 ) -> tuple[str, str] | None:
-    """시군구의 정확한 '도시계획 조례'를 찾아 (law_id, law_nm) 반환.
+    """시군구의 정확한 '도시계획 조례'(시) 또는 '군계획 조례'(군) 검색.
+
+    Args:
+      muni_name: 예 "수원시", "연천군"
 
     매칭 우선순위:
-      1) law_nm 공백 제거 == f"{muni_name}도시계획조례"
-      2) law_nm 공백 제거.endswith("도시계획조례") (시군구명 포함된 결과 중)
-      3) 첫 번째 결과 폴백 — 정확도 떨어지므로 needs_review 신호
+      1) law_nm 공백 제거 == f"{muni_name}{키워드}" (정확 일치)
+      2) law_nm 공백 제거.endswith(키워드) (시군구명 포함된 결과 중)
+      3) 첫 번째 결과 폴백
     """
-    laws = await law_client.search_law(f"{muni_name} 도시계획 조례", law_type="CST")
-    if not laws:
+    # 시·군별 키워드 — 일부 군은 '관리계획 조례'(예: 장흥·무안) 사용
+    if muni_name.endswith("군"):
+        keywords = ["군계획 조례", "도시계획 조례", "관리계획 조례"]
+        target_keywords = ["군계획조례", "도시계획조례", "관리계획조례"]
+    else:
+        keywords = ["도시계획 조례", "관리계획 조례"]
+        target_keywords = ["도시계획조례", "관리계획조례"]
+
+    seen_law_ids: set[str] = set()
+    laws_all: list[dict] = []
+    for kw in keywords:
+        laws = await law_client.search_law(f"{muni_name} {kw}", law_type="CST")
+        for l in laws:
+            lid = l.get("law_id", "")
+            if lid and lid not in seen_law_ids:
+                seen_law_ids.add(lid)
+                laws_all.append(l)
+
+    if not laws_all:
         return None
 
-    target_exact = f"{muni_name}도시계획조례".replace(" ", "")
     candidates_endswith: list[dict] = []
-    for l in laws:
-        nm_compact = (l.get("law_nm", "") or "").replace(" ", "")
+    for l in laws_all:
+        # law_nm 정규화: 대괄호 메타텍스트 제거 (예: "...조례 [제명개정 2020.10.5.]")
+        raw_nm = l.get("law_nm", "") or ""
+        clean_nm = re.sub(r"\[[^\]]*\]", "", raw_nm).strip()
+        nm_compact = clean_nm.replace(" ", "")
         org = l.get("org", "") or ""
         if muni_name not in org and muni_name not in nm_compact:
             continue
-        if nm_compact == target_exact:
-            return l["law_id"], l["law_nm"]
-        if nm_compact.endswith("도시계획조례"):
-            candidates_endswith.append(l)
+        for tk in target_keywords:
+            if nm_compact == f"{muni_name}{tk}":
+                return l["law_id"], raw_nm
+            if nm_compact.endswith(tk):
+                candidates_endswith.append(l)
+                break
     if candidates_endswith:
         c = candidates_endswith[0]
         return c["law_id"], c["law_nm"]

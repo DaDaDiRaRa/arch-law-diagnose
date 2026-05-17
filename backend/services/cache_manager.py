@@ -126,6 +126,25 @@ CREATE TABLE IF NOT EXISTS eum_act_restriction_cache (
     fetched_at  TEXT NOT NULL,
     PRIMARY KEY (area_cd, ucode, land_use_nm)
 );
+
+-- 건축법 §60 가로구역별 최고높이 — 허가권자 공고 데이터.
+-- 조례 위임 아니므로 ordinance_resolver 부적합. 별도 테이블.
+-- bbox(min_lon~max_lon, min_lat~max_lat)로 좌표 매칭. 운영자가 seed JSON으로 채움.
+CREATE TABLE IF NOT EXISTS street_block_max_heights (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    jurisdiction_code TEXT NOT NULL,
+    block_name        TEXT,
+    min_lon           REAL NOT NULL,
+    min_lat           REAL NOT NULL,
+    max_lon           REAL NOT NULL,
+    max_lat           REAL NOT NULL,
+    max_height_m      REAL NOT NULL,
+    source            TEXT,
+    source_url        TEXT,
+    ef_date           TEXT,
+    fetched_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sbmh_jcode ON street_block_max_heights(jurisdiction_code);
 """
 
 
@@ -470,6 +489,70 @@ class CacheManager:
                fetched_at=excluded.fetched_at""",
             (area_cd, ucode, land_use_nm, payload, now),
         )
+        await self._db.commit()
+
+    # ─── §60 가로구역별 최고높이 (street_block_max_heights) ──────────────
+
+    async def lookup_street_block_height(
+        self,
+        lon: float,
+        lat: float,
+        jurisdiction_code: str | None = None,
+    ) -> dict | None:
+        """좌표 + (선택) 시군구코드로 가로구역 최고높이 조회.
+
+        bbox 내에 좌표가 포함되는 row 중 가장 작은 max_height_m 반환 (보수적 — 여러 공고
+        겹칠 때 더 엄격한 쪽 적용). 매칭 없으면 None.
+
+        Returns:
+          {max_height_m, block_name, source, source_url, ef_date, jurisdiction_code} | None
+        """
+        sql = """SELECT * FROM street_block_max_heights
+                 WHERE min_lon <= ? AND ? <= max_lon
+                   AND min_lat <= ? AND ? <= max_lat"""
+        params: list = [lon, lon, lat, lat]
+        if jurisdiction_code:
+            sql += " AND jurisdiction_code=?"
+            params.append(jurisdiction_code)
+        sql += " ORDER BY max_height_m ASC LIMIT 1"
+        row = await self._fetchone(sql, tuple(params))
+        return dict(row) if row else None
+
+    async def upsert_street_block_height(
+        self,
+        jurisdiction_code: str,
+        bbox: tuple[float, float, float, float],
+        max_height_m: float,
+        block_name: str | None = None,
+        source: str | None = None,
+        source_url: str | None = None,
+        ef_date: str | None = None,
+    ) -> None:
+        """가로구역 최고높이 등록/갱신. 같은 (jcode, bbox) 있으면 갱신."""
+        min_lon, min_lat, max_lon, max_lat = bbox
+        now = datetime.utcnow().isoformat()
+        existing = await self._fetchone(
+            """SELECT id FROM street_block_max_heights
+               WHERE jurisdiction_code=? AND min_lon=? AND min_lat=?
+                 AND max_lon=? AND max_lat=?""",
+            (jurisdiction_code, min_lon, min_lat, max_lon, max_lat),
+        )
+        if existing:
+            await self._db.execute(
+                """UPDATE street_block_max_heights
+                   SET block_name=?, max_height_m=?, source=?, source_url=?, ef_date=?, fetched_at=?
+                   WHERE id=?""",
+                (block_name, max_height_m, source, source_url, ef_date, now, existing["id"]),
+            )
+        else:
+            await self._db.execute(
+                """INSERT INTO street_block_max_heights
+                   (jurisdiction_code, block_name, min_lon, min_lat, max_lon, max_lat,
+                    max_height_m, source, source_url, ef_date, fetched_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                (jurisdiction_code, block_name, min_lon, min_lat, max_lon, max_lat,
+                 max_height_m, source, source_url, ef_date, now),
+            )
         await self._db.commit()
 
     # ─── 진단 이력 ────────────────────────────────────────────────────────

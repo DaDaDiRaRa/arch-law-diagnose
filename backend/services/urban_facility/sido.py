@@ -31,7 +31,13 @@ def pnu_to_sido(pnu: str) -> str | None:
 
 
 def resolve_sido_folder(shp_root: Path, sido_code: str) -> Path | None:
-    """시·도 코드로 SHP 폴더 경로 결정. UPIS 우선, 없으면 KLIP."""
+    """시·도 코드로 SHP 폴더 경로 결정. UPIS 우선, 없으면 KLIP.
+
+    shp_root 자체가 존재하지 않으면 None 반환
+    — graceful degrade (SHP 미배포 환경에서도 다른 진단은 진행).
+    """
+    if not shp_root.exists() or not shp_root.is_dir():
+        return None
     # 예: 11000 → UPIS_003_*_11000 또는 KLIP_003_*_11000
     for prefix in ("UPIS_003_", "KLIP_003_"):
         for d in shp_root.iterdir():

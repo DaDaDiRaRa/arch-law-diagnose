@@ -28,10 +28,15 @@ class VWorldClient:
         self._key = os.getenv("VWORLD_API_KEY", "")
         if not self._key:
             logger.warning("VWORLD_API_KEY 미설정 — VWorld 조회 불가")
-        # VWorld WFS는 등록된 서비스 URL과 Referer 헤더가 일치해야 인증됨
+        # VWorld는 모든 OpenAPI(geocoder, WFS, Data)에 대해 등록된
+        # 서비스 URL과 Referer 헤더가 일치해야 인증됨.
+        # AsyncClient default headers 로 모든 호출에 자동 적용.
         service_url = os.getenv("SERVICE_URL", "http://localhost:8000")
         self._wfs_headers = {"Referer": service_url}
-        self._http = httpx.AsyncClient(timeout=15)
+        self._http = httpx.AsyncClient(
+            timeout=15,
+            headers={"Referer": service_url},
+        )
 
     async def close(self) -> None:
         await self._http.aclose()

@@ -25,7 +25,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto flex items-center gap-3">
+        <div className="w-full flex items-center gap-3">
           <span className="text-2xl">🏛️</span>
           <div>
             <h1 className="text-base font-bold text-gray-900 leading-tight">
@@ -41,8 +41,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className={`grid gap-8 ${hasOutput || hasAddress ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'}`}>
+      <main className="w-full px-6 py-6">
+        <div className={`grid gap-6 ${hasOutput || hasAddress ? 'grid-cols-1 lg:grid-cols-[400px_minmax(0,1fr)]' : 'grid-cols-1 max-w-2xl'}`}>
 
           {/* 입력 패널 */}
           <section>

@@ -38,6 +38,9 @@ export const api = {
   diagnoseMulti: (payload) =>
     request('/diagnose/multi', { method: 'POST', body: JSON.stringify(payload) }),
 
+  diagnoseWhatif: (payload) =>
+    request('/diagnose/whatif', { method: 'POST', body: JSON.stringify(payload) }),
+
   query: (payload) =>
     request('/query', { method: 'POST', body: JSON.stringify(payload) }),
 

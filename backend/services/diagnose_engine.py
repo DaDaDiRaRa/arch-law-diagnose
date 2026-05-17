@@ -325,14 +325,39 @@ class DiagnoseEngine:
         if relief_note:
             r_far["notes"] = (r_far.get("notes") or "") + relief_note
             r_far["relief_info"] = relief  # 프론트엔드에서 상세 표시용
+        # §60 가로구역별 최고높이 — 사용자 입력 우선, 없으면 DB lookup (좌표 bbox)
+        sb_height_m = req.get("street_block_max_height_m")
+        sb_source: str | None = None
+        if sb_height_m is None or sb_height_m == 0:
+            lon = land.get("lon")
+            lat = land.get("lat")
+            if lon is not None and lat is not None:
+                try:
+                    sb_hit = await self._cache.lookup_street_block_height(
+                        float(lon), float(lat), jurisdiction_code or None,
+                    )
+                except Exception as e:
+                    logger.warning("가로구역 최고높이 lookup 실패: %s", e)
+                    sb_hit = None
+                if sb_hit:
+                    sb_height_m = sb_hit["max_height_m"]
+                    block_label = sb_hit.get("block_name") or "가로구역"
+                    sb_source = sb_hit.get("source") or block_label
+
         r_height = height.calculate(
             h, floors_above, zone_use, road_width,
             north_setback_m=req.get("north_setback_m"),
             adjacent_zone_north=req.get("adjacent_zone_north"),
             road_20m_adjacent=req.get("road_20m_adjacent"),
-            street_block_max_height_m=req.get("street_block_max_height_m"),
+            street_block_max_height_m=sb_height_m,
             parcel_geometry=land.get("parcel_geometry"),
         )
+        if sb_source:
+            r_height["notes"] = (
+                (r_height.get("notes") or "")
+                + f"\n📋 가로구역 최고높이 자동 적용: {sb_source}"
+            )
+            r_height["street_block_source"] = sb_source
         provided_parking = req.get("provided_parking_spaces")
         r_parking = parking.calculate(
             building_use,

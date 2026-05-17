@@ -6,6 +6,8 @@ import LawChangeAlert from '../LawChangeAlert'
 import LawInfoPanel from '../LawInfoPanel'
 import LegalReviewReport from '../LegalReviewReport'
 import ReviewRequestButton from '../ReviewRequestButton'
+import WhatIfPanel from '../WhatIfPanel'
+import WhatIfErrorBoundary from '../WhatIfPanel/ErrorBoundary'
 
 const CATEGORY_LABELS = {
   행위제한: '행위제한 적합성',
@@ -81,7 +83,9 @@ export default function DiagnoseResult() {
   const siteAreaNum = formData?.site_area ? parseFloat(formData.site_area) : undefined
 
   return (
-    <div className="space-y-5">
+    <div className="grid grid-cols-1 xl:grid-cols-[440px_minmax(0,1fr)] gap-5 items-start">
+      {/* ── 좌측: 종합진단 + What-if (sticky) ──────────────── */}
+      <div className="space-y-5 xl:sticky xl:top-4">
       {/* Phase 4 — 법규 변경 배너 (최상단) */}
       <LawChangeAlert />
 
@@ -121,6 +125,13 @@ export default function DiagnoseResult() {
         </div>
       </div>
 
+      {/* What-if 시나리오 — 종합 판정 바로 아래에 배치해 즉시 발견 가능 */}
+      {!isMulti && (
+        <WhatIfErrorBoundary>
+          <WhatIfPanel />
+        </WhatIfErrorBoundary>
+      )}
+
       {/* 법규 검토서 모달 */}
       {reportOpen && (
         <LegalReviewReport
@@ -129,108 +140,119 @@ export default function DiagnoseResult() {
           onClose={() => setReportOpen(false)}
         />
       )}
-
-      {/* 토지 정보 */}
-      {result.land_info && (
-        <LandInfoCard info={result.land_info} />
-      )}
-
-      {/* 토지이음 법령 본문 (Phase 1) */}
-      {result.land_info?.zone_use && (
-        <LawInfoPanel
-          areaCd={(result.land_info?.pnu || '').slice(0, 5)}
-          zoneUse={result.land_info?.zone_use}
-          zoneDistrict={result.land_info?.zone_district}
-        />
-      )}
-
-      {/* 대지면적 자동 보정 (도시계획시설 저촉) */}
-      {result.site_correction?.applied && (
-        <SiteCorrectionCard correction={result.site_correction} />
-      )}
-
-      {/* 8개 심의 자동 트리거 */}
-      {result.applicable_reviews?.items?.length > 0 && (
-        <ApplicableReviewsCard reviews={result.applicable_reviews} />
-      )}
-
-      {/* 위험 항목 + 시니어 검토 요청 버튼 */}
-      {result.risks && result.risks.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
-          <p className="text-sm font-semibold text-red-700">위험 항목 ({result.risks.length}건)</p>
-          {result.risks.map((r, i) => (
-            <div key={i} className="border-l-2 border-red-300 pl-3">
-              <div className="text-sm text-red-600">
-                <span className="font-medium">{r.category}:</span> {r.reason}
-              </div>
-              <ReviewRequestButton
-                context={{
-                  ...reviewBase,
-                  risk_category: r.category,
-                  risk_reason: r.reason,
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 주의 항목 */}
-      {result.warnings && result.warnings.length > 0 && (
-        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 space-y-2">
-          <p className="text-sm font-semibold text-yellow-700">검토 필요 ({result.warnings.length}건)</p>
-          {result.warnings.map((w, i) => (
-            <div key={i} className="text-sm text-yellow-700">
-              <span className="font-medium">{w.category}:</span> {w.reason}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 필수 수동검토 항목 (높이·일조 등) */}
-      {(() => {
-        const manualItems = Object.entries(result.results || {})
-          .filter(([_, c]) => c.needs_manual_review)
-        if (manualItems.length === 0) return null
-        return (
-          <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
-            <p className="text-sm font-semibold text-amber-800">
-              📐 필수 수동검토 ({manualItems.length}건) — 입력값 부족으로 자동 판정 불가
-            </p>
-            {manualItems.map(([key, c]) => (
-              <div key={key} className="text-xs text-amber-800 border-l-2 border-amber-300 pl-2">
-                <span className="font-medium">{CATEGORY_LABELS[key] || key}:</span> {c.notes}
-              </div>
-            ))}
-            <p className="text-[10px] text-amber-700 leading-relaxed mt-1">
-              상단 입력 폼의 "☀ 높이·일조 자동 판정 입력" 섹션에 정북 이격거리 등을 입력하면 자동 판정됩니다.
-            </p>
-          </div>
-        )
-      })()}
-
-      {/* 카테고리별 상세 */}
-      <div className="space-y-3">
-        <p className="text-sm font-semibold text-gray-700">카테고리별 상세</p>
-        {categories.map(([key, cat]) => {
-          const reliefSuffix = cat.relief_info?.applied ? ' (완화)' : ''
-          return (
-            <CategoryCard
-              key={key}
-              label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
-              cat={cat}
-            />
-          )
-        })}
       </div>
 
-      {/* Phase 4 — 유사 사내 케이스 */}
-      <CaseReference
-        buildingUse={formData?.building_use}
-        zoneUse={result.land_info?.zone_use}
-        siteArea={siteAreaNum}
-        jurisdiction={jurisdiction}
-      />
+      {/* ── 우측: 상세 정보 — 내부에서 다시 2-col 분할 ──────── */}
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-5 items-start">
+
+        {/* 우측-A: 액션 필요한 카드 (심의·위험·검토필요·수동검토) */}
+        <div className="space-y-5">
+          {/* 8개 심의 자동 트리거 */}
+          {result.applicable_reviews?.items?.length > 0 && (
+            <ApplicableReviewsCard reviews={result.applicable_reviews} />
+          )}
+
+          {/* 위험 항목 + 시니어 검토 요청 버튼 */}
+          {result.risks && result.risks.length > 0 && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-red-700">위험 항목 ({result.risks.length}건)</p>
+              {result.risks.map((r, i) => (
+                <div key={i} className="border-l-2 border-red-300 pl-3">
+                  <div className="text-sm text-red-600">
+                    <span className="font-medium">{r.category}:</span> {r.reason}
+                  </div>
+                  <ReviewRequestButton
+                    context={{
+                      ...reviewBase,
+                      risk_category: r.category,
+                      risk_reason: r.reason,
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 주의 항목 */}
+          {result.warnings && result.warnings.length > 0 && (
+            <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 space-y-2">
+              <p className="text-sm font-semibold text-yellow-700">검토 필요 ({result.warnings.length}건)</p>
+              {result.warnings.map((w, i) => (
+                <div key={i} className="text-sm text-yellow-700">
+                  <span className="font-medium">{w.category}:</span> {w.reason}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 필수 수동검토 항목 (높이·일조 등) */}
+          {(() => {
+            const manualItems = Object.entries(result.results || {})
+              .filter(([_, c]) => c.needs_manual_review)
+            if (manualItems.length === 0) return null
+            return (
+              <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2">
+                <p className="text-sm font-semibold text-amber-800">
+                  📐 필수 수동검토 ({manualItems.length}건) — 입력값 부족으로 자동 판정 불가
+                </p>
+                {manualItems.map(([key, c]) => (
+                  <div key={key} className="text-xs text-amber-800 border-l-2 border-amber-300 pl-2">
+                    <span className="font-medium">{CATEGORY_LABELS[key] || key}:</span> {c.notes}
+                  </div>
+                ))}
+                <p className="text-[10px] text-amber-700 leading-relaxed mt-1">
+                  상단 입력 폼의 "☀ 높이·일조 자동 판정 입력" 섹션에 정북 이격거리 등을 입력하면 자동 판정됩니다.
+                </p>
+              </div>
+            )
+          })()}
+        </div>
+
+        {/* 우측-B: 참고 정보 (토지정보·법령본문·카테고리 상세·케이스) */}
+        <div className="space-y-5">
+          {/* 토지 정보 */}
+          {result.land_info && (
+            <LandInfoCard info={result.land_info} />
+          )}
+
+          {/* 토지이음 법령 본문 (Phase 1) */}
+          {result.land_info?.zone_use && (
+            <LawInfoPanel
+              areaCd={(result.land_info?.pnu || '').slice(0, 5)}
+              zoneUse={result.land_info?.zone_use}
+              zoneDistrict={result.land_info?.zone_district}
+            />
+          )}
+
+          {/* 대지면적 자동 보정 (도시계획시설 저촉) */}
+          {result.site_correction?.applied && (
+            <SiteCorrectionCard correction={result.site_correction} />
+          )}
+
+          {/* 카테고리별 상세 */}
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-700">카테고리별 상세</p>
+            {categories.map(([key, cat]) => {
+              const reliefSuffix = cat.relief_info?.applied ? ' (완화)' : ''
+              return (
+                <CategoryCard
+                  key={key}
+                  label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
+                  cat={cat}
+                />
+              )
+            })}
+          </div>
+
+          {/* Phase 4 — 유사 사내 케이스 */}
+          <CaseReference
+            buildingUse={formData?.building_use}
+            zoneUse={result.land_info?.zone_use}
+            siteArea={siteAreaNum}
+            jurisdiction={jurisdiction}
+          />
+        </div>
+      </div>
     </div>
   )
 }
@@ -599,95 +621,89 @@ function CategoryCard({ label, cat }) {
     passed === true ? '✓ 적합' :
     '? 확인필요'
 
+  // 핵심 수치 — 헤더 한 줄에 같이 노출 (펼침 없이도 빠르게 파악)
+  const headlineFigures = [
+    cat.actual_pct != null && cat.limit_pct != null
+      ? `${cat.actual_pct}% / ${cat.limit_pct}%`
+      : cat.actual_pct != null
+      ? `${cat.actual_pct}%`
+      : cat.required_pct != null
+      ? `의무 ${cat.required_pct}%`
+      : null,
+    cat.actual_height_m != null ? `높이 ${cat.actual_height_m}m` : null,
+    cat.provided_spaces != null && cat.required_spaces != null
+      ? `${cat.provided_spaces}/${cat.required_spaces}대`
+      : null,
+    cat.excess_pct > 0 ? `초과 ${cat.excess_pct}%p` : null,
+    cat.deficit_m2 > 0 ? `부족 ${cat.deficit_m2}㎡` : null,
+    cat.exempt === true ? '면제' : null,
+  ].filter(Boolean)
+
+  // 위험·확인필요는 기본 펼침, 적합은 기본 접힘
+  const [open, setOpen] = useState(passed !== true)
+
+  const hasDetail =
+    cat.notes ||
+    (cat.items && cat.items.length > 0) ||
+    (cat.warnings && cat.warnings.length > 0) ||
+    cat.source ||
+    (cat.law_refs && cat.law_refs.length > 0)
+
   return (
-    <div className={`rounded-xl border ${borderCls} bg-white p-4`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-semibold text-gray-800 text-sm">{label}</span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeCls}`}>
+    <div className={`rounded-xl border ${borderCls} bg-white`}>
+      <button
+        type="button"
+        onClick={() => hasDetail && setOpen((v) => !v)}
+        className={`w-full text-left p-3 ${hasDetail ? 'hover:bg-gray-50' : 'cursor-default'} transition-colors rounded-xl`}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className="font-semibold text-gray-800 text-sm truncate">{label}</span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badgeCls} flex-shrink-0`}>
               {badgeLabel}
             </span>
-          </div>
-
-          {/* 수치 행 */}
-          <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-600 mb-2">
-            {cat.actual_pct !== undefined && cat.actual_pct !== null && (
-              <span>실적: <b>{cat.actual_pct}%</b></span>
-            )}
-            {cat.limit_pct !== undefined && cat.limit_pct !== null && (
-              <span>한도: <b>{cat.limit_pct}%</b></span>
-            )}
-            {cat.required_pct !== undefined && cat.required_pct !== null && (
-              <span>의무: <b>{cat.required_pct}%</b></span>
-            )}
-            {cat.excess_pct > 0 && (
-              <span className="text-red-600">초과: <b>{cat.excess_pct}%p</b></span>
-            )}
-            {cat.deficit_m2 > 0 && (
-              <span className="text-red-600">부족: <b>{cat.deficit_m2}㎡</b></span>
-            )}
-            {cat.actual_height_m !== undefined && (
-              <span>높이: <b>{cat.actual_height_m}m</b></span>
-            )}
-            {cat.street_block_max_height_m && (
-              <span>가로구역 한도: <b>{cat.street_block_max_height_m}m</b></span>
-            )}
-            {cat.north_setback_m !== undefined && cat.north_setback_m !== null && (
-              <span>정북 이격: <b>{cat.north_setback_m}m</b></span>
-            )}
-            {cat.shadow_min_setback_m && (
-              <span>필요 이격: <b>{cat.shadow_min_setback_m}m</b></span>
-            )}
-            {cat.parcel_north_depth_m && (
-              <span className="text-gray-400">필지 N-S 깊이: <b>≈{cat.parcel_north_depth_m}m</b></span>
-            )}
-            {cat.required_spaces !== undefined && (
-              <span>법정: <b>{cat.required_spaces}대</b></span>
-            )}
-            {cat.provided_spaces !== undefined && cat.provided_spaces !== null && (
-              <span>계획: <b>{cat.provided_spaces}대</b></span>
-            )}
-            {cat.exempt === true && (
-              <span className="text-gray-500 italic">면제 대상</span>
+            {headlineFigures.length > 0 && (
+              <span className="text-xs text-gray-500 truncate">
+                {headlineFigures.join(' · ')}
+              </span>
             )}
           </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {cat.score != null ? (
+              <span className="text-lg font-bold text-gray-800">
+                {cat.score}
+                <span className="text-xs text-gray-400">/10</span>
+              </span>
+            ) : (
+              <span className="text-sm text-gray-400">–/10</span>
+            )}
+            <span className="text-xs text-yellow-500">{CONFIDENCE_STARS(cat.confidence)}</span>
+            {hasDetail && (
+              <span className="text-gray-400 text-xs">{open ? '▴' : '▾'}</span>
+            )}
+          </div>
+        </div>
+      </button>
 
-          <p className="text-xs text-gray-500 leading-relaxed">{cat.notes}</p>
-
-          {/* 설비_소방 — AI 판단 항목 리스트 */}
+      {open && hasDetail && (
+        <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-2">
+          {cat.notes && (
+            <p className="text-xs text-gray-600 leading-relaxed">{cat.notes}</p>
+          )}
           {cat.items && cat.items.length > 0 && (
             <FireSafetyItems items={cat.items} />
           )}
-
-          {/* 경고(주의) — 설비_소방 등 */}
           {cat.warnings && cat.warnings.length > 0 && (
-            <ul className="mt-2 text-xs text-yellow-700 list-disc list-inside space-y-0.5">
+            <ul className="text-xs text-yellow-700 list-disc list-inside space-y-0.5">
               {cat.warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
           )}
-
           <SourceBadge source={cat.source} />
-
-          {/* 법조문 링크 */}
           {cat.law_refs && cat.law_refs.length > 0 && (
             <LawRefs refs={cat.law_refs} />
           )}
         </div>
-
-        {/* 점수 + 확신도 */}
-        <div className="text-right flex-shrink-0">
-          {cat.score !== null && cat.score !== undefined ? (
-            <p className="text-xl font-bold text-gray-800">
-              {cat.score}
-              <span className="text-xs text-gray-400">/10</span>
-            </p>
-          ) : (
-            <p className="text-sm text-gray-400">–/10</p>
-          )}
-          <p className="text-xs text-yellow-500">{CONFIDENCE_STARS(cat.confidence)}</p>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
