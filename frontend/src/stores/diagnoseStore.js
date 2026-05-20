@@ -23,10 +23,11 @@ const emptyFormData = {
   public_open_space_area: '',    // 공개공지 면적
 
   // 용적률 완화 — 모두 선택
-  green_grade: '',                 // 녹색건축 인증 등급
-  energy_grade: '',                // 에너지효율 등급
-  smart_grade: '',                 // 지능형건축물 인증 등급
-  long_life_grade: '',             // 장수명주택 인증 등급 (공동주택 한정)
+  green_grade: '',                 // 녹색건축 인증 등급 (최우수/우수)
+  zero_energy_grade: '',           // 제로에너지건축물(ZEB) 등급 (1~5등급)
+  pilot_project: false,            // 녹색건축물 조성 시범사업 지정 여부
+  smart_grade: '',                 // 지능형건축물 인증 등급 (고시 원문 확인 필요)
+  long_life_grade: '',             // 장수명주택 인증 등급 (고시 원문 확인 필요)
   far_limit_manual_override: '',   // 용적률 한도 직접 지정 (심의/지구단위/정비사업 등)
   relief_reason_manual: '',        // 한도 변경 사유
 

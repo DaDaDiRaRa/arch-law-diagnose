@@ -1,6 +1,6 @@
-"""용적률 완화 계산 — 공개공지·친환경·에너지효율·지능형·장수명주택 + 사용자 수동 입력.
+"""용적률 완화 계산 — 공개공지·녹색건축·제로에너지·시범사업 + 사용자 수동 입력.
 
-근거: 건축법 시행령 제27조의2, 제61조의2 + 주택건설기준규정.
+근거: 건축법 시행령 제27조의2 + 녹색건축물 조성 지원법 §15 + 건축물의 에너지절약설계기준(국토부 고시 제2025-738호) 별표9.
 
 자동 적용된 완화는 실제 인허가 심의에서 인정받아야 효력 발생.
 """
@@ -32,7 +32,8 @@ def compute_relief(
     site_area: float,
     public_open_space_area: float | None = None,
     green_grade: str | None = None,
-    energy_grade: str | None = None,
+    zero_energy_grade: str | None = None,
+    pilot_project: bool = False,
     smart_grade: str | None = None,
     long_life_grade: str | None = None,
     far_limit_manual_override: float | None = None,
@@ -139,7 +140,9 @@ def compute_relief(
             cert_total += relief
 
     _add_cert("green_building", green_grade)
-    _add_cert("energy_efficiency", energy_grade)
+    _add_cert("zero_energy", zero_energy_grade)
+    if pilot_project:
+        _add_cert("pilot_project", "지정")
     _add_cert("smart_building", smart_grade)
     _add_cert("long_life_housing", long_life_grade)
 
@@ -188,10 +191,11 @@ def compute_relief(
 
 def _kind_label(kind: str, grade: str) -> str:
     return {
-        "green_building":      f"녹색건축 인증 {grade}",
-        "energy_efficiency":   f"에너지효율 {grade}등급",
-        "smart_building":      f"지능형건축물 인증 {grade}",
-        "long_life_housing":   f"장수명주택 인증 {grade}",
+        "green_building":   f"녹색건축 인증 {grade}",
+        "zero_energy":      f"제로에너지건축물(ZEB) {grade}",
+        "pilot_project":    "녹색건축물 조성 시범사업",
+        "smart_building":   f"지능형건축물 인증 {grade}",
+        "long_life_housing": f"장수명주택 인증 {grade}",
     }.get(kind, kind)
 
 

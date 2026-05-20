@@ -10,3 +10,5 @@ pyproj==3.7.2
 shapely==2.1.2
 pyshp==3.0.3
 apscheduler==3.10.4
+pdfplumber>=0.11.0
+python-multipart>=0.0.9

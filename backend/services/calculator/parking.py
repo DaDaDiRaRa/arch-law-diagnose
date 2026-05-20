@@ -2,12 +2,20 @@
 
 주차장법 시행령 별표 1 기준 부설주차 산정.
 실제 지자체 조례는 더 엄격할 수 있음.
+
+count_based 타입 (별표 1 제6호):
+  - 골프장: 홀 수 × 10대
+  - 골프연습장: 타석 수 × 1대
+  - 옥외수영장: 정원 ÷ 15 대 (올림)
+  - 관람장: 정원 ÷ 100 대 (올림)
+  → capacity 파라미터로 홀/타석/정원 수 전달.
 """
 from __future__ import annotations
 
 import json
 import math
 import os
+import re
 
 _STANDARDS: dict = {}
 
@@ -24,12 +32,18 @@ def _load_standards() -> dict:
     return _STANDARDS
 
 
+def _norm(s: str) -> str:
+    """공백·특수문자 제거 후 소문자화 — 매칭 정규화."""
+    return re.sub(r"[\s ·\-]", "", s).lower()
+
+
 def calculate(
     building_use: str,
     total_floor_area: float,
     provided_spaces: int | None = None,
     units: int | None = None,
     unit_exclusive_area: float | None = None,
+    capacity: int | None = None,
 ) -> dict:
     """주차 진단 결과.
 
@@ -39,18 +53,72 @@ def calculate(
       provided_spaces: 계획 주차 대수 (미입력 시 None → 법정 최소만 계산)
       units: 세대수 (공동주택)
       unit_exclusive_area: 세대 평균 전용면적 (공동주택)
+      capacity: 홀 수(골프장) / 타석 수(골프연습장) / 정원(옥외수영장·관람장)
 
     Returns:
       {category, required_spaces, provided_spaces, pass, deficit,
        score, confidence, source, notes}
     """
     standards = _load_standards()
+
+    # 버그3: 법령상 제외 항목 먼저 체크 — 별도 기준 미확인 상태
+    excluded_msg = _check_excluded(building_use, standards)
+    if excluded_msg:
+        return {
+            "category": "주차",
+            "required_spaces": None,
+            "provided_spaces": provided_spaces,
+            "pass": None,
+            "deficit": None,
+            "score": None,
+            "confidence": 2,
+            "source": "📋 주차장법 시행령 별표 1",
+            "law_refs": _law_refs(),
+            "notes": f"[확인필요] {excluded_msg}",
+        }
+
     std = _find_standard(building_use, standards)
 
-    required = _calc_required(building_use, total_floor_area, std, units, unit_exclusive_area)
+    # count_based (골프장·골프연습장·옥외수영장·관람장): capacity 미입력 시 계산 불가
+    if std["type"] == "count_based" and not capacity:
+        count_unit = std.get("count_unit", "단위")
+        return {
+            "category": "주차",
+            "required_spaces": None,
+            "provided_spaces": provided_spaces,
+            "pass": None,
+            "deficit": None,
+            "score": None,
+            "confidence": 2,
+            "source": "📋 주차장법 시행령 별표 1",
+            "law_refs": _law_refs(),
+            "notes": (
+                f"{count_unit} 기반 주차 산정 — {count_unit} 수 미입력으로 계산 불가. "
+                f"{count_unit} 수를 입력해주세요. ({std.get('note', '')})"
+            ),
+        }
+
+    # 버그1: 세대 기반 용도인데 세대수 미입력 → 면적 기반으로 잘못 계산되는 오류 방지
+    if std["type"] == "unit_based" and not units:
+        return {
+            "category": "주차",
+            "required_spaces": None,
+            "provided_spaces": provided_spaces,
+            "pass": None,
+            "deficit": None,
+            "score": None,
+            "confidence": 2,
+            "source": "📋 주차장법 시행령 별표 1",
+            "law_refs": _law_refs(),
+            "notes": (
+                f"세대 기반 주차 산정 — 세대수 미입력으로 계산 불가. "
+                f"세대수와 세대 평균 전용면적을 입력해주세요. ({std.get('note', '')})"
+            ),
+        }
+
+    required = _calc_required(building_use, total_floor_area, std, units, unit_exclusive_area, capacity)
 
     if provided_spaces is None:
-        # 제공 대수 미입력: 요건만 표시
         return {
             "category": "주차",
             "required_spaces": required,
@@ -105,15 +173,51 @@ def _law_refs() -> list[dict]:
     ]
 
 
+def _check_excluded(building_use: str, standards: dict) -> str | None:
+    """법령상 '제외' 항목이면 사유 메시지 반환, 아니면 None."""
+    excluded = standards.get("excluded_uses", {})
+    use_norm = _norm(building_use)
+    for key, msg in excluded.items():
+        if _norm(key) in use_norm or use_norm in _norm(key):
+            return msg
+    return None
+
+
 def _find_standard(building_use: str, standards: dict) -> dict:
     s = standards.get("standards", {})
+    aliases = standards.get("aliases", {})
+    default = standards.get("default", {"type": "area_based", "unit_area": 300, "note": "기타(추정)"})
+
+    # 1단계: 정확 매칭
     if building_use in s:
         return s[building_use]
-    # 부분 매칭
+
+    # 2단계: alias 매칭 (공백 정규화 포함)
+    use_norm = _norm(building_use)
+    for alias, canonical in aliases.items():
+        if use_norm == _norm(alias):
+            return s.get(canonical, default)
+
+    # 3단계: 정규화 정확 매칭 (공백·특수문자 무시)
     for key, val in s.items():
-        if building_use in key or key in building_use:
+        if _norm(key) == use_norm:
             return val
-    return standards.get("default", {"type": "area_based", "unit_area": 200, "note": "기타(추정)"})
+
+    # 4단계: alias의 정규화 매칭
+    for alias, canonical in aliases.items():
+        if _norm(alias) in use_norm or use_norm in _norm(alias):
+            return s.get(canonical, default)
+
+    # 5단계: 정규화 부분 매칭 — 가장 긴 키 우선
+    best_key, best_val = "", None
+    for key, val in s.items():
+        key_norm = _norm(key)
+        if (use_norm in key_norm or key_norm in use_norm) and len(key) > len(best_key):
+            best_key, best_val = key, val
+    if best_val is not None:
+        return best_val
+
+    return default
 
 
 def _calc_required(
@@ -122,7 +226,14 @@ def _calc_required(
     std: dict,
     units: int | None,
     unit_exclusive_area: float | None,
+    capacity: int | None = None,
 ) -> int:
+    # count_based — 별표 1 제6호 (골프장·골프연습장·옥외수영장·관람장)
+    if std["type"] == "count_based" and capacity:
+        rate = std.get("rate", 1)
+        rate_per = std.get("rate_per", 1)
+        return math.ceil(capacity / rate_per * rate)
+
     # 단독주택 누적식 — 시행령 별표 1
     if std["type"] == "cumulative":
         exempt = std.get("exempt_max_m2", 50)         # 50㎡ 이하 면제

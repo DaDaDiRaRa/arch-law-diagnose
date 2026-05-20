@@ -19,6 +19,12 @@ const CATEGORY_LABELS = {
   주차: '주차',
   조경: '조경',
   설비_소방: '설비·소방',
+  공공시설_의무인증: '공공시설 의무 인증',
+  BF_인증: 'BF 인증 (무장애)',
+  범죄예방_건축기준: '범죄예방 건축기준',
+  다중이용건축물: '다중이용건축물 분류',
+  중첩지구_구역: '중첩 지구·구역',
+  철도보호지구: '철도보호지구 (30m)',
 }
 
 const CONFIDENCE_STARS = (n) => {
@@ -236,18 +242,20 @@ export default function DiagnoseResult() {
           )}
 
           {/* 카테고리별 상세 */}
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-700">카테고리별 상세</p>
-            {categories.map(([key, cat]) => {
-              const reliefSuffix = cat.relief_info?.applied ? ' (완화)' : ''
-              return (
-                <CategoryCard
-                  key={key}
-                  label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
-                  cat={cat}
-                />
-              )
-            })}
+          <div>
+            <p className="text-sm font-semibold text-gray-700 mb-3">카테고리별 상세</p>
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-3">
+              {categories.map(([key, cat]) => {
+                const reliefSuffix = cat.relief_info?.applied ? ' (완화)' : ''
+                return (
+                  <CategoryCard
+                    key={key}
+                    label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
+                    cat={cat}
+                  />
+                )
+              })}
+            </div>
           </div>
 
           {/* Phase 4 — 유사 사내 케이스 */}
@@ -629,6 +637,7 @@ function CategoryCard({ label, cat }) {
 
   // 핵심 수치 — 헤더 한 줄에 같이 노출 (펼침 없이도 빠르게 파악)
   const headlineFigures = [
+    cat.classification ? cat.classification : null,
     cat.actual_pct != null && cat.limit_pct != null
       ? `${cat.actual_pct}% / ${cat.limit_pct}%`
       : cat.actual_pct != null
@@ -643,6 +652,7 @@ function CategoryCard({ label, cat }) {
     cat.excess_pct > 0 ? `초과 ${cat.excess_pct}%p` : null,
     cat.deficit_m2 > 0 ? `부족 ${cat.deficit_m2}㎡` : null,
     cat.exempt === true ? '면제' : null,
+    cat.required_level ? `의무: ${cat.required_level}` : null,
   ].filter(Boolean)
 
   // 위험·확인필요는 기본 펼침, 적합은 기본 접힘
@@ -652,6 +662,9 @@ function CategoryCard({ label, cat }) {
     cat.notes ||
     (cat.items && cat.items.length > 0) ||
     (cat.warnings && cat.warnings.length > 0) ||
+    (cat.checks && cat.checks.length > 0) ||
+    (cat.implications && cat.implications.length > 0) ||
+    (cat.guidelines && Object.keys(cat.guidelines).length > 0) ||
     cat.source ||
     (cat.law_refs && cat.law_refs.length > 0)
 
@@ -697,7 +710,37 @@ function CategoryCard({ label, cat }) {
             <p className="text-xs text-gray-600 leading-relaxed">{cat.notes}</p>
           )}
           {cat.items && cat.items.length > 0 && (
-            <FireSafetyItems items={cat.items} />
+            cat.items[0]?.matched_zones != null
+              ? <ZoneOverlapItems items={cat.items} />
+              : cat.items[0]?.required_level != null
+              ? <CertItems items={cat.items} />
+              : <FireSafetyItems items={cat.items} />
+          )}
+          {cat.implications && cat.implications.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">적용 기준</p>
+              <ul className="text-xs text-gray-600 list-disc list-inside space-y-0.5">
+                {cat.implications.map((impl, i) => <li key={i}>{impl}</li>)}
+              </ul>
+            </div>
+          )}
+          {cat.checks && cat.checks.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">검토 항목</p>
+              <ul className="text-xs text-gray-600 list-disc list-inside space-y-0.5">
+                {cat.checks.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+          )}
+          {cat.guidelines && Object.keys(cat.guidelines).length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-600 mb-1">적용 가이드라인</p>
+              <ul className="text-xs text-gray-600 space-y-0.5">
+                {Object.entries(cat.guidelines).map(([k, v]) => (
+                  <li key={k}><span className="font-medium">{k}:</span> {v}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {cat.warnings && cat.warnings.length > 0 && (
             <ul className="text-xs text-yellow-700 list-disc list-inside space-y-0.5">
@@ -747,6 +790,56 @@ function FireSafetyItems({ items }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function ZoneOverlapItems({ items }) {
+  return (
+    <div className="mt-2 space-y-2.5">
+      {items.map((it, i) => (
+        <div key={i} className="text-xs border-l-2 border-amber-300 pl-2 space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-amber-800">{it.display_name}</span>
+            {it.matched_zones?.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+                {it.matched_zones.join(', ')}
+              </span>
+            )}
+          </div>
+          <p className="text-gray-600 leading-relaxed">{it.restriction_summary}</p>
+          {it.law && (
+            it.url
+              ? <a href={it.url} target="_blank" rel="noreferrer" className="text-blue-500 underline block">{it.law}</a>
+              : <p className="text-gray-400">{it.law}</p>
+          )}
+        </div>
+      ))}
+      <p className="text-[10px] text-amber-700 leading-relaxed pt-1">
+        ⚠ 위 지구·구역의 세부 행위 제한 기준은 허가권자(시·군·구청) 확인이 필수입니다.
+      </p>
+    </div>
+  )
+}
+
+function CertItems({ items }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      {items.map((it, i) => (
+        <div key={i} className="text-xs border-l-2 border-blue-200 pl-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-medium text-gray-700">{it.name}</span>
+            <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+              {it.required_level}
+            </span>
+          </div>
+          {it.law && (
+            it.url
+              ? <a href={it.url} target="_blank" rel="noreferrer" className="text-blue-500 underline mt-0.5 block">{it.law}</a>
+              : <p className="text-gray-400 mt-0.5">{it.law}</p>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

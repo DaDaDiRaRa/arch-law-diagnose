@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# 환경 변수 (절대 이미지에 포함하지 않음)
+.env
+.env.*
+!.env.example
+
+# Node 의존성 / 빌드 산출물
+node_modules/
+frontend/dist
+
+# 파이썬 캐시 / 가상환경
+backend/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# 데이터 / 캐시 (런타임 마운트)
+backend/data/
+files/
+*.db
+*.sqlite
+
+# 개발 도구
+.vscode/
+.idea/
+*.log
+*.tmp
+
+# 문서 / 기타
+CLAUDE.md
+SETUP.md
+README.md
+law_*.txt
+response_*.txt

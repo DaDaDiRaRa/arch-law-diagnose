@@ -26,14 +26,20 @@ from pathlib import Path
 
 from services.cache_manager import CacheManager
 from services.calculator import (
+    bf_certification,
     coverage,
+    crime_prevention,
     far,
     fire_safety,
     height,
     land_use_act,
     landscape,
+    multi_use,
     parking,
+    public_certification,
+    railway_protection,
     urban_facility,
+    zone_overlap,
 )
 from services import building_agreement
 from services.far_relief import build_relief_note, compute_relief
@@ -324,11 +330,45 @@ class DiagnoseEngine:
             eum=self._eum,
         )
 
+        # 신청 주체 — 공공기관 여부에 따라 의무 인증·BF 판정
+        applicant_type: str = req.get("applicant_type") or "개인"
+
+        # 결정고시 입력값 — 도시계획시설 저촉 해소 + 건폐율/용적률/높이 한도 우선 적용
+        decision_notice_confirmed: bool = bool(req.get("decision_notice_confirmed"))
+        decision_far_limit: float | None = (
+            float(req["decision_far_limit"]) if req.get("decision_far_limit") else None
+        )
+        decision_cov_limit: float | None = (
+            float(req["decision_cov_limit"]) if req.get("decision_cov_limit") else None
+        )
+        decision_height_limit: float | None = (
+            float(req["decision_height_limit"]) if req.get("decision_height_limit") else None
+        )
+        if decision_notice_confirmed and decision_cov_limit:
+            cov_limit = decision_cov_limit
+            cov_source = f"도시계획시설 결정고시 건폐율 한도 {decision_cov_limit}% (국토계획법 §64)"
+
+        # 발주처 지침서 조건 — 법규/조례보다 엄격한 경우에만 덮어씀
+        brief: dict = req.get("brief_conditions") or {}
+        brief_cov = brief.get("max_bcr_pct")
+        brief_far = brief.get("max_far_pct")
+        brief_height = brief.get("max_height_m")
+        brief_landscape = brief.get("min_landscape_pct")
+        if brief_cov and (cov_limit is None or float(brief_cov) < cov_limit):
+            cov_limit = float(brief_cov)
+            cov_source = f"발주처 지침서 건폐율 한도 {brief_cov}% (법규보다 엄격)"
+        if brief_far and (far_limit is None or float(brief_far) < far_limit):
+            far_limit = float(brief_far)
+            far_source = f"발주처 지침서 용적률 한도 {brief_far}% (법규보다 엄격)"
+        if brief_landscape and (landscape_limit is None or float(brief_landscape) > landscape_limit):
+            landscape_limit = float(brief_landscape)
+
         # 도시계획시설 저촉 (SHP 공간 검사)
         r_urban_facility = urban_facility.calculate(
             lat=land.get("lat"),
             lng=land.get("lon"),
             pnu=pnu or land.get("pnu"),
+            decision_notice_confirmed=decision_notice_confirmed,
         )
 
         # 정량 5개 (동기)
@@ -347,11 +387,19 @@ class DiagnoseEngine:
             site_area=site_area,
             public_open_space_area=public_open_space,
             green_grade=req.get("green_grade"),
-            energy_grade=req.get("energy_grade"),
+            zero_energy_grade=req.get("zero_energy_grade") or req.get("energy_grade"),
+            pilot_project=bool(req.get("pilot_project")),
             smart_grade=req.get("smart_grade"),
             long_life_grade=req.get("long_life_grade"),
-            far_limit_manual_override=req.get("far_limit_manual_override"),
-            relief_reason_manual=req.get("relief_reason_manual"),
+            far_limit_manual_override=(
+                decision_far_limit if (decision_notice_confirmed and decision_far_limit)
+                else req.get("far_limit_manual_override")
+            ),
+            relief_reason_manual=(
+                f"도시계획시설 결정고시 용적률 한도 {decision_far_limit}% (국토계획법 §64)"
+                if (decision_notice_confirmed and decision_far_limit)
+                else req.get("relief_reason_manual")
+            ),
         )
         # 완화가 적용되면 final_limit_pct를 far.py 에 전달
         far_limit_effective = relief["final_limit_pct"] if relief["applied"] else far_limit
@@ -395,6 +443,16 @@ class DiagnoseEngine:
                     block_label = sb_hit.get("block_name") or "가로구역"
                     sb_source = sb_hit.get("source") or block_label
 
+        # 결정고시 높이 한도 — 가로구역 최고높이보다 우선 (명시적 결정고시는 더 구체적)
+        if decision_notice_confirmed and decision_height_limit:
+            sb_height_m = decision_height_limit
+            sb_source = f"도시계획시설 결정고시 높이 한도 {decision_height_limit}m (국토계획법 §64)"
+
+        # 발주처 지침서 높이 한도 — 법규/결정고시보다 엄격한 경우에만 적용
+        if brief_height and (sb_height_m is None or float(brief_height) < sb_height_m):
+            sb_height_m = float(brief_height)
+            sb_source = f"발주처 지침서 높이 한도 {brief_height}m (법규보다 엄격)"
+
         r_height = height.calculate(
             h, floors_above, zone_use, road_width,
             north_setback_m=req.get("north_setback_m"),
@@ -410,11 +468,15 @@ class DiagnoseEngine:
             )
             r_height["street_block_source"] = sb_source
         provided_parking = req.get("provided_parking_spaces")
+        unit_exclusive_area = req.get("unit_exclusive_area")
+        parking_capacity = req.get("parking_capacity")
         r_parking = parking.calculate(
             building_use,
             total_floor_area,
             units=units,
+            unit_exclusive_area=unit_exclusive_area,
             provided_spaces=provided_parking,
+            capacity=parking_capacity,
         )
         r_landscape = landscape.calculate(
             landscape_area, site_area, zone_use, building_use,
@@ -469,6 +531,31 @@ class DiagnoseEngine:
                 units=units,
             )
 
+        # 공공기관 의무 인증 3종 카드 (가중치 0 → 종합점수 무영향)
+        r_public_cert = public_certification.calculate(
+            building_use=building_use,
+            applicant_type=applicant_type,
+            gross_floor_area=total_floor_area,
+        )
+        r_bf = bf_certification.calculate(
+            building_use=building_use,
+            applicant_type=applicant_type,
+        )
+        r_crime_prev = crime_prevention.calculate(building_use=building_use)
+        r_multi_use = multi_use.classify(
+            building_use=building_use,
+            total_floor_area=total_floor_area,
+            floors_above=int(req.get("floors_above") or 0),
+        )
+        r_zone_overlap = zone_overlap.calculate(
+            zone_district=land.get("zone_district") or req.get("zone_district"),
+            zone_area=land.get("zone_area"),
+        )
+        r_railway = railway_protection.calculate(
+            lat=lat,
+            lng=land.get("lon"),
+        )
+
         results = {
             "행위제한": r_land_use_act,
             "도시계획시설": r_urban_facility,
@@ -478,6 +565,12 @@ class DiagnoseEngine:
             "주차": r_parking,
             "조경": r_landscape,
             "설비_소방": r_fire,
+            "공공시설_의무인증": r_public_cert,
+            "BF_인증": r_bf,
+            "범죄예방_건축기준": r_crime_prev,
+            "다중이용건축물": r_multi_use,
+            "중첩지구_구역": r_zone_overlap,
+            "철도보호지구": r_railway,
         }
 
         overall, _confidence_min = _weighted_score(results)

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -142,7 +142,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -191,6 +191,14 @@ class DiagnoseRequest(BaseModel):
     provided_parking_spaces: int | None = Field(
         None, ge=0, description="계획 주차대수 (선택). 미입력 시 법정 기준만 표시"
     )
+    unit_exclusive_area: float | None = Field(
+        None, gt=0,
+        description="세대 평균 전용면적 (㎡, 공동주택·다가구·오피스텔). 60㎡ 이하/초과 분기에 사용"
+    )
+    parking_capacity: int | None = Field(
+        None, ge=1,
+        description="홀 수(골프장) / 타석 수(골프연습장) / 정원(옥외수영장·관람장). count_based 용도에만 사용"
+    )
     public_open_space_area: float | None = Field(
         None, ge=0, description="공개공지 면적 (㎡, 선택)"
     )
@@ -231,6 +239,47 @@ class DiagnoseRequest(BaseModel):
     street_block_max_height_m: float | None = Field(
         None, gt=0,
         description="가로구역별 최고높이 지정값 (m). 입력 시 §60 자동 비교.",
+    )
+
+    # 특별 완화 토글 (선택)
+    rooftop_landscape_area: float | None = Field(
+        None, ge=0, description="옥상 조경면적 (㎡) — 2/3 인정, 의무면적 50% 상한 (§27 ③항)"
+    )
+    building_agreement: bool = Field(False, description="건축협정 체결 (§110의7) — 건폐율·용적률 1.2배")
+    agreement_landscape_road_facing: bool = Field(
+        False, description="건축협정 조경 도로면 통합 조성 — 조경 의무 0.8배 (§110의7 1호)"
+    )
+    rema_zone: bool = Field(False, description="재정비촉진지구 — 용적률 법정 상한 ×1.2 (도시재정비촉진법 §19)")
+    easy_remodel: bool = Field(False, description="리모델링이 쉬운 구조 인증 — 용적률 ×1.2 (공동주택 한정, 시행령 §6의5)")
+    public_rental: bool = Field(False, description="공공지원민간임대주택 — 건폐율·용적률 법정 상한 (민간임대주택법 §21)")
+
+    # 신청 주체 (선택) — 공공기관 여부에 따라 의무 인증 5종·BF 등 추가 판정
+    applicant_type: str = Field(
+        "개인",
+        description="신청 주체: 개인 / 민간법인 / 공공기관",
+    )
+
+    # 도시계획시설 결정고시 (선택)
+    decision_notice_confirmed: bool = Field(
+        False, description="도시계획시설 결정고시 확인됨 — 저촉 판정 조건부 통과로 전환"
+    )
+    decision_far_limit: float | None = Field(
+        None, gt=0, description="결정고시 용적률 한도 (%) — 일반 한도 대신 사용"
+    )
+    decision_cov_limit: float | None = Field(
+        None, gt=0, description="결정고시 건폐율 한도 (%) — 일반 한도 대신 사용"
+    )
+    decision_height_limit: float | None = Field(
+        None, gt=0, description="결정고시 높이 한도 (m) — 가로구역 최고높이 대신 사용"
+    )
+
+    # 발주처 지침서 추출 조건 (선택) — /api/brief/extract 결과를 그대로 전달
+    brief_conditions: dict | None = Field(
+        None,
+        description=(
+            "발주처 지침서 PDF에서 추출한 설계 조건. "
+            "법규 기준보다 엄격한 항목은 진단에서 지침서 기준 우선 적용."
+        ),
     )
 
 
@@ -927,4 +976,55 @@ async def review_request(req: ReviewRequest):
         logger.exception("리뷰 요청 오류: %s", e)
         raise HTTPException(500, f"리뷰 요청 오류: {e}")
 
+
+# ── 발주처 지침서 PDF 추출 ─────────────────────────────────────────────────────
+
+@app.post("/api/brief/extract")
+async def brief_extract(file: UploadFile = File(...)):
+    """발주처 지침서 PDF → 설계 조건 JSON 추출.
+
+    multipart/form-data 로 PDF 파일 전송.
+    반환: {max_bcr_pct, max_far_pct, max_floors, max_height_m,
+           min_landscape_pct, min_parking_spaces,
+           required_uses, prohibited_uses, special_conditions, source_excerpt}
+    """
+    if llm_client is None or not llm_client.available:
+        raise HTTPException(503, "AI 서비스(ANTHROPIC_API_KEY) 미설정 — PDF 추출 불가")
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "PDF 파일만 업로드 가능합니다")
+
+    MAX_MB = 20
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > MAX_MB * 1024 * 1024:
+        raise HTTPException(413, f"파일 크기 {MAX_MB}MB 초과")
+
+    from services.brief_extractor import extract_from_pdf
+    try:
+        result = extract_from_pdf(pdf_bytes, llm_client)
+        logger.info(
+            "지침서 추출 완료: %s (%d chars, %d pages)",
+            file.filename, result.get("_text_length", 0), result.get("_pages_extracted", 0),
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    except Exception as e:
+        logger.exception("지침서 추출 오류: %s", e)
+        raise HTTPException(500, f"추출 오류: {e}")
+
+
+# ── 프론트엔드 정적 파일 서빙 (컨테이너 단일 포트 운영용) ─────────────────
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(_DIST / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        """SPA 라우팅 — /api/* 외 모든 경로를 index.html 로 반환."""
+        return FileResponse(str(_DIST / "index.html"))
 

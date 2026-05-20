@@ -1,6 +1,7 @@
 """조경 계산기.
 
 건축법 제42조 + 시행령 제27조 — 대지 안의 조경 의무.
+조경기준 고시 (국토부 고시 제2021-1778호, 2022.1.7.) — 식재수량·면적 산정 기준.
 
 시행령 §27 ①항 면제 대상 (법제처 API 확인, 2026 현행):
   1호. 녹지지역에 건축하는 건축물
@@ -22,6 +23,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 
 _STANDARDS: dict = {}
@@ -114,10 +116,10 @@ def calculate(
     else:
         # ②항 4호: 200~300㎡ 미만은 10% 의무 (시행령 직접 명시 — 조례로 변경 불가)
         if site_area < 300:
-            required_pct = 10.0
+            required_pct: float | None = 10.0
         else:
             # 그 외 비율은 시·도 조례 위임. resolver 결과(limit_override) 우선,
-            # 없으면 by_use_override → by_zone JSON 평균 → default 순.
+            # 없으면 by_use_override(시행령 직접 명시 용도만) → None(조례 확인 필요) 순.
             if limit_override is not None:
                 required_pct = float(limit_override)
             else:
@@ -125,6 +127,25 @@ def calculate(
         if required_pct == 0:
             exempt = True
             exempt_reason = f"용도 '{building_use}' 별 면제"
+
+    # 조례 데이터 없고 시행령 직접 명시 용도도 아님 → 확인 필요
+    if required_pct is None:
+        return _result(
+            actual_pct=None,
+            required_pct=None,
+            required_area=0.0,
+            exempt=False,
+            passed=None,
+            deficit=None,
+            score=None,
+            confidence=2,
+            source="건축법 시행령 §27 ②항 — 비율은 시·도 조례에 위임",
+            law_refs=_law_refs(),
+            notes=(
+                "조경 의무비율은 시행령 §27 ②항에 의해 지자체 조례에서 정함."
+                " 해당 시·군·구 도시계획조례를 직접 확인하거나, 조례 조회 결과가 확인되면 재진단 필요."
+            ),
+        )
 
     required_area = round(site_area * required_pct / 100, 2)
     law_refs = _law_refs()
@@ -142,8 +163,23 @@ def calculate(
         nonexempt_source = source_override or "시행령 §27 평균 추정값 (지자체 조례 확인 필요)"
         nonexempt_confidence = 4
     else:
-        nonexempt_source = "건축법 시행령 제27조 별표 (지자체 조례 평균)"
-        nonexempt_confidence = 3
+        # by_use_override 매칭(시행령 직접 명시) 또는 200~300㎡ 직접 규정
+        nonexempt_source = "건축법 시행령 제27조"
+        nonexempt_confidence = 5
+
+    # 고시 §7조 식재수량 (의무 조경면적 기준 최소 수량)
+    planting = _calc_planting(required_area, zone_use, std) if not exempt else {}
+
+    # 고시 §4조 조경면적 산정 조건 안내 (면제 아닌 경우)
+    hint_4 = (
+        "※ 고시 §4조: 식재면적 ≥ 의무면적 50% / 1개 식재면적 ≥ 1㎡ / 조경시설공간 ≥ 10㎡."
+        if not exempt else ""
+    )
+    # 고시 §5조 자연지반 안내
+    hint_5 = (
+        f"※ 고시 §5조: 의무면적({required_area:.0f}㎡)의 10% 이상({required_area * 0.1:.0f}㎡)은 자연지반."
+        if not exempt and required_area > 0 else ""
+    )
 
     # 조경면적 미입력 처리
     if landscape_area is None:
@@ -160,7 +196,9 @@ def calculate(
                 source="건축법 시행령 제27조 (면제 대상)",
                 law_refs=law_refs,
                 notes=exempt_reason or "조경 의무 면제",
+                **planting,
             )
+        planting_note = _planting_note(planting)
         return _result(
             actual_pct=None,
             required_pct=required_pct,
@@ -172,10 +210,14 @@ def calculate(
             confidence=nonexempt_confidence,
             source=nonexempt_source,
             law_refs=law_refs,
-            notes=(
+            notes=" ".join(filter(None, [
                 f"조경 의무 {required_pct:.0f}% 이상 (≈ {required_area:.0f}㎡). "
-                f"조경면적 입력 시 적합 여부 자동 판정."
-            ),
+                "조경면적 입력 시 적합 여부 자동 판정.",
+                planting_note,
+                hint_4,
+                hint_5,
+            ])),
+            **planting,
         )
 
     # 시행령 §27 ③항 — 옥상조경 인정
@@ -208,6 +250,7 @@ def calculate(
             source="건축법 시행령 제27조 (면제 대상)",
             law_refs=law_refs,
             notes=(exempt_reason or "조경 의무 면제") + f" (계획 조경 {actual_pct:.1f}%)",
+            **planting,
         )
 
     passed = actual_pct >= required_pct
@@ -224,8 +267,14 @@ def calculate(
         else:
             score = round(7.0 + margin_ratio / 0.1 * 1.0, 1)
 
+    planting_note = _planting_note(planting)
     base_notes = _notes(passed, actual_pct, required_pct, deficit, zone_use)
-    notes = (base_notes + " " + rooftop_credit_note).strip() if rooftop_credit_note else base_notes
+    notes = " ".join(filter(None, [
+        (base_notes + " " + rooftop_credit_note).strip() if rooftop_credit_note else base_notes,
+        planting_note,
+        hint_4,
+        hint_5,
+    ]))
 
     return _result(
         actual_pct=round(actual_pct, 2),
@@ -241,6 +290,49 @@ def calculate(
         notes=notes,
         rooftop_landscape_area=rooftop_landscape_area or 0.0,
         rooftop_credit_m2=rooftop_credit,
+        **planting,
+    )
+
+
+def _calc_planting(required_area: float, zone_use: str, std: dict) -> dict:
+    """고시 §7조 식재수량 계산.
+
+    의무 조경면적(required_area) 기준 최소 교목·관목 수 반환.
+    zone_use → 용도지역 카테고리 → planting_rates 조회.
+    매칭 없으면 주거(기본값) 적용.
+    """
+    from services.zone_use_normalizer import category_of
+
+    rates = std.get("planting_rates", {})
+    cat = category_of(zone_use) or "주거"
+    rate = rates.get(cat) or rates.get("주거", {"tree_per_m2": 0.2, "shrub_per_m2": 1.0})
+
+    tree_per = float(rate.get("tree_per_m2", 0.2))
+    shrub_per = float(rate.get("shrub_per_m2", 1.0))
+
+    required_trees = math.ceil(required_area * tree_per) if required_area > 0 else 0
+    required_shrubs = math.ceil(required_area * shrub_per) if required_area > 0 else 0
+
+    return {
+        "required_trees": required_trees,
+        "required_shrubs": required_shrubs,
+        "planting_zone_cat": cat,
+        "planting_tree_rate": tree_per,
+        "planting_shrub_rate": shrub_per,
+    }
+
+
+def _planting_note(planting: dict) -> str:
+    if not planting or planting.get("required_trees") is None:
+        return ""
+    cat = planting.get("planting_zone_cat", "")
+    trees = planting.get("required_trees", 0)
+    shrubs = planting.get("required_shrubs", 0)
+    t_rate = planting.get("planting_tree_rate", 0)
+    s_rate = planting.get("planting_shrub_rate", 0)
+    return (
+        f"※ 고시 §7조: {cat} 기준 교목 {trees}주 이상({t_rate}/㎡)"
+        f" · 관목 {shrubs}주 이상({s_rate}/㎡) 식재 필요."
     )
 
 
@@ -265,8 +357,12 @@ def _required_ratio(
     site_area: float,
     zone_use: str,
     std: dict,
-) -> float:
-    """의무 비율(%) 결정. by_use_override > by_zone > default."""
+) -> float | None:
+    """의무 비율(%) 결정. by_use_override(시행령 직접 명시) 우선.
+
+    by_zone/default 추정값 제거 (2026-05-20 시행령 §27 원문 대조).
+    매칭 없으면 None 반환 → 조례 확인 필요.
+    """
     by_use = std.get("by_use_override", {})
     for use_key, val in by_use.items():
         if use_key.startswith("_"):
@@ -282,13 +378,8 @@ def _required_ratio(
         elif isinstance(val, (int, float)):
             return float(val)
 
-    from services.zone_use_normalizer import normalize as _norm_zone
-    by_zone = std.get("by_zone", {})
-    canonical = _norm_zone(zone_use)
-    if canonical and canonical in by_zone and by_zone[canonical] is not None:
-        return float(by_zone[canonical])
-
-    return float(std.get("default_required_pct", 15))
+    # by_zone 추정값 제거됨. 조례 resolver가 limit_override 없이 여기 도달 = 조례 미확인.
+    return None
 
 
 def _notes(
@@ -327,6 +418,10 @@ def _result(**kwargs) -> dict:
         "notes": kwargs["notes"],
         "rooftop_landscape_area_m2": kwargs.get("rooftop_landscape_area", 0.0),
         "rooftop_credit_m2": kwargs.get("rooftop_credit_m2", 0.0),
+        # 고시 §7조 식재수량
+        "required_trees": kwargs.get("required_trees"),
+        "required_shrubs": kwargs.get("required_shrubs"),
+        "planting_zone_cat": kwargs.get("planting_zone_cat"),
     }
 
 
@@ -339,5 +434,9 @@ def _law_refs() -> list[dict]:
         {
             "name": "건축법 시행령 제27조 (대지의 조경)",
             "url": "https://www.law.go.kr/법령/건축법시행령/제27조",
+        },
+        {
+            "name": "건축물 대지의 조경기준 (국토부 고시 제2021-1778호)",
+            "url": "https://www.law.go.kr/행정규칙/건축물대지의조경기준",
         },
     ]

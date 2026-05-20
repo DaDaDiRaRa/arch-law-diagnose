@@ -5,6 +5,7 @@ shapely.STRtree로 후보 좁힌 뒤 point-in-polygon 정확 검사.
 """
 from __future__ import annotations
 
+import os
 import threading
 from collections import OrderedDict
 from pathlib import Path
@@ -15,8 +16,8 @@ from shapely.strtree import STRtree
 
 from services.urban_facility.sido import resolve_sido_folder
 
-# 시·도 SHP 루트 (프로젝트 루트 기준)
-SHP_ROOT = Path(__file__).resolve().parents[3] / "files" / "3" / "shp"
+# 시·도 SHP 루트 (환경변수 SHP_ROOT 우선, 미설정 시 프로젝트 루트 기준)
+SHP_ROOT = Path(os.getenv("SHP_ROOT") or Path(__file__).resolve().parents[3] / "files" / "3" / "shp")
 
 # UQ 카테고리 코드 목록
 UQ_CATEGORIES = [f"UQ15{i}" for i in range(1, 10)]

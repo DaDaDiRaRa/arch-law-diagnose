@@ -23,6 +23,7 @@ def calculate(
     lat: float | None,
     lng: float | None,
     pnu: str | None = None,
+    decision_notice_confirmed: bool = False,
 ) -> dict:
     """도시계획시설 저촉 카드."""
     base = {
@@ -65,10 +66,20 @@ def calculate(
         base["confidence"] = 3
         base["notes"] = result["note"]
     else:  # RED
-        base["pass"] = False
-        base["score"] = 0.0
-        base["confidence"] = 5
-        base["notes"] = result["note"]
+        if decision_notice_confirmed:
+            base["pass"] = None
+            base["score"] = 7.0
+            base["confidence"] = 3
+            base["notes"] = (
+                result["note"]
+                + " · 결정고시 확인됨 — 도시·군계획시설 실시계획 수립 및 시행 절차 진행 조건으로 조건부 처리"
+                " (국토계획법 §64·§65). ⚠ 실시계획 인가·고시 전 착공 불가."
+            )
+        else:
+            base["pass"] = False
+            base["score"] = 0.0
+            base["confidence"] = 5
+            base["notes"] = result["note"]
 
     return base
 
