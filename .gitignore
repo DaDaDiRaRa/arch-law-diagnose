@@ -42,3 +42,5 @@ logs/
 # 토지이음 (도시계획시설 결정도형정보 SHP/CSV) — files/3/README.md 참조
 files/3/**
 !files/3/README.md
+
+echo "env.yaml"
