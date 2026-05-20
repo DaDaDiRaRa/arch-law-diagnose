@@ -43,4 +43,5 @@ logs/
 files/3/**
 !files/3/README.md
 
-echo "env.yaml"
+echo env.yaml
+echo key.json
