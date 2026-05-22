@@ -207,7 +207,7 @@ export default function DiagnoseResult() {
                     <span className="font-medium">{CATEGORY_LABELS[key] || key}:</span> {c.notes}
                   </div>
                 ))}
-                <p className="text-[10px] text-amber-700 leading-relaxed mt-1">
+                <p className="text-[var(--font-size-2xs)] text-amber-700 leading-relaxed mt-1">
                   상단 입력 폼의 "☀ 높이·일조 자동 판정 입력" 섹션에 정북 이격거리 등을 입력하면 자동 판정됩니다.
                 </p>
               </div>
@@ -361,7 +361,7 @@ function SiteCorrectionCard({ correction }) {
           </ul>
         </details>
       )}
-      <p className="text-[10px] text-gray-500 leading-relaxed">
+      <p className="text-[var(--font-size-2xs)] text-gray-500 leading-relaxed">
         ⚠ 자동 보정은 추정이며, 실제 도면(지적도·도시계획시설 결정고시)에서 확인 후
         시설부지 면적을 직접 입력하시면 그 값으로 재산정됩니다.
       </p>
@@ -410,7 +410,7 @@ function ApplicableReviewsCard({ reviews }) {
                 <span className={`font-semibold ${s.textCls}`}>
                   {s.icon} {it.name}
                 </span>
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${s.badgeCls}`}>
+                <span className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${s.badgeCls}`}>
                   {s.badge}
                 </span>
               </div>
@@ -422,14 +422,14 @@ function ApplicableReviewsCard({ reviews }) {
                 </ul>
               )}
               {it.note && (
-                <p className="text-gray-600 text-[11px] leading-relaxed">{it.note}</p>
+                <p className="text-gray-600 text-[var(--font-size-xs)] leading-relaxed">{it.note}</p>
               )}
               {it.law_ref && (
                 <a
                   href={it.law_ref_url || '#'}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-[10px] text-indigo-600 hover:underline inline-block"
+                  className="text-[var(--font-size-2xs)] text-indigo-600 hover:underline inline-block"
                 >
                   📜 {it.law_ref}
                 </a>
@@ -438,7 +438,7 @@ function ApplicableReviewsCard({ reviews }) {
           )
         })}
       </div>
-      <p className="text-[10px] text-indigo-700 leading-relaxed">
+      <p className="text-[var(--font-size-2xs)] text-indigo-700 leading-relaxed">
         ⚠ 트리거 룰은 일반 기준이며, 지자체 조례·세부 조건에 따라 추가 심의가 있을 수 있습니다.
         교육환경·문화재는 좌표 기반 정밀 판정 미지원 — 토지이음 및 교육청·국가유산청 확인 권장.
       </p>
@@ -802,7 +802,7 @@ function ZoneOverlapItems({ items }) {
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-amber-800">{it.display_name}</span>
             {it.matched_zones?.length > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
+              <span className="text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">
                 {it.matched_zones.join(', ')}
               </span>
             )}
@@ -815,7 +815,7 @@ function ZoneOverlapItems({ items }) {
           )}
         </div>
       ))}
-      <p className="text-[10px] text-amber-700 leading-relaxed pt-1">
+      <p className="text-[var(--font-size-2xs)] text-amber-700 leading-relaxed pt-1">
         ⚠ 위 지구·구역의 세부 행위 제한 기준은 허가권자(시·군·구청) 확인이 필수입니다.
       </p>
     </div>

@@ -115,7 +115,7 @@ export default function App() {
 
           {/* 드로어 패널 */}
           <div
-            className={`fixed top-0 left-0 h-full w-[580px] max-w-full bg-white shadow-2xl z-30 flex flex-col transition-transform duration-300 ${
+            className={`fixed top-0 left-0 h-full w-[var(--panel-width-lg)] max-w-full bg-white shadow-2xl z-30 flex flex-col transition-transform duration-300 ${
               drawerOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >

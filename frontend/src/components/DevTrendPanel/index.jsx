@@ -93,7 +93,7 @@ export default function DevTrendPanel({ areaCd }) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1 text-[11px]">
+            <div className="flex items-center gap-1 text-[var(--font-size-xs)]">
               <span className="text-gray-500">기간:</span>
               {[7, 14, 30].map((d) => (
                 <button
@@ -125,7 +125,7 @@ export default function DevTrendPanel({ areaCd }) {
             </div>
           )}
 
-          <p className="text-[10px] text-emerald-700 leading-relaxed border-t border-emerald-100 pt-2">
+          <p className="text-[var(--font-size-2xs)] text-emerald-700 leading-relaxed border-t border-emerald-100 pt-2">
             출처: 토지이음 (eum.go.kr) · 개발 인허가 정보 조회 서비스.
             진단 지번과 동일 시군구의 최근 인허가 — 주변 개발 동향 참고용.
           </p>
@@ -180,7 +180,7 @@ function PermitRow({ permit }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             {permitType && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+              <span className="text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
                 {permitType}
               </span>
             )}
@@ -189,29 +189,29 @@ function PermitRow({ permit }) {
             </span>
           </div>
           {location && (
-            <p className="text-[11px] text-gray-600 mt-0.5 truncate" title={location}>
+            <p className="text-[var(--font-size-xs)] text-gray-600 mt-0.5 truncate" title={location}>
               📍 {location}
             </p>
           )}
-          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-gray-500 flex-wrap">
+          <div className="flex items-center gap-2 mt-0.5 text-[var(--font-size-2xs)] text-gray-500 flex-wrap">
             {area && <span>면적 {area}㎡</span>}
             {applicant && <span>· 신청 {applicant}</span>}
           </div>
         </div>
-        <span className="text-[10px] text-gray-500 flex-shrink-0">
+        <span className="text-[var(--font-size-2xs)] text-gray-500 flex-shrink-0">
           {formatYmd(prmsnDate)}
         </span>
       </div>
       {hasExtras && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-[10px] text-emerald-600 hover:underline mt-1"
+          className="text-[var(--font-size-2xs)] text-emerald-600 hover:underline mt-1"
         >
           {expanded ? '상세 접기' : `상세 ${extraEntries.length}개 ▾`}
         </button>
       )}
       {expanded && hasExtras && (
-        <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-gray-500 border-t border-emerald-50 pt-1">
+        <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[var(--font-size-2xs)] text-gray-500 border-t border-emerald-50 pt-1">
           {extraEntries.map(([k, v]) => (
             <div key={k} className="flex gap-1 min-w-0">
               <dt className="font-mono text-gray-400 flex-shrink-0">{k}:</dt>

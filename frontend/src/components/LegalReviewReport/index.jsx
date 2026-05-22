@@ -123,7 +123,7 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
                         return (
                           <>
                             {sc.effective_m2?.toLocaleString()}㎡
-                            <span className="lr-note" style={{ fontSize: '0.85em' }}>
+                            <span className="lr-note" style={{ fontSize: 'var(--font-size-xs)' }}>
                               {' '}(입력 {sc.original_m2?.toLocaleString()}㎡ - 시설부지 {sc.excluded_m2?.toLocaleString()}㎡, 시행령 §3)
                             </span>
                           </>
@@ -177,7 +177,7 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
                 </tbody>
               </table>
             )}
-            <p className="lr-note" style={{ fontSize: '0.85em' }}>
+            <p className="lr-note" style={{ fontSize: 'var(--font-size-xs)' }}>
               ※ 건축법 시행령 §3에 따라 도시·군계획시설 부지에 포함되는 면적은
               대지면적에서 제외하여 건폐율·용적률 등을 산정합니다.
               자동 추정 결과는 실제 도면 확인이 필요하며, 입력 폼에 직접
@@ -207,18 +207,18 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
                     <tr key={i}>
                       <td>{it.name}</td>
                       <td className={cls}><strong>{label}</strong></td>
-                      <td style={{ fontSize: '0.9em' }}>
+                      <td style={{ fontSize: 'var(--font-size-sm)' }}>
                         {it.triggered_reasons?.length > 0
                           ? it.triggered_reasons.join('; ')
                           : '—'}
                       </td>
-                      <td style={{ fontSize: '0.85em' }}>{it.law_ref}</td>
+                      <td style={{ fontSize: 'var(--font-size-xs)' }}>{it.law_ref}</td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
-            <p className="lr-note" style={{ fontSize: '0.85em' }}>
+            <p className="lr-note" style={{ fontSize: 'var(--font-size-xs)' }}>
               ※ 일반 기준 자동 판정 결과이며, 지자체별 조례·특수 조건에 따라 변동 가능.
               교육환경·문화재 관련 심의는 좌표 기반 정밀 판정 미지원으로 별도 확인 필요.
             </p>
@@ -330,7 +330,7 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
                   {manual.map(([key, c]) => (
                     <tr key={key}>
                       <td><strong>{CATEGORY_LABELS[key] || key}</strong></td>
-                      <td style={{ fontSize: '0.9em' }}>{c.notes}</td>
+                      <td style={{ fontSize: 'var(--font-size-sm)' }}>{c.notes}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -538,7 +538,7 @@ function DataQualitySection({ dq }) {
         <tbody>
           <tr>
             <th style={{ width: '20%' }}>데이터 출처</th>
-            <td style={{ fontSize: '0.9em' }}>{sources.join(' · ')}</td>
+            <td style={{ fontSize: 'var(--font-size-sm)' }}>{sources.join(' · ')}</td>
           </tr>
         </tbody>
       </table>
@@ -557,7 +557,7 @@ function DataQualitySection({ dq }) {
               return (
                 <tr key={i}>
                   <td>{lvl}</td>
-                  <td style={{ fontSize: '0.9em' }}>{iss.msg}</td>
+                  <td style={{ fontSize: 'var(--font-size-sm)' }}>{iss.msg}</td>
                 </tr>
               )
             })}
@@ -621,30 +621,30 @@ function buildStandardDesign(cat) {
 
 const styles = `
 .lr-overlay {
-  position: fixed; inset: 0; background: #525659;
+  position: fixed; inset: 0; background: var(--color-print-overlay);
   z-index: 9999; overflow-y: auto;
   font-family: var(--font-primary);
 }
 .lr-toolbar {
   position: sticky; top: 0; z-index: 10;
-  background: #2d2d2d; color: var(--color-text-on-accent);
+  background: var(--color-print-toolbar); color: var(--color-text-on-accent);
   padding: var(--gap-md) var(--layout-content-px); display: flex; gap: 16px;
   justify-content: space-between; align-items: center;
   flex-wrap: wrap;
 }
 .lr-meta-inputs { display: flex; gap: var(--gap-sm); flex-wrap: wrap; flex: 1; }
 .lr-input {
-  padding: 6px var(--gap-md); border-radius: var(--card-radius-sm); border: 1px solid #555;
-  background: #3d3d3d; color: var(--color-text-on-accent); font-size: var(--font-size-base);
+  padding: 6px var(--gap-md); border-radius: var(--card-radius-sm); border: 1px solid var(--color-print-border);
+  background: var(--color-print-input); color: var(--color-text-on-accent); font-size: var(--font-size-base);
   min-width: 140px;
 }
 .lr-input::placeholder { color: var(--color-text-subtle); }
 .lr-buttons { display: flex; gap: var(--gap-sm); }
 .lr-btn {
-  padding: var(--gap-sm) 16px; border-radius: var(--card-radius-sm); border: 1px solid #555;
-  background: #3d3d3d; color: var(--color-text-on-accent); cursor: pointer; font-size: var(--font-size-base);
+  padding: var(--gap-sm) 16px; border-radius: var(--card-radius-sm); border: 1px solid var(--color-print-border);
+  background: var(--color-print-input); color: var(--color-text-on-accent); cursor: pointer; font-size: var(--font-size-base);
 }
-.lr-btn:hover { background: #4d4d4d; }
+.lr-btn:hover { background: var(--color-print-toolbar-hover); }
 .lr-btn.primary { background: var(--color-accent); border-color: var(--color-accent); }
 .lr-btn.primary:hover { background: var(--color-accent-hover); }
 

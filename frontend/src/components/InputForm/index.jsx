@@ -475,7 +475,7 @@ export default function InputForm({ isDrawer = false }) {
                 <input type="text" name="relief_reason_manual" value={formData.relief_reason_manual} onChange={handleChange} className={inputCls} placeholder="예: 도시계획심의 결정" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-emerald-700">※ 인증 합산 캡 15%, 전체 캡 1.15배 (녹색건축물법 §15)</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-emerald-700">※ 인증 합산 캡 15%, 전체 캡 1.15배 (녹색건축물법 §15)</p>
           </details>
 
           {/* 도시계획시설 결정고시 */}
@@ -500,7 +500,7 @@ export default function InputForm({ isDrawer = false }) {
                 </div>
               )}
             </div>
-            <p className="mt-2 text-[10px] text-blue-700">※ 확인 시 도시계획시설 저촉 → 조건부통과(YELLOW)</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-blue-700">※ 확인 시 도시계획시설 저촉 → 조건부통과(YELLOW)</p>
           </details>
 
           {/* 건축협정 */}
@@ -516,7 +516,7 @@ export default function InputForm({ isDrawer = false }) {
                 <span className={!formData.building_agreement ? 'text-gray-400' : ''}>조경 도로면 통합조성 (의무 0.8배)</span>
               </label>
             </div>
-            <p className="mt-2 text-[10px] text-amber-700">※ 협정 인가 + 심의 통과 시에만 효력</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-amber-700">※ 협정 인가 + 심의 통과 시에만 효력</p>
           </details>
 
           {/* 특별 지구·인증 특례 */}
@@ -536,7 +536,7 @@ export default function InputForm({ isDrawer = false }) {
                 <span>공공지원민간임대주택 (법정 상한까지)</span>
               </label>
             </div>
-            <p className="mt-2 text-[10px] text-purple-700">※ 실제 인허가 단계에서 검토 필수</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-purple-700">※ 실제 인허가 단계에서 검토 필수</p>
           </details>
 
           {/* 도시계획시설 저촉 면적 */}
@@ -547,7 +547,7 @@ export default function InputForm({ isDrawer = false }) {
                 <input type="number" name="urban_facility_exclude_area" value={formData.urban_facility_exclude_area} onChange={handleChange} min="0" step="0.01" className={inputCls} placeholder="예: 50.5" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-sky-700">※ 입력 시 VWorld×SHP 자동 추정 결과 무시</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-sky-700">※ 입력 시 VWorld×SHP 자동 추정 결과 무시</p>
           </details>
 
           {/* 높이·일조 */}
@@ -587,7 +587,7 @@ export default function InputForm({ isDrawer = false }) {
                 <input type="number" name="street_block_max_height_m" value={formData.street_block_max_height_m} onChange={handleChange} min="1" step="0.1" className={inputCls} placeholder="예: 30" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-amber-700">※ 미입력 시 수동 검토 필요</p>
+            <p className="mt-2 text-[var(--font-size-2xs)] text-amber-700">※ 미입력 시 수동 검토 필요</p>
           </details>
 
         </div>
@@ -629,16 +629,16 @@ function RatioCell({ formData }) {
 
   return (
     <div className="rounded border border-blue-200 bg-blue-50/60 px-3 py-2 flex flex-col justify-center">
-      <p className="text-[10px] font-semibold text-blue-800 mb-1.5">📐 자동계산</p>
+      <p className="text-[var(--font-size-2xs)] font-semibold text-blue-800 mb-1.5">📐 자동계산</p>
       <div className="flex gap-4">
         <div>
-          <span className="text-[10px] text-gray-500 block">건폐율</span>
+          <span className="text-[var(--font-size-2xs)] text-gray-500 block">건폐율</span>
           <span className="text-base font-bold text-blue-700 tabular-nums">
             {coverage !== null ? `${coverage.toFixed(1)}%` : '—'}
           </span>
         </div>
         <div>
-          <span className="text-[10px] text-gray-500 block">용적률</span>
+          <span className="text-[var(--font-size-2xs)] text-gray-500 block">용적률</span>
           <span className="text-base font-bold text-blue-700 tabular-nums">
             {far !== null ? `${far.toFixed(1)}%` : '—'}
           </span>
@@ -709,7 +709,7 @@ function AutoLandInfoBanner({ loading, info }) {
           </div>
         ))}
       </div>
-      <p className="mt-1 text-blue-600 text-[10px]">↓ 아래 입력란에 자동 반영됨. 실제와 다르면 수정하세요.</p>
+      <p className="mt-1 text-blue-600 text-[var(--font-size-2xs)]">↓ 아래 입력란에 자동 반영됨. 실제와 다르면 수정하세요.</p>
     </div>
   )
 }
@@ -727,7 +727,7 @@ function AreaWithRatio({ name, value, onChange, siteArea, placeholder }) {
         placeholder={placeholder}
       />
       {ratio !== null && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-blue-600 font-medium pointer-events-none">
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--font-size-2xs)] text-blue-600 font-medium pointer-events-none">
           {ratio.toFixed(1)}%
         </span>
       )}

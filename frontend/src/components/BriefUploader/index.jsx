@@ -74,7 +74,7 @@ export default function BriefUploader({ onExtracted }) {
           <button
             type="button"
             onClick={handleReset}
-            className="text-[10px] text-gray-400 hover:text-gray-600 underline"
+            className="text-[var(--font-size-2xs)] text-gray-400 hover:text-gray-600 underline"
           >
             초기화
           </button>
@@ -110,7 +110,7 @@ export default function BriefUploader({ onExtracted }) {
         </div>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[10px] text-green-700 font-medium">✅ {fileName} 추출 완료 — 아래 조건이 진단에 반영됩니다</p>
+          <p className="text-[var(--font-size-2xs)] text-green-700 font-medium">✅ {fileName} 추출 완료 — 아래 조건이 진단에 반영됩니다</p>
 
           {/* 수치 조건 */}
           {hasNumericResult && (
@@ -119,7 +119,7 @@ export default function BriefUploader({ onExtracted }) {
                 const val = result[key]
                 if (val === null || val === undefined || Array.isArray(val)) return null
                 return (
-                  <div key={key} className="flex justify-between text-[10px]">
+                  <div key={key} className="flex justify-between text-[var(--font-size-2xs)]">
                     <span className="text-gray-500">{label}</span>
                     <span className="font-semibold text-blue-800">{val}</span>
                   </div>
@@ -130,19 +130,19 @@ export default function BriefUploader({ onExtracted }) {
 
           {/* 용도 목록 */}
           {result.required_uses?.length > 0 && (
-            <p className="text-[10px] text-gray-700">
+            <p className="text-[var(--font-size-2xs)] text-gray-700">
               <span className="font-medium">의무 용도:</span> {result.required_uses.join(', ')}
             </p>
           )}
           {result.prohibited_uses?.length > 0 && (
-            <p className="text-[10px] text-gray-700">
+            <p className="text-[var(--font-size-2xs)] text-gray-700">
               <span className="font-medium">금지 용도:</span> {result.prohibited_uses.join(', ')}
             </p>
           )}
 
           {/* 기타 조건 */}
           {result.special_conditions?.length > 0 && (
-            <div className="text-[10px] text-gray-700">
+            <div className="text-[var(--font-size-2xs)] text-gray-700">
               <span className="font-medium">기타 조건:</span>
               <ul className="list-disc list-inside">
                 {result.special_conditions.map((c, i) => <li key={i}>{c}</li>)}
@@ -152,7 +152,7 @@ export default function BriefUploader({ onExtracted }) {
 
           {/* 추출 근거 */}
           {result.source_excerpt && (
-            <details className="text-[10px] text-gray-500">
+            <details className="text-[var(--font-size-2xs)] text-gray-500">
               <summary className="cursor-pointer hover:text-gray-700">추출 근거 원문</summary>
               <p className="mt-1 whitespace-pre-wrap bg-white border border-gray-200 rounded p-1.5">
                 {result.source_excerpt}

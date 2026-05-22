@@ -48,9 +48,9 @@ export default function CaseReference({ buildingUse, zoneUse, siteArea, jurisdic
       <CardWrap>
         <Header />
         <p className="text-xs text-gray-500 mt-2">
-          KUNWON_DB 디렉토리 없음 — <code className="text-[10px] bg-gray-100 px-1 py-0.5 rounded">{db_path}</code>
+          KUNWON_DB 디렉토리 없음 — <code className="text-[var(--font-size-2xs)] bg-gray-100 px-1 py-0.5 rounded">{db_path}</code>
         </p>
-        <p className="text-[11px] text-gray-400 mt-1">
+        <p className="text-[var(--font-size-xs)] text-gray-400 mt-1">
           <code>.env</code> 의 <code>CASE_DB_PATH</code> 또는 프로젝트 루트의 <code>KUNWON_DB/cases/</code> 에 *.json 케이스 파일을 배치하세요.
         </p>
       </CardWrap>
@@ -128,10 +128,10 @@ function CaseRow({ match }) {
             ) : (
               <span className="text-sm font-semibold text-gray-800 truncate">{c.project_name}</span>
             )}
-            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>
+            <span className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded-full font-medium ${badge.cls}`}>
               {badge.label}
             </span>
-            {c.year && <span className="text-[10px] text-gray-400">{c.year}</span>}
+            {c.year && <span className="text-[var(--font-size-2xs)] text-gray-400">{c.year}</span>}
           </div>
 
           <div className="mt-1 text-xs text-gray-500 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -145,7 +145,7 @@ function CaseRow({ match }) {
           {c.tags?.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {c.tags.map((t, i) => (
-                <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                <span key={i} className="text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
                   #{t}
                 </span>
               ))}
@@ -153,7 +153,7 @@ function CaseRow({ match }) {
           )}
 
           {reasons?.length > 0 && (
-            <p className="mt-1 text-[11px] text-amber-700">
+            <p className="mt-1 text-[var(--font-size-xs)] text-amber-700">
               매칭 이유: {reasons.join(', ')}
             </p>
           )}

@@ -69,7 +69,7 @@ export default function LawInfoPanel({ areaCd, zoneUse, zoneDistrict }) {
           {(data.groups || []).map((g, i) => (
             <LawGroup key={i} group={g} />
           ))}
-          <p className="text-[10px] text-indigo-700 leading-relaxed border-t border-indigo-100 pt-2">
+          <p className="text-[var(--font-size-2xs)] text-indigo-700 leading-relaxed border-t border-indigo-100 pt-2">
             출처: 토지이음 (eum.go.kr) · UCODE {data.ucode_count}개, 조문 {data.total_items}건.
             법령 본문은 토지이음 표준연계 데이터로 실시간 조회되며, 최종 해석은 별도 확인이 필요합니다.
           </p>
@@ -85,7 +85,7 @@ function LawGroup({ group }) {
     <div className="bg-white rounded-lg border border-indigo-100 p-3">
       <div className="flex items-baseline justify-between mb-2 gap-2">
         <p className="text-sm font-bold text-gray-900">{group.uname}</p>
-        <span className="text-[10px] text-gray-400 font-mono">{group.ucode}</span>
+        <span className="text-[var(--font-size-2xs)] text-gray-400 font-mono">{group.ucode}</span>
       </div>
       {group.law_nm && (
         <p className="text-xs text-gray-500 mb-2">근거 법령: {group.law_nm}</p>
@@ -116,7 +116,7 @@ function LawItem({ item }) {
     : 'text-gray-600'
   return (
     <li className={`text-xs leading-relaxed whitespace-pre-wrap ${labelCls}`} style={{ paddingLeft: `calc(${lvl} * var(--gap-md))` }}>
-      <span className="text-[10px] text-gray-400 mr-1">[{LEVEL_LABEL[lvl] || '?'}]</span>
+      <span className="text-[var(--font-size-2xs)] text-gray-400 mr-1">[{LEVEL_LABEL[lvl] || '?'}]</span>
       {indent}
       {item.law_contents}
     </li>

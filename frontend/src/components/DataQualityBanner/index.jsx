@@ -22,7 +22,7 @@ export default function DataQualityBanner({ dataQuality }) {
       <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 flex items-center gap-2">
         <span className="text-green-600 text-sm">✅</span>
         <span className="text-xs text-green-700 font-medium">데이터 품질 양호</span>
-        <span className="ml-auto text-[10px] text-green-600 flex gap-3">
+        <span className="ml-auto text-[var(--font-size-2xs)] text-green-600 flex gap-3">
           <span>VWorld ✓</span>
           {ordinance_used && <span>조례 ✓</span>}
           {llm_used && <span>AI ✓</span>}
@@ -95,7 +95,7 @@ function DataSourcePills({ ordinance_used, llm_used, luris_used, zone_use_source
   return (
     <div className="flex flex-wrap gap-1">
       {pills.map((p, i) => (
-        <span key={i} className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${p.cls}`}>
+        <span key={i} className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${p.cls}`}>
           {p.label}
         </span>
       ))}

@@ -56,7 +56,7 @@ export default function ReviewRequestButton({ context }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="text-[11px] px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-700 font-medium"
+        className="text-[var(--font-size-xs)] px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 text-red-700 font-medium"
         title="시니어에게 검토 요청 (Slack/로그)"
       >
         🛎️ 시니어 검토 요청

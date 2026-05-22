@@ -78,6 +78,7 @@
   --font-mono:    'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
 
   /* 크기 */
+  --font-size-2xs:  10px;   /* 극소 배지·법조문 인라인 */
   --font-size-xs:   11px;   /* 배지·태그·각주 */
   --font-size-sm:   12px;   /* 캡션·힌트·라벨 */
   --font-size-base: 14px;   /* 본문 */
@@ -179,4 +180,16 @@
   --transition-fast: 0.12s ease;
   --transition-base: 0.2s ease;
   --transition-slow: 0.35s ease;
+}
+
+/* ──────────────────────────────────────────────────────────
+   8. 인쇄 미리보기 전용 (LegalReviewReport 다크 툴바)
+   화면 UI에는 노출되지 않는 print-chrome 전용 색상
+────────────────────────────────────────────────────────── */
+:root {
+  --color-print-overlay:       #525659;
+  --color-print-toolbar:       #2d2d2d;
+  --color-print-toolbar-hover: #4d4d4d;
+  --color-print-border:        #555555;
+  --color-print-input:         #3d3d3d;
 }

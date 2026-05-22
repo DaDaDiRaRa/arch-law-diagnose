@@ -75,7 +75,7 @@ export default function LawChangeAlert({ areaCd }) {
         <button
           onClick={seedDemo}
           disabled={seedLoading}
-          className="text-[10px] text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
+          className="text-[var(--font-size-2xs)] text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
         >
           {seedLoading ? '...' : '데모 데이터 삽입'}
         </button>
@@ -172,7 +172,7 @@ export default function LawChangeAlert({ areaCd }) {
                 </button>
               )}
               {notices.total > notices.items.length && (
-                <p className="mt-1 text-[10px] text-blue-600">
+                <p className="mt-1 text-[var(--font-size-2xs)] text-blue-600">
                   ※ 전체 {notices.total}건 중 첫 페이지({notices.items.length}건)만 표시 — 토지이음에서 전체 확인
                 </p>
               )}
@@ -198,7 +198,7 @@ function ChangeRow({ change }) {
           )}
         </span>
       </div>
-      <div className="text-gray-500 mt-0.5 font-mono text-[10px]">
+      <div className="text-gray-500 mt-0.5 font-mono text-[var(--font-size-2xs)]">
         {change.previous_hash} → <span className="text-orange-700 font-semibold">{change.current_hash}</span>
       </div>
     </div>
@@ -222,10 +222,10 @@ function NoticeRow({ notice }) {
         <span className="text-gray-500 flex-shrink-0">{dateStr}</span>
       </div>
       {notice.author && (
-        <p className="text-[10px] text-gray-500 mt-0.5">{notice.author}</p>
+        <p className="text-[var(--font-size-2xs)] text-gray-500 mt-0.5">{notice.author}</p>
       )}
       {notice.summary && (
-        <p className="text-[11px] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">
+        <p className="text-[var(--font-size-xs)] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">
           {notice.summary}
         </p>
       )}
