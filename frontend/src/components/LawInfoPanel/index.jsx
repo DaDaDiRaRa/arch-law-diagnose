@@ -115,7 +115,7 @@ function LawItem({ item }) {
     ? 'text-indigo-600'
     : 'text-gray-600'
   return (
-    <li className={`text-xs leading-relaxed whitespace-pre-wrap ${labelCls}`} style={{ paddingLeft: `${lvl * 12}px` }}>
+    <li className={`text-xs leading-relaxed whitespace-pre-wrap ${labelCls}`} style={{ paddingLeft: `calc(${lvl} * var(--gap-md))` }}>
       <span className="text-[10px] text-gray-400 mr-1">[{LEVEL_LABEL[lvl] || '?'}]</span>
       {indent}
       {item.law_contents}
