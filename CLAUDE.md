@@ -13,7 +13,7 @@
 
 ## ⏭️ 다음 작업
 
-**2026-05-20 기준 — Step 5a 완료. Step 5b 진행 중 (#13·#14 완료).**
+**2026-05-22 기준 — Step 5a·5b 완료. 배포 인프라 + 디자인 토큰 시스템 완료.**
 
 ### 🚨 Step 5a: 법령 수치 검증 (최우선 — 현재 코드에 미검증 수치 다수)
 
@@ -43,12 +43,25 @@
 | #14 | 다중이용/준다중이용 분리 | ✅ 완료 (2026-05-20) — 시행령 §2-17·17의2 원문 대조. `multi_use.py` 신규, review_triggers 오류(위락시설 위치·16층 플래그) 수정, 진단 카드 추가 |
 | #15 | 영향평가 5종 (지하안전 추가, `review_triggers.py`) | ✅ 완료 (2026-05-20) — 건축물 안전영향평가 추가. 시행령 §10조의3 원문 대조: 초고층(50층↑ or 200m↑) or 연면적 10만㎡↑ AND 16층↑. 총 11개 항목 |
 
+### Step 6: 배포 인프라 + 디자인 시스템 (✅ 완료, 2026-05-22)
+
+| 항목 | 내용 | 상태 |
+|---|---|---|
+| Docker 배포 | 멀티 스테이지 Dockerfile (Node 20 → Python 3.12-slim), .dockerignore, FastAPI SPA serving | ✅ 완료 |
+| GCP Cloud Run | 단일 컨테이너 포트 8080, Secret Manager 환경변수, DEPLOY.md 작성 | ✅ 완료 |
+| kunwon-tokens.css | CSS 변수 60여 개 선언 (색상·폰트·간격·인쇄 전용 토큰), index.css·tailwind.config.js 연결 | ✅ 완료 |
+| 하드코딩 교체 | text-[10px]→font-size-2xs (48건), text-[11px]→font-size-xs (9건), em 단위 (8건), 다크 툴바 hex (7건), w-[580px] (1건) | ✅ 완료 |
+| DESIGN_SYSTEM.md | 색상 팔레트·폰트·버튼·레이아웃·컴포넌트 13개 문서화 | ✅ 완료 |
+| DEPLOY.md | 배포 방법·오류 6건·해결·체크리스트 문서화 | ✅ 완료 |
+
 ### 다음 Step
 
 | Step | 내용 | 추천 모델 |
 |---|---|---|
 | ~~Step 5a~~ | ✅ 완료 | — |
-| **Step 5b** (완료) | ~~#13~~ ✅ · ~~#14~~ ✅ · ~~#15~~ ✅ · ~~Spec 9~~ ✅ · ~~Phase 2(PDF 추출)~~ ✅ | Sonnet 4.6 |
+| ~~Step 5b~~ | ✅ 완료 (#13·#14·#15·Spec 9·Phase 2) | — |
+| ~~Step 6~~ | ✅ 완료 (Docker·Cloud Run·디자인 토큰) | — |
+| **Step 7** | 다음 작업 미정 — 사용자 지정 대기 | Sonnet 4.6 |
 
 ### 사용자가 직접 처리해야 할 항목
 
@@ -69,6 +82,8 @@
 - **Frontend**: React + Vite + Tailwind, port 5173
 - **DB**: `./data/arch_law.db` (CacheManager 관리)
 - **AI**: Anthropic Claude (설비·소방 정성 판단 + 자연어 질의)
+- **배포**: Docker (멀티 스테이지 빌드) → GCP Cloud Run (포트 8080, 단일 컨테이너)
+- **디자인**: `frontend/src/kunwon-tokens.css` — CSS 변수 60여 개, Tailwind arbitrary value 연결
 
 ---
 
@@ -165,7 +180,18 @@
 | `llm_client.py` | Claude API (temp=0, prompt caching) |
 | `query_engine.py` ⚠️ | 자연어 질의 (조문 자동 인용 미완) |
 
-## 주요 프론트엔드 컴포넌트 (frontend/src/components/)
+## 주요 프론트엔드 파일 (frontend/src/)
+
+### 디자인 시스템
+
+| 파일 | 역할 |
+|---|---|
+| `kunwon-tokens.css` | CSS 변수 60여 개 (색상·폰트·간격·인쇄 전용 `--color-print-*`) |
+| `index.css` | `@import './kunwon-tokens.css'` + Tailwind base |
+| `tailwind.config.js` | CSS 변수를 Tailwind 테마로 연결 (colors·fontFamily·fontSize 등) |
+| `frontend/DESIGN_SYSTEM.md` | 색상 팔레트·버튼·레이아웃·컴포넌트 문서 |
+
+### 주요 컴포넌트 (frontend/src/components/)
 
 | 컴포넌트 | 역할 |
 |---|---|
@@ -176,7 +202,7 @@
 | `LawInfoPanel/` | 토지이음 법령 조문 펼쳐보기 |
 | `DevTrendPanel/` | 주변 개발 인허가 동향 (7/14/30일 토글) |
 | `DataQualityBanner/` | 데이터 출처·fallback 경고 |
-| `LegalReviewReport/` | 종합 검토 보고서 |
+| `LegalReviewReport/` | 종합 검토 보고서 (인쇄 미리보기 포함, `--color-print-*` 토큰 사용) |
 | `QueryBox/` | 자연어 질의 |
 | `CaseReference/` | 사내 유사 케이스 추천 |
 
@@ -203,6 +229,25 @@ start-servers.bat
 cd backend
 .venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+### Docker 로컬 빌드·실행
+
+```
+docker build -t arch-law-diagnose .
+docker run --env-file .env -p 8080:8080 arch-law-diagnose
+```
+
+브라우저에서 `http://localhost:8080` 확인. `.env` 파일이 컨테이너에 주입됨.
+
+### GCP Cloud Run 배포 (요약)
+
+```
+gcloud builds submit --tag gcr.io/PROJECT_ID/arch-law-diagnose
+gcloud run deploy arch-law-diagnose --image gcr.io/PROJECT_ID/arch-law-diagnose \
+  --platform managed --region asia-northeast3 --port 8080 \
+  --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,..."
+```
+전체 절차 및 Secret Manager 설정은 [DEPLOY.md](DEPLOY.md) 참조.
 
 ### 캐시 초기화
 
