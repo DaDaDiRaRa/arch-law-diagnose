@@ -95,12 +95,13 @@ async def lifespan(app: FastAPI):
     review_notifier = ReviewNotifier()
 
     _status = {
-        "VWorld":   "✅" if vworld_client._key  else "❌ VWORLD_API_KEY 미설정",
-        "LURIS":    "✅" if luris_client._key   else "❌ LURIS_API_KEY / DATA_GO_KR_API_KEY 미설정",
-        "주소검색":  "✅" if address_client._key else "❌ KAKAO_API_KEY 미설정",
-        "AI(Claude)": "✅" if llm_client.available else "❌ ANTHROPIC_API_KEY 미설정",
-        "토지이음":  "✅" if eum_client.available else "❌ EUM_ID / EUM_KEY 미설정",
-        "Slack":    "✅" if review_notifier.slack_configured else "⚠ 미설정(로그만)",
+        "VWorld":         "✅" if vworld_client._key  else "❌ VWORLD_API_KEY 미설정",
+        "LURIS":          "✅" if luris_client._key   else "❌ LURIS_API_KEY / DATA_GO_KR_API_KEY 미설정",
+        "주소검색(Kakao)": "✅" if address_client._key else "❌ KAKAO_API_KEY 미설정",
+        "AI(Claude)":     "✅" if llm_client.available else "❌ ANTHROPIC_API_KEY 미설정",
+        "토지이음(EUM)":   "✅" if eum_client.available else "❌ EUM_ID / EUM_KEY 미설정",
+        "법제처(DRF)":    "✅" if law_client._key      else "❌ LAW_API_KEY 미설정 (조례 본문·변경 감지 불가)",
+        "Slack":          "✅" if review_notifier.slack_configured else "⚠ 미설정(선택)",
     }
     for svc, st in _status.items():
         logger.info("  %-12s %s", svc, st)
