@@ -15,6 +15,7 @@ from services.address_api_client import AddressApiClient
 from services.cache_manager import CacheManager
 from services.case_matcher import CaseMatcher
 from services.diagnose_engine import DiagnoseEngine
+from services.feasibility_engine import run_feasibility
 from services.eum_client import EumClient
 from services.land_use_resolver import LandUseResolver
 from services.law_change_tracker import LawChangeTracker
@@ -343,6 +344,54 @@ class MultiDiagnoseRequest(BaseModel):
     adjacent_zone_north: str | None = None
     road_20m_adjacent: bool | None = None
     street_block_max_height_m: float | None = Field(None, gt=0)
+
+
+class FeasibilityRequest(BaseModel):
+    """사전 사업성 검토 — 공모 받았는데 들어갈 만한가?
+
+    설계 시작 전에 공모 요구치와 법적 가능 범위를 비교한다.
+    검증 모드(/api/diagnose)와 달리 사용자 안이 없어도 동작.
+    """
+    address: str = Field(..., description="도로명 또는 지번 주소")
+    pnu: str | None = Field(None, description="필지번호 (선택)")
+    facility_use: str = Field(..., description="시설 용도 (건축법 분류)")
+    building_use_detail: str | None = Field(None, description="세부 용도 자유 입력")
+    applicant_type: str = Field("개인", description="신청 주체: 개인/민간법인/공공기관")
+    zone_use_override: str | None = Field(None, description="용도지역 직접 지정")
+    zone_district: str | None = Field(None, description="지역지구 직접 지정")
+    road_width: float | None = Field(None, description="전면도로 폭 (m)")
+    site_area_override: float | None = Field(
+        None, gt=0, description="대지면적 직접 입력 (VWorld 자동 조회 실패 시)"
+    )
+
+    # 공모 요구치 — 모두 선택. 빈 칸은 갭 분석에서 "요구 없음"으로 처리
+    target_floor_area_sqm: float | None = Field(
+        None, gt=0, description="공모가 요구하는 연면적 (㎡)"
+    )
+    target_building_coverage_pct: float | None = Field(
+        None, gt=0, le=100, description="공모가 요구하는 건폐율 (%)"
+    )
+    target_far_pct: float | None = Field(
+        None, gt=0, description="공모가 요구하는 용적률 (%)"
+    )
+    target_max_height_m: float | None = Field(
+        None, gt=0, description="공모가 요구하는 최고 높이 (m)"
+    )
+    target_floors_above: int | None = Field(
+        None, ge=1, description="공모가 요구하는 지상 층수"
+    )
+    target_parking_count: int | None = Field(
+        None, ge=0, description="공모가 요구하는 주차대수"
+    )
+    target_open_space_sqm: float | None = Field(
+        None, ge=0, description="공모가 요구하는 공개공지 (㎡)"
+    )
+    target_units: int | None = Field(
+        None, ge=1, description="공모가 요구하는 세대수 (공동주택)"
+    )
+    unit_exclusive_area: float | None = Field(
+        None, gt=0, description="세대 평균 전용면적 (㎡, 공동주택·다가구·오피스텔)"
+    )
 
 
 class QueryRequest(BaseModel):
@@ -827,6 +876,26 @@ async def diagnose_multi(req: MultiDiagnoseRequest):
     except Exception as e:
         logger.exception("멀티 진단 오류: %s", e)
         raise HTTPException(500, f"멀티 진단 중 오류: {e}")
+
+
+@app.post("/api/feasibility/run")
+async def feasibility_run(req: FeasibilityRequest):
+    """사전 사업성 검토 — 공모 요구치 vs 법적 가능 범위 갭 분석.
+
+    검증 모드(/api/diagnose)와 같은 엔진을 공유하되, 입력·출력 형태가 다르다.
+    - 입력: 사용자가 설계한 안이 아니라 공모가 요구하는 값(target_*)
+    - 출력: 갭 분석 + 완화 시나리오 추천 + 심의 부담 + 종합 판단(참여/협상/패스)
+    """
+    if engine is None:
+        raise HTTPException(503, "서비스 초기화 중")
+    try:
+        result = await run_feasibility(engine, req.model_dump())
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("사업성 검토 오류: %s", e)
+        raise HTTPException(500, f"사업성 검토 중 오류: {e}")
 
 
 @app.post("/api/query")

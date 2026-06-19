@@ -41,6 +41,9 @@ export const api = {
   diagnoseWhatif: (payload) =>
     request('/diagnose/whatif', { method: 'POST', body: JSON.stringify(payload) }),
 
+  feasibility: (payload) =>
+    request('/feasibility/run', { method: 'POST', body: JSON.stringify(payload) }),
+
   query: (payload) =>
     request('/query', { method: 'POST', body: JSON.stringify(payload) }),
 
