@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { api } from '../../utils/api'
 
 /**
  * 법규 검토서 자동 출력 — 새 창에 단독 표시 + 인쇄 친화.
@@ -31,6 +32,25 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
   const [projectName, setProjectName] = useState('')
   const [author, setAuthor] = useState('')
   const [company, setCompany] = useState('')
+  const [downloading, setDownloading] = useState(null)  // 'md' | 'xlsx' | null
+
+  const handleDownload = async (format) => {
+    if (downloading) return
+    setDownloading(format)
+    try {
+      await api.downloadDiagnoseExport(format, {
+        result: rawResult,
+        form_data: formData || {},
+        project_name: projectName,
+        company,
+        author,
+      })
+    } catch (e) {
+      alert(`${format.toUpperCase()} 다운로드 실패: ${e.message}`)
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   useEffect(() => {
     // Esc 로 닫기
@@ -75,6 +95,20 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
         <div className="lr-buttons">
           <button onClick={() => window.print()} className="lr-btn primary">
             📄 인쇄 / PDF 저장
+          </button>
+          <button
+            onClick={() => handleDownload('md')}
+            disabled={downloading === 'md'}
+            className="lr-btn"
+          >
+            {downloading === 'md' ? '⏳ 생성중...' : '📝 MD 다운로드'}
+          </button>
+          <button
+            onClick={() => handleDownload('xlsx')}
+            disabled={downloading === 'xlsx'}
+            className="lr-btn"
+          >
+            {downloading === 'xlsx' ? '⏳ 생성중...' : '📊 Excel 다운로드'}
           </button>
           <button onClick={onClose} className="lr-btn">닫기 (Esc)</button>
         </div>

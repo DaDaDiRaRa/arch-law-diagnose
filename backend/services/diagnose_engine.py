@@ -211,17 +211,25 @@ class DiagnoseEngine:
             "note": "",
         }
         manual_excl = req.get("urban_facility_exclude_area")
-        if manual_excl not in (None, "", 0):
+        # 사용자 입력 우선: 0 포함한 명시값은 그대로 적용 (자동 보정 비활성)
+        # None 또는 빈 문자열만 "미입력"으로 간주 → 자동 보정 분기로 진행
+        if manual_excl is not None and manual_excl != "":
             try:
                 v = float(manual_excl)
-                if v > 0:
+                if v >= 0:
                     site_correction["applied"] = True
                     site_correction["excluded_m2"] = v
                     site_correction["effective_m2"] = max(0.0, site_area_input - v)
                     site_correction["source"] = "manual"
-                    site_correction["note"] = (
-                        f"사용자 입력 시설부지 {v:,.1f}㎡ 제외 (시행령 §3)"
-                    )
+                    if v == 0:
+                        site_correction["note"] = (
+                            "사용자 명시: 도시계획시설 저촉 없음 — "
+                            "자동 보정 비활성 (시행령 §3)"
+                        )
+                    else:
+                        site_correction["note"] = (
+                            f"사용자 입력 시설부지 {v:,.1f}㎡ 제외 (시행령 §3)"
+                        )
             except (TypeError, ValueError):
                 pass
 

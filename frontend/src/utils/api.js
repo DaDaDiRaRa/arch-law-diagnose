@@ -44,6 +44,34 @@ export const api = {
   feasibility: (payload) =>
     request('/feasibility/run', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // 진단 결과 → MD / xlsx 다운로드 — Response를 직접 받아 blob으로 처리
+  downloadDiagnoseExport: async (format, payload) => {
+    const res = await fetch(`${BASE}/diagnose/export/${format}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    // Content-Disposition에서 파일명 추출 (없으면 fallback)
+    const cd = res.headers.get('Content-Disposition') || ''
+    const m = cd.match(/filename="?([^"]+)"?/)
+    const filename = m ? m[1] : `diagnose_export.${format}`
+    // 브라우저 다운로드 트리거
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return filename
+  },
+
   query: (payload) =>
     request('/query', { method: 'POST', body: JSON.stringify(payload) }),
 

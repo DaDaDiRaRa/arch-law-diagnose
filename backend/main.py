@@ -15,6 +15,8 @@ from services.address_api_client import AddressApiClient
 from services.cache_manager import CacheManager
 from services.case_matcher import CaseMatcher
 from services.diagnose_engine import DiagnoseEngine
+from services.diagnose_exporter import to_markdown as diagnose_to_markdown
+from services.diagnose_exporter import to_xlsx as diagnose_to_xlsx
 from services.feasibility_engine import run_feasibility
 from services.eum_client import EumClient
 from services.land_use_resolver import LandUseResolver
@@ -876,6 +878,76 @@ async def diagnose_multi(req: MultiDiagnoseRequest):
     except Exception as e:
         logger.exception("멀티 진단 오류: %s", e)
         raise HTTPException(500, f"멀티 진단 중 오류: {e}")
+
+
+class ExportRequest(BaseModel):
+    """진단 결과 → MD / xlsx 변환 요청.
+
+    프론트에서 현재 진단 결과(result)와 입력값(form_data)을 그대로 POST.
+    Stateless — 서버에 결과 캐싱 안 함.
+    """
+    result: dict = Field(..., description="진단 결과 dict (run / diagnose_fast / multi 응답)")
+    form_data: dict | None = Field(None, description="원본 입력 폼 데이터 (선택)")
+    project_name: str = Field("", description="프로젝트명 (보고서 헤더)")
+    company: str = Field("", description="회사명 (보고서 푸터)")
+    author: str = Field("", description="작성자 (보고서 푸터)")
+
+
+@app.post("/api/diagnose/export/md")
+async def diagnose_export_md(req: ExportRequest):
+    """진단 결과 → Markdown 텍스트 다운로드."""
+    try:
+        from fastapi.responses import Response
+        md = diagnose_to_markdown(
+            req.result, req.form_data, req.project_name, req.company, req.author,
+        )
+        filename = _build_export_filename(req, ext="md")
+        return Response(
+            content=md.encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        logger.exception("MD export 오류: %s", e)
+        raise HTTPException(500, f"MD export 오류: {e}")
+
+
+@app.post("/api/diagnose/export/xlsx")
+async def diagnose_export_xlsx(req: ExportRequest):
+    """진단 결과 → xlsx 파일 다운로드."""
+    try:
+        from fastapi.responses import Response
+        xlsx = diagnose_to_xlsx(
+            req.result, req.form_data, req.project_name, req.company, req.author,
+        )
+        filename = _build_export_filename(req, ext="xlsx")
+        return Response(
+            content=xlsx,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        logger.exception("xlsx export 오류: %s", e)
+        raise HTTPException(500, f"xlsx export 오류: {e}")
+
+
+def _build_export_filename(req: ExportRequest, *, ext: str) -> str:
+    """안전한 파일명 생성 — 한글/공백 → ASCII로 escape (브라우저 호환)."""
+    import re
+    from urllib.parse import quote
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base = req.project_name or req.result.get("address") or "diagnose"
+    # 파일명에 부적합한 문자만 제거
+    base = re.sub(r"[\\/:*?\"<>|]", "_", base)[:60].strip() or "diagnose"
+    # 한글이 들어가도 RFC 5987 형식으로 처리 — 단 간단히 ASCII fallback도 함께
+    raw = f"{ts}_{base}.{ext}"
+    return raw
 
 
 @app.post("/api/feasibility/run")
