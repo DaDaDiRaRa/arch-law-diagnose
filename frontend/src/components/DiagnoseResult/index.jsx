@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
+import { api } from '../../utils/api'
 import CaseReference from '../CaseReference'
 import DataQualityBanner from '../DataQualityBanner'
 import DevTrendPanel from '../DevTrendPanel'
@@ -43,6 +44,25 @@ const SIGNAL_CONFIG = {
 export default function DiagnoseResult() {
   const { result: rawResult, error, loading, reset, formData } = useDiagnoseStore()
   const [reportOpen, setReportOpen] = useState(false)
+  const [downloading, setDownloading] = useState(null)  // 'md' | 'xlsx' | null
+
+  const handleDownload = async (format) => {
+    if (downloading || !rawResult) return
+    setDownloading(format)
+    try {
+      await api.downloadDiagnoseExport(format, {
+        result: rawResult,
+        form_data: formData || {},
+        project_name: '',
+        company: '',
+        author: '',
+      })
+    } catch (e) {
+      alert(`${format.toUpperCase()} 다운로드 실패: ${e.message}`)
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -121,14 +141,32 @@ export default function DiagnoseResult() {
             </div>
           )}
         </div>
-        <div className="mt-3 pt-3 border-t border-current/10">
-          <button
-            onClick={() => setReportOpen(true)}
-            className="text-sm font-medium px-3 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 inline-flex items-center gap-1.5"
-          >
-            📄 법규 검토서 열기
-          </button>
-          <span className="ml-2 text-xs text-gray-500">표준 양식 · 브라우저 인쇄로 PDF 저장</span>
+        <div className="mt-3 pt-3 border-t border-current/10 space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setReportOpen(true)}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 inline-flex items-center gap-1.5"
+            >
+              📄 법규 검토서 열기
+            </button>
+            <button
+              onClick={() => handleDownload('md')}
+              disabled={downloading === 'md'}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloading === 'md' ? '⏳ 생성중...' : '📝 MD'}
+            </button>
+            <button
+              onClick={() => handleDownload('xlsx')}
+              disabled={downloading === 'xlsx'}
+              className="text-sm font-medium px-3 py-1.5 rounded-md bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 inline-flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloading === 'xlsx' ? '⏳ 생성중...' : '📊 Excel'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            검토서: 브라우저 인쇄로 PDF · MD/Excel: 진단 결과 텍스트 다운로드
+          </p>
         </div>
       </div>
 

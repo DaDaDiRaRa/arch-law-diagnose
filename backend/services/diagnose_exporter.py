@@ -45,6 +45,35 @@ def _signal_label(signal: str) -> str:
     )
 
 
+def _g(obj: Any, key: str, default: Any = None) -> Any:
+    """dict 가정 .get() 안전 호출 — dict가 아니면 default 반환."""
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return default
+
+
+def _review_items(applicable_reviews: Any) -> list[dict]:
+    """applicable_reviews는 dict({items: [...]}) 또는 list 둘 다 허용.
+
+    review_triggers.evaluate_reviews()의 실제 반환은 dict 형태.
+    """
+    if isinstance(applicable_reviews, dict):
+        items = applicable_reviews.get("items")
+        if isinstance(items, list):
+            return [it for it in items if isinstance(it, dict)]
+    elif isinstance(applicable_reviews, list):
+        return [it for it in applicable_reviews if isinstance(it, dict)]
+    return []
+
+
+def _review_reason(r: dict) -> str:
+    """review 항목의 사유 — triggered_reasons (list[str])를 우선 사용."""
+    reasons = r.get("triggered_reasons")
+    if isinstance(reasons, list) and reasons:
+        return " · ".join(str(x) for x in reasons if x)
+    return str(r.get("reason") or r.get("note") or "—")
+
+
 def _unwrap_multi(raw_result: dict) -> tuple[dict, dict | None]:
     """multi_parcel 모드면 (result, multi_info) 분리."""
     if raw_result.get("mode") == "multi_parcel":
@@ -110,22 +139,22 @@ def to_markdown(
         lines.append(f"산정 근거: **{src}** — {site.get('note', '')}")
         lines.append("")
         by_fac = site.get("by_facility") or []
+        by_fac = [f for f in by_fac if isinstance(f, dict)]
         if by_fac:
             lines.append("| 구분 | 시설명 | 저촉 면적(㎡) |")
             lines.append("| --- | --- | ---: |")
             for f in by_fac:
-                cat = f.get("category") or f.get("facility_class") or "—"
-                name = f.get("name") or f.get("facility_name") or "—"
-                area = f.get("overlap_area_m2", 0)
-                lines.append(f"| {cat} | {name} | {area:,.2f} |")
+                cat = _g(f, "category") or _g(f, "facility_class") or "—"
+                name = _g(f, "facility_name") or _g(f, "name") or "—"
+                area = _g(f, "area_m2", _g(f, "overlap_area_m2", 0)) or 0
+                lines.append(f"| {cat} | {name} | {float(area):,.2f} |")
             lines.append("")
 
     # ── 인허가 심의 트리거 ───────────────────────────────────────────────
-    reviews = result.get("applicable_reviews") or []
+    reviews = _review_items(result.get("applicable_reviews"))
     if reviews:
-        required = [r for r in reviews if (r.get("status") or "").upper() == "REQUIRED"]
-        maybe = [r for r in reviews if (r.get("status") or "").upper() == "MAYBE"]
-        none_ = [r for r in reviews if (r.get("status") or "").upper() == "NONE"]
+        required = [r for r in reviews if (_g(r, "status") or "").upper() == "REQUIRED"]
+        maybe = [r for r in reviews if (_g(r, "status") or "").upper() == "MAYBE"]
         lines.append(
             f"## 인허가 심의 트리거 (필요 {len(required)}건 · 검토 {len(maybe)}건)"
         )
@@ -133,15 +162,15 @@ def to_markdown(
         lines.append("| 심의명 | 판정 | 트리거 사유 | 근거법령 |")
         lines.append("| --- | --- | --- | --- |")
         for r in reviews:
-            status = (r.get("status") or "").upper()
+            status = (_g(r, "status") or "").upper()
             badge = (
                 "**필요**" if status == "REQUIRED"
                 else "검토" if status == "MAYBE"
                 else "해당없음"
             )
-            name = r.get("name") or r.get("category") or "—"
-            reason = (r.get("reason") or r.get("note") or "—").replace("|", "\\|")
-            law = (r.get("law_ref") or r.get("basis") or "—").replace("|", "\\|")
+            name = _g(r, "name") or _g(r, "category") or "—"
+            reason = _review_reason(r).replace("|", "\\|")
+            law = (_g(r, "law_ref") or _g(r, "basis") or "—").replace("|", "\\|")
             lines.append(f"| {name} | {badge} | {reason} | {law} |")
         lines.append("")
 
@@ -183,22 +212,24 @@ def to_markdown(
     lines.append("")
 
     # ── 검토 의견 (위험 + 경고) ─────────────────────────────────────────
-    risks = result.get("risks") or []
-    warnings = result.get("warnings") or []
+    risks = [r for r in (result.get("risks") or []) if isinstance(r, dict)]
+    warnings = [w for w in (result.get("warnings") or []) if isinstance(w, dict)]
     if risks:
         lines.append(f"## 위험 항목 ({len(risks)}건)")
         lines.append("")
         for r in risks:
-            cat_label = _CATEGORY_LABELS.get(r.get("category", ""), r.get("category", ""))
-            reason = (r.get("reason") or "").strip()
+            cat = _g(r, "category", "")
+            cat_label = _CATEGORY_LABELS.get(cat, cat)
+            reason = str(_g(r, "reason", "")).strip()
             lines.append(f"- **{cat_label}**: {reason}")
         lines.append("")
     if warnings:
         lines.append(f"## 검토 필요 ({len(warnings)}건)")
         lines.append("")
         for w in warnings:
-            cat_label = _CATEGORY_LABELS.get(w.get("category", ""), w.get("category", ""))
-            reason = (w.get("reason") or "").strip()
+            cat = _g(w, "category", "")
+            cat_label = _CATEGORY_LABELS.get(cat, cat)
+            reason = str(_g(w, "reason", "")).strip()
             lines.append(f"- **{cat_label}**: {reason}")
         lines.append("")
 
@@ -219,8 +250,8 @@ def to_markdown(
             lines.append("| 구분 | 주의 사항 |")
             lines.append("| --- | --- |")
             for iss in issues:
-                level = iss.get("level", "info")
-                msg = (iss.get("msg") or "").replace("|", "\\|")
+                level = _g(iss, "level", "info")
+                msg = str(_g(iss, "msg", "")).replace("|", "\\|")
                 lines.append(f"| {level} | {msg} |")
             lines.append("")
 
@@ -240,10 +271,12 @@ def to_markdown(
             lines.append("| 주소 | PNU | 면적(㎡) | 용도지역 | 관할 |")
             lines.append("| --- | --- | ---: | --- | --- |")
             for p in parcels:
+                if not isinstance(p, dict):
+                    continue
                 lines.append(
-                    f"| {p.get('address', '—')} | {p.get('pnu', '—')} | "
-                    f"{p.get('site_area', 0):,.0f} | {p.get('zone_use', '—')} | "
-                    f"{p.get('jurisdiction_name', '—')} |"
+                    f"| {_g(p, 'address', '—')} | {_g(p, 'pnu', '—')} | "
+                    f"{float(_g(p, 'site_area', 0) or 0):,.0f} | {_g(p, 'zone_use', '—')} | "
+                    f"{_g(p, 'jurisdiction_name', '—')} |"
                 )
             lines.append("")
 
@@ -335,14 +368,15 @@ def to_xlsx(
     row += 2
     ws.cell(row=row, column=1, value="검토 의견").font = Font(bold=True, size=13)
     row += 1
-    risks = result.get("risks") or []
-    warnings = result.get("warnings") or []
+    risks = [r for r in (result.get("risks") or []) if isinstance(r, dict)]
+    warnings = [w for w in (result.get("warnings") or []) if isinstance(w, dict)]
     if risks:
         ws.cell(row=row, column=1, value=f"위험 항목 ({len(risks)}건)").font = Font(bold=True, color="DC2626")
         row += 1
         for r in risks:
-            ws.cell(row=row, column=1, value=_CATEGORY_LABELS.get(r.get("category", ""), r.get("category", "")))
-            ws.cell(row=row, column=2, value=r.get("reason", "")).alignment = wrap
+            cat = _g(r, "category", "")
+            ws.cell(row=row, column=1, value=_CATEGORY_LABELS.get(cat, cat))
+            ws.cell(row=row, column=2, value=str(_g(r, "reason", ""))).alignment = wrap
             ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=4)
             row += 1
     if warnings:
@@ -350,8 +384,9 @@ def to_xlsx(
         ws.cell(row=row, column=1, value=f"검토 필요 ({len(warnings)}건)").font = Font(bold=True, color="CA8A04")
         row += 1
         for w in warnings:
-            ws.cell(row=row, column=1, value=_CATEGORY_LABELS.get(w.get("category", ""), w.get("category", "")))
-            ws.cell(row=row, column=2, value=w.get("reason", "")).alignment = wrap
+            cat = _g(w, "category", "")
+            ws.cell(row=row, column=1, value=_CATEGORY_LABELS.get(cat, cat))
+            ws.cell(row=row, column=2, value=str(_g(w, "reason", ""))).alignment = wrap
             ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=4)
             row += 1
 
@@ -371,14 +406,14 @@ def to_xlsx(
     row = 2
     for cat, data in (result.get("results") or {}).items():
         label = _CATEGORY_LABELS.get(cat, cat)
-        score = data.get("score")
+        score = _g(data, "score")
         score_str = f"{score}/10" if score is not None else "—"
         ws2.cell(row=row, column=1, value=label).font = bold
-        ws2.cell(row=row, column=2, value=_pass_label(data.get("pass")))
+        ws2.cell(row=row, column=2, value=_pass_label(_g(data, "pass")))
         ws2.cell(row=row, column=3, value=score_str)
-        ws2.cell(row=row, column=4, value=data.get("confidence", "—"))
-        ws2.cell(row=row, column=5, value=data.get("source") or "—").alignment = wrap
-        ws2.cell(row=row, column=6, value=data.get("notes") or "").alignment = wrap
+        ws2.cell(row=row, column=4, value=_g(data, "confidence", "—"))
+        ws2.cell(row=row, column=5, value=_g(data, "source") or "—").alignment = wrap
+        ws2.cell(row=row, column=6, value=_g(data, "notes") or "").alignment = wrap
         ws2.row_dimensions[row].height = 60
         row += 1
 
@@ -396,14 +431,14 @@ def to_xlsx(
     ws3.freeze_panes = "A2"
 
     row = 2
-    reviews = result.get("applicable_reviews") or []
+    reviews = _review_items(result.get("applicable_reviews"))
     for r in reviews:
-        status = (r.get("status") or "").upper()
+        status = (_g(r, "status") or "").upper()
         badge = "필요" if status == "REQUIRED" else "검토" if status == "MAYBE" else "해당없음"
-        ws3.cell(row=row, column=1, value=r.get("name") or r.get("category") or "—").font = bold
+        ws3.cell(row=row, column=1, value=_g(r, "name") or _g(r, "category") or "—").font = bold
         ws3.cell(row=row, column=2, value=badge)
-        ws3.cell(row=row, column=3, value=r.get("reason") or r.get("note") or "—").alignment = wrap
-        ws3.cell(row=row, column=4, value=r.get("law_ref") or r.get("basis") or "—").alignment = wrap
+        ws3.cell(row=row, column=3, value=_review_reason(r)).alignment = wrap
+        ws3.cell(row=row, column=4, value=_g(r, "law_ref") or _g(r, "basis") or "—").alignment = wrap
         ws3.row_dimensions[row].height = 50
         row += 1
 
@@ -445,9 +480,9 @@ def to_xlsx(
             c.font = bold
         row += 1
         for iss in issues:
-            ws4.cell(row=row, column=1, value=iss.get("level", "info"))
-            ws4.cell(row=row, column=2, value=iss.get("code", ""))
-            ws4.cell(row=row, column=3, value=iss.get("msg", "")).alignment = wrap
+            ws4.cell(row=row, column=1, value=_g(iss, "level", "info"))
+            ws4.cell(row=row, column=2, value=_g(iss, "code", ""))
+            ws4.cell(row=row, column=3, value=str(_g(iss, "msg", ""))).alignment = wrap
             row += 1
 
     for col_idx, width in enumerate([20, 18, 60], start=1):
