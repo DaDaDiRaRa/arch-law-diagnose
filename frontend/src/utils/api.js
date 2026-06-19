@@ -56,10 +56,16 @@ export const api = {
       throw new Error(err.detail || `HTTP ${res.status}`)
     }
     const blob = await res.blob()
-    // Content-Disposition에서 파일명 추출 (없으면 fallback)
+    // Content-Disposition 파싱 — RFC 5987 (filename*=UTF-8'') 우선, ASCII fallback
     const cd = res.headers.get('Content-Disposition') || ''
-    const m = cd.match(/filename="?([^"]+)"?/)
-    const filename = m ? m[1] : `diagnose_export.${format}`
+    let filename = `diagnose_export.${format}`
+    const m5987 = cd.match(/filename\*=UTF-8''([^;]+)/i)
+    if (m5987) {
+      try { filename = decodeURIComponent(m5987[1]) } catch { /* fallback below */ }
+    } else {
+      const mAscii = cd.match(/filename="?([^";]+)"?/)
+      if (mAscii) filename = mAscii[1]
+    }
     // 브라우저 다운로드 트리거
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

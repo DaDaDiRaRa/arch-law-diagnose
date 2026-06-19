@@ -901,12 +901,11 @@ async def diagnose_export_md(req: ExportRequest):
         md = diagnose_to_markdown(
             req.result, req.form_data, req.project_name, req.company, req.author,
         )
-        filename = _build_export_filename(req, ext="md")
         return Response(
             content=md.encode("utf-8"),
             media_type="text/markdown; charset=utf-8",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": _build_content_disposition(req, ext="md"),
                 "Cache-Control": "no-store",
             },
         )
@@ -923,12 +922,11 @@ async def diagnose_export_xlsx(req: ExportRequest):
         xlsx = diagnose_to_xlsx(
             req.result, req.form_data, req.project_name, req.company, req.author,
         )
-        filename = _build_export_filename(req, ext="xlsx")
         return Response(
             content=xlsx,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": _build_content_disposition(req, ext="xlsx"),
                 "Cache-Control": "no-store",
             },
         )
@@ -937,17 +935,26 @@ async def diagnose_export_xlsx(req: ExportRequest):
         raise HTTPException(500, f"xlsx export 오류: {e}")
 
 
-def _build_export_filename(req: ExportRequest, *, ext: str) -> str:
-    """안전한 파일명 생성 — 한글/공백 → ASCII로 escape (브라우저 호환)."""
+def _build_content_disposition(req: ExportRequest, *, ext: str) -> str:
+    """RFC 5987 형식 — ASCII fallback + UTF-8 인코딩 파일명 둘 다 제공.
+
+    HTTP 헤더는 latin-1만 허용하므로 한글 파일명은 percent-encoding 필요.
+    브라우저는 filename*=UTF-8 을 우선 사용, 미지원 시 filename 사용.
+    """
     import re
     from urllib.parse import quote
+
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     base = req.project_name or req.result.get("address") or "diagnose"
-    # 파일명에 부적합한 문자만 제거
+    # 파일명 부적합 문자 제거
     base = re.sub(r"[\\/:*?\"<>|]", "_", base)[:60].strip() or "diagnose"
-    # 한글이 들어가도 RFC 5987 형식으로 처리 — 단 간단히 ASCII fallback도 함께
-    raw = f"{ts}_{base}.{ext}"
-    return raw
+
+    utf8_name = f"{ts}_{base}.{ext}"
+    # ASCII fallback: 비ASCII 문자는 _ 로 대체
+    ascii_name = re.sub(r"[^\x20-\x7e]", "_", utf8_name)
+    # filename* (RFC 5987): UTF-8 percent-encoded
+    encoded = quote(utf8_name, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
 
 
 @app.post("/api/feasibility/run")
