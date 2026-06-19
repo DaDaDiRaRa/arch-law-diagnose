@@ -901,8 +901,10 @@ async def diagnose_export_md(req: ExportRequest):
         md = diagnose_to_markdown(
             req.result, req.form_data, req.project_name, req.company, req.author,
         )
+        # UTF-8 BOM (﻿) 추가 — 한국 Windows 메모장/일부 에디터가
+        # BOM 없는 UTF-8을 latin-1/CP949로 잘못 해석하는 문제 방지
         return Response(
-            content=md.encode("utf-8"),
+            content=("﻿" + md).encode("utf-8"),
             media_type="text/markdown; charset=utf-8",
             headers={
                 "Content-Disposition": _build_content_disposition(req, ext="md"),

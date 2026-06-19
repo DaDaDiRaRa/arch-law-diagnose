@@ -74,6 +74,12 @@ def _review_reason(r: dict) -> str:
     return str(r.get("reason") or r.get("note") or "—")
 
 
+def _review_status(r: dict) -> str:
+    """review 항목의 판정 — review_triggers는 'severity' 키 사용."""
+    s = _g(r, "severity") or _g(r, "status") or ""
+    return str(s).upper()
+
+
 def _unwrap_multi(raw_result: dict) -> tuple[dict, dict | None]:
     """multi_parcel 모드면 (result, multi_info) 분리."""
     if raw_result.get("mode") == "multi_parcel":
@@ -153,8 +159,8 @@ def to_markdown(
     # ── 인허가 심의 트리거 ───────────────────────────────────────────────
     reviews = _review_items(result.get("applicable_reviews"))
     if reviews:
-        required = [r for r in reviews if (_g(r, "status") or "").upper() == "REQUIRED"]
-        maybe = [r for r in reviews if (_g(r, "status") or "").upper() == "MAYBE"]
+        required = [r for r in reviews if _review_status(r) == "REQUIRED"]
+        maybe = [r for r in reviews if _review_status(r) == "MAYBE"]
         lines.append(
             f"## 인허가 심의 트리거 (필요 {len(required)}건 · 검토 {len(maybe)}건)"
         )
@@ -162,7 +168,7 @@ def to_markdown(
         lines.append("| 심의명 | 판정 | 트리거 사유 | 근거법령 |")
         lines.append("| --- | --- | --- | --- |")
         for r in reviews:
-            status = (_g(r, "status") or "").upper()
+            status = _review_status(r)
             badge = (
                 "**필요**" if status == "REQUIRED"
                 else "검토" if status == "MAYBE"
@@ -433,7 +439,7 @@ def to_xlsx(
     row = 2
     reviews = _review_items(result.get("applicable_reviews"))
     for r in reviews:
-        status = (_g(r, "status") or "").upper()
+        status = _review_status(r)
         badge = "필요" if status == "REQUIRED" else "검토" if status == "MAYBE" else "해당없음"
         ws3.cell(row=row, column=1, value=_g(r, "name") or _g(r, "category") or "—").font = bold
         ws3.cell(row=row, column=2, value=badge)
