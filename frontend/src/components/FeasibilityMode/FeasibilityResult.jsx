@@ -25,17 +25,23 @@ const VERDICT_BG = {
 export default function FeasibilityResult() {
   const { result, reset, whatifOpen, openWhatif, formData, briefApplied } =
     useFeasibilityStore()
-  const [exporting, setExporting] = useState(null) // 'md' | 'xlsx' | null
+  const [exporting, setExporting] = useState(null) // 'md' | 'xlsx' | 'html' | null
   if (!result) return null
+
+  const exportPayload = () => ({
+    result,
+    form_data: formData,
+    project_name: briefApplied?.competition_name || '',
+  })
 
   const handleExport = async (format) => {
     setExporting(format)
     try {
-      await api.downloadFeasibilityExport(format, {
-        result,
-        form_data: formData,
-        project_name: briefApplied?.competition_name || '',
-      })
+      if (format === 'html') {
+        await api.openFeasibilityHtml(exportPayload())
+      } else {
+        await api.downloadFeasibilityExport(format, exportPayload())
+      }
     } catch (e) {
       alert(`다운로드 실패: ${e.message || e}`)
     } finally {
@@ -72,6 +78,13 @@ export default function FeasibilityResult() {
             </h2>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => handleExport('html')}
+              disabled={!!exporting}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-white transition-colors disabled:opacity-50"
+            >
+              {exporting === 'html' ? '…' : '🖨 HTML'}
+            </button>
             <button
               onClick={() => handleExport('md')}
               disabled={!!exporting}

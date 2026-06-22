@@ -101,9 +101,12 @@ export default function AutoAlternatives({ alternatives }) {
                 )}
               </div>
 
+              {/* 산정 근거 · 심의 상세 — 펼침 */}
+              <AltDetails alt={a} />
+
               <button
                 onClick={() => applyAlternative(a)}
-                className="w-full text-xs font-semibold py-2 rounded-lg transition-colors"
+                className="w-full text-xs font-semibold py-2 rounded-lg transition-colors mt-2"
                 style={
                   selected
                     ? { backgroundColor: 'var(--color-accent)', color: '#fff' }
@@ -116,7 +119,114 @@ export default function AutoAlternatives({ alternatives }) {
           )
         })}
       </div>
+      <p className="text-[10px] text-gray-400 mt-3">
+        용적률·완화·심의 수치는 시행령·조례·고시 원문 기준 자동 산정값입니다. 「산정 근거」에서
+        적용 법조문과 계산식을 확인하세요. 실제 인허가 한도는 도시계획·건축 심의로 변동될 수 있습니다.
+      </p>
     </section>
+  )
+}
+
+function AltDetails({ alt }) {
+  const d = alt.derivation || {}
+  const breakdown = d.relief_breakdown || []
+  const site = d.site_area_sqm
+  const baseFar = d.base_far_pct
+  const finalFar = d.final_far_pct
+  const cov = alt.building_coverage_pct
+  const floor = alt.max_floor_area_sqm
+  const buildingArea = alt.max_building_area_sqm
+  const reqs = alt.review_required || []
+  const maybes = alt.review_maybe || []
+
+  return (
+    <details className="mt-1 group">
+      <summary className="text-[11px] text-gray-500 cursor-pointer hover:text-gray-700 select-none list-none flex items-center gap-1">
+        <span className="group-open:rotate-90 transition-transform inline-block">▸</span>
+        산정 근거 · 심의 상세
+      </summary>
+      <div className="mt-2 space-y-2.5 text-[10px] leading-relaxed border-t border-gray-100 pt-2">
+        {/* 용적률 산정식 */}
+        <div>
+          <div className="font-semibold text-gray-700 mb-1">용적률 산정</div>
+          <div className="text-gray-600">
+            기본 한도 <b>{fmt(baseFar, 1)}%</b>
+            {d.far_source && <span className="text-gray-400"> ({d.far_source})</span>}
+          </div>
+          {breakdown.length > 0 ? (
+            <ul className="mt-0.5 space-y-0.5">
+              {breakdown.map((b, i) => (
+                <li key={i} className="flex gap-1.5 text-gray-600">
+                  <span style={{ color: 'var(--color-success)' }} className="font-semibold whitespace-nowrap">
+                    +{fmt(b.relief_pct, 1)}%
+                  </span>
+                  <span>
+                    {b.label}
+                    {b.basis && <span className="text-gray-400"> · {b.basis}</span>}
+                    {b.note && <span className="text-gray-400"> · {b.note}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-gray-400 mt-0.5">완화 적용 없음 (기본 한도)</div>
+          )}
+          {d.cap_note && (
+            <div className="text-gray-500 mt-0.5">⚖ {d.cap_note}</div>
+          )}
+          <div className="text-gray-800 font-semibold mt-1">
+            → 최종 용적률 {fmt(finalFar, 1)}%
+          </div>
+        </div>
+
+        {/* 면적 환산식 */}
+        {site != null && (
+          <div>
+            <div className="font-semibold text-gray-700 mb-1">면적 환산</div>
+            {finalFar != null && floor != null && (
+              <div className="text-gray-600">
+                연면적 = {fmt(site, 0)}㎡ × {fmt(finalFar, 1)}% ={' '}
+                <b>{fmt(floor, 0)}㎡</b>
+              </div>
+            )}
+            {cov != null && buildingArea != null && (
+              <div className="text-gray-600">
+                건축면적 = {fmt(site, 0)}㎡ × {fmt(cov, 1)}% = <b>{fmt(buildingArea, 0)}㎡</b>
+                {d.cov_source && <span className="text-gray-400"> ({d.cov_source})</span>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 심의·평가 필요 항목 */}
+        <div>
+          <div className="font-semibold text-gray-700 mb-1">
+            심의·평가 필요 ({reqs.length})
+          </div>
+          {reqs.length > 0 ? (
+            <ul className="space-y-0.5">
+              {reqs.map((r, i) => (
+                <li key={i} className="text-gray-600">
+                  • {r.name}
+                  {r.reason && <span className="text-gray-500"> — {r.reason}</span>}
+                  {r.law_ref && <span className="text-gray-400"> 「{r.law_ref}」</span>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="text-gray-400">필수 심의 없음</div>
+          )}
+          {maybes.length > 0 && (
+            <div className="mt-1">
+              <span className="text-gray-500">조건부 ({maybes.length}): </span>
+              <span className="text-gray-400">
+                {maybes.map((m) => m.name).filter(Boolean).join(', ')}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </details>
   )
 }
 

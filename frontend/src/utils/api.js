@@ -121,6 +121,33 @@ export const api = {
     return filename
   },
 
+  // 사업성 결과 → HTML 보고서 새 탭으로 열기 (인쇄/PDF용)
+  openFeasibilityHtml: async (payload) => {
+    const res = await fetch(`${BASE}/feasibility/export/html`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (!win) {
+      // 팝업 차단 시 다운로드로 폴백
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'feasibility.html'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+    // 새 탭이 로드된 뒤 정리 (즉시 revoke하면 빈 화면)
+    setTimeout(() => URL.revokeObjectURL(url), 60000)
+  },
+
   query: (payload) =>
     request('/query', { method: 'POST', body: JSON.stringify(payload) }),
 

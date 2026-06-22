@@ -183,24 +183,16 @@ export const useFeasibilityStore = create((set, get) => ({
         },
       },
     }))
+    // brief에 주소가 있으면 VWorld 자동조회 트리거 → 용도지역·지역지구·도로폭 채움
+    if (site.address) {
+      get().loadAutoLandInfo(site.address, '')
+    }
   },
 
-  setSelectedAddress: (addr) => {
-    set({
-      selectedAddress: addr,
-      formData: {
-        ...emptyFormData,
-        address: addr?.road_addr || addr?.jibun_addr || '',
-        pnu: addr?.pnu || '',
-      },
-      result: null,
-      error: null,
-      autoLandInfo: null,
-      autoLandLoading: false,
-    })
-    const pnu = addr?.pnu || ''
-    const address = addr?.road_addr || addr?.jibun_addr || ''
-    if (!pnu && !address) return
+  // VWorld 토지 자동조회 — 용도지역·지역지구·도로폭을 폼에 병합(빈 항목만 채움).
+  // 주소검색 선택과 brief 채움 양쪽에서 재사용. site_area는 brief override 우선이라 안 건드림.
+  loadAutoLandInfo: (address, pnu = '') => {
+    if (!address && !pnu) return
     set({ autoLandLoading: true })
     api
       .fetchLandInfo({ pnu, address })
@@ -219,6 +211,25 @@ export const useFeasibilityStore = create((set, get) => ({
         }))
       })
       .catch(() => set({ autoLandLoading: false }))
+  },
+
+  setSelectedAddress: (addr) => {
+    set({
+      selectedAddress: addr,
+      formData: {
+        ...emptyFormData,
+        address: addr?.road_addr || addr?.jibun_addr || '',
+        pnu: addr?.pnu || '',
+      },
+      result: null,
+      error: null,
+      autoLandInfo: null,
+      autoLandLoading: false,
+    })
+    get().loadAutoLandInfo(
+      addr?.road_addr || addr?.jibun_addr || '',
+      addr?.pnu || '',
+    )
   },
 
   runFeasibility: async () => {

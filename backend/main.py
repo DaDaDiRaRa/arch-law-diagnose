@@ -1042,6 +1042,32 @@ async def feasibility_export_xlsx(req: ExportRequest):
         raise HTTPException(500, f"사업성 xlsx export 오류: {e}")
 
 
+@app.post("/api/feasibility/export/html")
+async def feasibility_export_html(req: ExportRequest):
+    """사업성 검토 결과 → 자체완결 HTML 보고서 (브라우저 보기·인쇄/PDF용)."""
+    try:
+        from fastapi.responses import Response
+
+        from services.feasibility_exporter import to_html as feas_to_html
+        doc = feas_to_html(
+            req.result, req.form_data, req.project_name, req.company, req.author,
+        )
+        return Response(
+            content=doc.encode("utf-8"),
+            media_type="text/html; charset=utf-8",
+            headers={
+                # inline — 새 탭에서 바로 보기/인쇄. 파일명은 저장 시 사용.
+                "Content-Disposition": _build_content_disposition(req, ext="html").replace(
+                    "attachment;", "inline;"
+                ),
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        logger.exception("사업성 HTML export 오류: %s", e)
+        raise HTTPException(500, f"사업성 HTML export 오류: {e}")
+
+
 @app.post("/api/feasibility/run-multi")
 async def feasibility_run_multi(req: MultiFeasibilityRequest):
     """다중 대지 동시 사업성 비교 — 부지별로 병렬 실행 후 결과 묶음 반환.

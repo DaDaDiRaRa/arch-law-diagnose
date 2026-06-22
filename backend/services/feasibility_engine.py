@@ -458,14 +458,37 @@ async def _compute_alternative(
         payload, zone_use=zone_use, land_info=land, skip_ai=True,
     )
     results = diag.get("results", {})
-    cov_limit = results.get("건폐율", {}).get("limit_pct")
+    cov_result = results.get("건폐율", {})
+    cov_limit = cov_result.get("limit_pct")
     far_result = results.get("용적률", {})
     applied_far = far_result.get("limit_pct")
-    relief_items = (far_result.get("relief_info") or {}).get("applied_items", [])
+    relief_info = far_result.get("relief_info") or {}
+    relief_items = relief_info.get("applied_items", [])
     proposal = _compute_proposal(
         merged, site_area, cov_limit, applied_far, max_relief, relief_items,
     )
     rb = _build_review_burden(diag.get("applicable_reviews", []))
+
+    # 산정 근거 — 기본 한도 → 완화 항목별(+%·법조문) → 캡 → 최종 (이미 계산된 값 노출)
+    base_far = relief_info.get("base_limit_pct") or applied_far
+    derivation = {
+        "site_area_sqm": round(site_area, 1) if site_area else None,
+        "base_far_pct": base_far,
+        "final_far_pct": applied_far,
+        "cap_note": relief_info.get("cap_note") or "",
+        "far_source": far_result.get("source"),
+        "cov_source": cov_result.get("source"),
+        # 완화 항목별 법적 근거 — label·증가율·조문·비고
+        "relief_breakdown": [
+            {
+                "label": it.get("label") or it.get("kind") or "",
+                "relief_pct": it.get("relief_pct"),
+                "basis": it.get("basis") or "",
+                "note": it.get("note") or "",
+            }
+            for it in relief_items
+        ],
+    }
     return {
         "key": preset["key"],
         "label": preset["label"],
@@ -473,10 +496,15 @@ async def _compute_alternative(
         "building_coverage_pct": proposal["max_building_coverage_pct"],
         "far_pct": proposal["far_pct"],
         "max_floor_area_sqm": proposal["max_floor_area_sqm"],
+        "max_building_area_sqm": proposal["max_building_area_sqm"],
         "recommended_parking_spaces": proposal["recommended_parking_spaces"],
+        "parking_note": proposal.get("parking_note"),
         "applied_relief_items": proposal["applied_relief_items"],
         "review_count_required": rb["count_required"],
         "review_count_maybe": rb["count_maybe"],
+        "review_required": rb["required"],   # [{name, reason, law_ref}]
+        "review_maybe": rb["maybe"],
+        "derivation": derivation,
         "levers": preset["levers"],
     }
 
