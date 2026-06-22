@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../../utils/api'
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import ProposalSummary from './ProposalSummary'
+import AutoAlternatives from './AutoAlternatives'
 import FeasibilityWhatIf from './FeasibilityWhatIf'
 import GapChart from './GapChart'
 import ScenarioRecommender from './ScenarioRecommender'
@@ -127,14 +128,17 @@ export default function FeasibilityResult() {
       {/* 제안 우선 — 이 대지 가능 범위 */}
       <ProposalSummary proposal={result.proposal} />
 
-      {/* 대안 비교(What-If) 진입 */}
+      {/* 자동 제안 대안 — 시스템이 만든 경우의 수 */}
+      <AutoAlternatives alternatives={result.auto_alternatives} />
+
+      {/* 대안 비교(What-If) 진입 — 직접 조정 */}
       {!whatifOpen && (
         <button
           onClick={openWhatif}
           className="w-full text-xs font-semibold py-2.5 rounded-lg border-2 border-dashed hover:bg-gray-50 transition-colors"
           style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
         >
-          🔀 대안 비교 열기 — 완화·용도를 바꿔가며 비교하기
+          🔧 직접 조정하기 — 완화·용도를 손수 바꿔 비교(What-If)
         </button>
       )}
       <FeasibilityWhatIf />

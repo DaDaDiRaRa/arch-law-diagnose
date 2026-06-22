@@ -129,6 +129,9 @@ export const useFeasibilityStore = create((set, get) => ({
   multiLoading: false,
   multiError: null,
 
+  // 자동 제안 대안 중 선택된 키 (강조 표시용)
+  selectedAltKey: null,
+
   // 대안 비교(What-If)
   whatifOpen: false,
   whatifLevers: { ...emptyLevers },
@@ -141,9 +144,10 @@ export const useFeasibilityStore = create((set, get) => ({
     set((s) => ({ formData: { ...s.formData, ...patch } })),
 
   // 공모지침에서 불러온 부지 → 폼의 공모 요구치 채우기
-  // 주소·용도는 brief에 없을 수 있어 사용자 입력에 맡김(덮어쓰지 않음)
+  // 주소·신청주체·인증(완화 레버)까지 자동 채움. 용도는 매핑표 부재로 힌트만.
   applyBriefSite: (site, meta = {}) => {
     const numOrEmpty = (v) => (v == null ? '' : String(v))
+    const relief = meta.relief || {}
     set((s) => ({
       formData: {
         ...s.formData,
@@ -156,6 +160,8 @@ export const useFeasibilityStore = create((set, get) => ({
         // 주소가 brief에 있으면만 채움
         address: site.address || s.formData.address,
         zone_use_override: site.zoning || s.formData.zone_use_override,
+        // 발주처가 공공기관이면 신청주체 자동 설정
+        applicant_type: meta.applicant_type || s.formData.applicant_type,
         // 용도 힌트는 세부 용도란에 참고용으로
         building_use_detail:
           s.formData.building_use_detail ||
@@ -166,6 +172,15 @@ export const useFeasibilityStore = create((set, get) => ({
         site_id: site.site_id || '',
         facility_hint: site.facility_hint || '',
         open_space_notes: site.open_space_notes || '',
+        applicant_type: meta.applicant_type || '',
+        // 대안 비교(What-If)에서 완화 레버 시드로 사용
+        relief: {
+          green_grade: relief.green_grade || '',
+          energy_grade: relief.energy_grade || '',
+          renewable_pct: relief.renewable_pct ?? null,
+          bf_grade: relief.bf_grade || '',
+          certifications: relief.certifications || [],
+        },
       },
     }))
   },
@@ -228,25 +243,50 @@ export const useFeasibilityStore = create((set, get) => ({
 
   // ── 대안 비교(What-If) ──────────────────────────────────────────────
   openWhatif: () => {
-    const { formData, whatifOpen } = get()
+    const { formData, whatifOpen, briefApplied } = get()
     if (whatifOpen) {
       set({ whatifOpen: false })
       return
     }
-    // 레버를 현재 입력값으로 시드 → 첫 What-If 결과가 메인 결과와 동일
+    // 레버를 현재 입력값으로 시드. 공모지침이 요구한 인증이 있으면 미리 켜둠.
+    const r = briefApplied?.relief || {}
     set({
       whatifOpen: true,
       whatifLevers: {
         ...emptyLevers,
         facility_use: formData.facility_use || '',
         target_open_space_sqm: formData.target_open_space_sqm || '',
+        green_grade: r.green_grade || '',
+        energy_grade: r.energy_grade || '',
       },
     })
     get().runWhatif()
   },
 
+  // 자동 제안 대안 1개 선택 → 그 완화 조합을 What-If에 시드하고 열기(미세조정 가능)
+  applyAlternative: (alt) => {
+    const { formData } = get()
+    const lv = alt?.levers || {}
+    set({
+      whatifOpen: true,
+      whatifLevers: {
+        ...emptyLevers,
+        facility_use: formData.facility_use || '',
+        target_open_space_sqm: formData.target_open_space_sqm || '',
+        green_grade: lv.green_grade || '',
+        energy_grade: lv.energy_grade || '',
+        pilot_project: !!lv.pilot_project,
+        building_agreement: !!lv.building_agreement,
+        rema_zone: !!lv.rema_zone,
+        easy_remodel: !!lv.easy_remodel,
+      },
+      selectedAltKey: alt?.key || null,
+    })
+    get().runWhatif()
+  },
+
   setLever: (patch) => {
-    set((s) => ({ whatifLevers: { ...s.whatifLevers, ...patch } }))
+    set((s) => ({ whatifLevers: { ...s.whatifLevers, ...patch }, selectedAltKey: null }))
     get().runWhatif()
   },
 
@@ -312,6 +352,7 @@ export const useFeasibilityStore = create((set, get) => ({
         site_label: s.site_id || mapped.competition_name,
         address: s.address,
         zone_use_override: s.zoning,
+        applicant_type: mapped.applicant_type || '개인',
         site_area_override: s.site_area_sqm,
         target_floor_area_sqm: s.target_floor_area_sqm,
         target_building_coverage_pct: s.target_building_coverage_pct,
@@ -355,6 +396,7 @@ export const useFeasibilityStore = create((set, get) => ({
       result: null,
       error: null,
       briefApplied: null,
+      selectedAltKey: null,
       multiSites: [],
       multiResults: null,
       multiError: null,

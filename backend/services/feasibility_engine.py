@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -55,6 +56,31 @@ _GAP_SPECS = [
         "limit_key": "required_spaces",
         "unit": "대",
         "semantic": "min",  # 공모요구가 법정최소 이상이면 OK
+    },
+]
+
+
+# ── 자동 대안(큐레이션 사다리) 프리셋 ──────────────────────────────────────────
+# 실무 최빈 완화 조합을 가벼운 → 무거운 순으로 정의. 각 조합을 엔진에 돌려 카드로 제안.
+# 재정비촉진·리모델링 등 특별구역 레버는 앱이 자동 판별할 수 없어 제외(=What-If에서 수동).
+_ALT_PRESETS = [
+    {
+        "key": "base",
+        "label": "기본안",
+        "tagline": "완화 없음 — 법정·조례 기본 최대",
+        "levers": {},
+    },
+    {
+        "key": "eco_standard",
+        "label": "친환경 표준",
+        "tagline": "녹색건축 최우수 + 제로에너지 3등급 (실무 최빈)",
+        "levers": {"green_grade": "최우수", "energy_grade": "3"},
+    },
+    {
+        "key": "far_max",
+        "label": "용적률 최대",
+        "tagline": "녹색건축 최우수 + 제로에너지 1등급 (인증 완화 최대)",
+        "levers": {"green_grade": "최우수", "energy_grade": "1"},
     },
 ]
 
@@ -410,6 +436,94 @@ def _compute_proposal(
     }
 
 
+async def _compute_alternative(
+    engine: DiagnoseEngine,
+    req: dict,
+    land: dict,
+    site_area: float,
+    zone_use: str,
+    max_relief: dict,
+    preset: dict,
+) -> dict:
+    """프리셋 완화 조합 1개를 엔진에 돌려 대안 카드 1장 산정.
+
+    토지 재조회 없이 캐시된 land로 diagnose_fast만 호출(skip_ai) → 네트워크·AI 비용 0.
+    """
+    merged = {**req, **preset["levers"]}
+    payload = _build_engine_payload(merged, site_area)
+    payload["total_floor_area"] = (
+        payload["floor_area_above"] + payload["floor_area_below"]
+    )
+    diag = await engine.diagnose_fast(
+        payload, zone_use=zone_use, land_info=land, skip_ai=True,
+    )
+    results = diag.get("results", {})
+    cov_limit = results.get("건폐율", {}).get("limit_pct")
+    far_result = results.get("용적률", {})
+    applied_far = far_result.get("limit_pct")
+    relief_items = (far_result.get("relief_info") or {}).get("applied_items", [])
+    proposal = _compute_proposal(
+        merged, site_area, cov_limit, applied_far, max_relief, relief_items,
+    )
+    rb = _build_review_burden(diag.get("applicable_reviews", []))
+    return {
+        "key": preset["key"],
+        "label": preset["label"],
+        "tagline": preset["tagline"],
+        "building_coverage_pct": proposal["max_building_coverage_pct"],
+        "far_pct": proposal["far_pct"],
+        "max_floor_area_sqm": proposal["max_floor_area_sqm"],
+        "recommended_parking_spaces": proposal["recommended_parking_spaces"],
+        "applied_relief_items": proposal["applied_relief_items"],
+        "review_count_required": rb["count_required"],
+        "review_count_maybe": rb["count_maybe"],
+        "levers": preset["levers"],
+    }
+
+
+async def _generate_alternatives(
+    engine: DiagnoseEngine,
+    req: dict,
+    land: dict,
+    site_area: float,
+    zone_use: str,
+    max_relief: dict,
+) -> list[dict]:
+    """큐레이션 사다리 대안 자동 생성 — 연면적 최대순 + 부담 표시.
+
+    프리셋을 병렬로 돌리고, 결과가 같은(완화 상한에 걸려 동일해진) 조합은
+    더 가벼운 쪽만 남긴 뒤 연면적 큰 순으로 정렬한다.
+    """
+    raw = await asyncio.gather(*[
+        _compute_alternative(engine, req, land, site_area, zone_use, max_relief, p)
+        for p in _ALT_PRESETS
+    ])
+
+    # 결과가 동일한 조합 제거 — 프리셋이 가벼운 순이므로 앞(부담 적은)을 남김
+    seen: set = set()
+    deduped: list[dict] = []
+    for a in raw:
+        sig = (a.get("far_pct"), a.get("max_floor_area_sqm"))
+        if sig in seen:
+            continue
+        seen.add(sig)
+        deduped.append(a)
+
+    # 기본안 연면적 대비 증감(델타) + 부담 수준
+    base = next((a for a in deduped if a["key"] == "base"), None)
+    base_fa = base.get("max_floor_area_sqm") if base else None
+    for a in deduped:
+        fa = a.get("max_floor_area_sqm")
+        a["delta_floor_area_sqm"] = (
+            round(fa - base_fa, 1) if fa is not None and base_fa is not None else None
+        )
+        burden = a["review_count_required"] + len(a.get("applied_relief_items") or [])
+        a["burden_level"] = "low" if burden <= 1 else ("mid" if burden <= 3 else "high")
+
+    deduped.sort(key=lambda a: (a.get("max_floor_area_sqm") or -1), reverse=True)
+    return deduped
+
+
 async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
     """사전 사업성 검토 메인.
 
@@ -532,6 +646,11 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
     # 7. 종합 판단
     recommendation = _compute_recommendation(categories)
 
+    # 8. 자동 대안(큐레이션 사다리) — 토지 재조회 없이 프리셋 병렬 계산
+    auto_alternatives = await _generate_alternatives(
+        engine, req, land, site_area, zone_use, max_relief,
+    )
+
     return {
         "address": address,
         "land_facts": diag.get("land_info", {}),
@@ -541,6 +660,7 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
             else ("auto" if land.get("parcel_area") else "default_1000")
         ),
         "proposal": proposal,
+        "auto_alternatives": auto_alternatives,
         "categories": categories,
         "review_burden": review_burden,
         "overall_recommendation": recommendation,

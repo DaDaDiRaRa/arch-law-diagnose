@@ -9,7 +9,8 @@
 
 매핑 원칙:
   - brief_project_info.sites[]가 핵심 — 부지별 면적·건폐율·용적률·높이·공개공지.
-  - address/zoning은 brief에 없을 수 있음(null) → 사업성 모드에서 사용자가 주소 입력.
+  - 주소는 brief_site[]의 "(부지N)" 표기를 부지별로 분해해 자동 채움(E1 강화).
+  - 인증 요구(녹색건축·제로에너지)는 완화 레버로, 발주처(공공기관)는 신청주체로 자동 채움.
   - facility_use는 건축법 19용도 매핑표가 아직 없으므로 자동 채우지 않고 힌트만 제공.
 """
 from __future__ import annotations
@@ -17,10 +18,23 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# "서울특별시 영등포구" 같은 행정 접두(시·도 + 시·군·구)
+_ADMIN_PREFIX_RE = re.compile(
+    r"((?:[가-힣]+(?:특별자치시|특별자치도|특별시|광역시|도))\s+[가-힣]+(?:시|군|구))"
+)
+# "당산동3가 385(부지1)" 처럼 주소부분 + (부지N)
+_SITE_ADDR_RE = re.compile(r"([^,()]+?)\s*\(\s*(부지\s*\d+)\s*\)")
+
+
+def _norm_site_id(s: str) -> str:
+    """'부지 1' / '부지1' 표기 차이를 흡수."""
+    return re.sub(r"\s+", "", s or "")
 
 
 def _resolve_brief_dir() -> Path:
@@ -41,12 +55,109 @@ def _to_num(v: Any) -> float | None:
         return None
 
 
-def _map_site(site: dict) -> dict:
+def _parse_site_addresses(brief: dict) -> dict[str, str]:
+    """brief_site[].address의 '(부지N)' 표기를 부지별 주소로 분해.
+
+    예) '서울특별시 영등포구 당산동3가 385(부지1), 당산동3가 370-4(부지2)'
+        → {'부지1': '서울특별시 영등포구 당산동3가 385',
+           '부지2': '서울특별시 영등포구 당산동3가 370-4'}
+    뒤 부지에 시·도·구 접두가 생략되면 앞 부지의 접두를 이어 붙인다.
+    """
+    sites = brief.get("brief_site")
+    if not isinstance(sites, list):
+        return {}
+    out: dict[str, str] = {}
+    prefix = ""
+    for entry in sites:
+        if not isinstance(entry, dict):
+            continue
+        raw = (entry.get("address") or "").strip()
+        if not raw:
+            continue
+        for addr_part, site_label in _SITE_ADDR_RE.findall(raw):
+            addr_part = addr_part.strip(" ,")
+            sid = _norm_site_id(site_label)
+            if not sid or not addr_part:
+                continue
+            m = _ADMIN_PREFIX_RE.match(addr_part)
+            if m:
+                prefix = m.group(1)  # 이후 부지 주소에 재사용
+            elif prefix and not _ADMIN_PREFIX_RE.search(addr_part):
+                addr_part = f"{prefix} {addr_part}"
+            out.setdefault(sid, addr_part)
+    return out
+
+
+def _map_relief(brief: dict) -> dict:
+    """공모지침의 인증 요구 → 사업성 완화 레버 값.
+
+    녹색건축('우수'/'최우수')·제로에너지(ZEB 1~5등급)는 What-If 레버로 직결,
+    신재생 비율·BF 등급은 정보 표시용.
+    """
+    ds = brief.get("brief_design_sustain") or {}
+    certs = ds.get("required_certifications") or []
+    green = ""
+    energy = ""
+    labels: list[str] = []
+    for c in certs:
+        if not isinstance(c, dict):
+            continue
+        name = (c.get("name") or "").strip()
+        grade = (c.get("required_grade") or "").strip()
+        if name or grade:
+            labels.append(" ".join(x for x in (name, grade) if x))
+        blob = f"{name} {grade}"
+        if "녹색" in name:
+            if "최우수" in blob:
+                green = "최우수"
+            elif "우수" in blob:
+                green = "우수"
+        if "제로에너지" in name or "ZEB" in name.upper():
+            mz = re.search(r"([1-5])\s*등급", blob)
+            if mz:
+                energy = mz.group(1)
+    # BF 등급 — design_special 자유문장에서 힌트만 추출(레버 아님)
+    bf = ""
+    dsp = brief.get("brief_design_special") or {}
+    mbf = re.search(
+        r"(?:BF|장애물\s*없는|배리어[ -]?프리)[^.]{0,20}?(최우수|우수)등급",
+        json.dumps(dsp, ensure_ascii=False),
+    )
+    if mbf:
+        bf = mbf.group(1)
+    return {
+        "green_grade": green,
+        "energy_grade": energy,
+        "renewable_pct": _to_num(ds.get("renewable_energy_min_pct")),
+        "bf_grade": bf,
+        "certifications": labels,
+    }
+
+
+def _detect_applicant_type(brief: dict, meta: dict, pinfo: dict) -> str:
+    """발주처가 공공기관이면 '공공기관', 아니면 ''(사용자 판단에 맡김)."""
+    if (meta.get("facility_type") or "").strip().lower() == "public":
+        return "공공기관"
+    org = (pinfo.get("organizer") or "").strip()
+    if not org:
+        ov = brief.get("brief_overview")
+        if isinstance(ov, list) and ov and isinstance(ov[0], dict):
+            org = (ov[0].get("organizer") or "").strip()
+    if org and re.search(r"(구청|시청|도청|군청|교육청|공사|공단|진흥원|정부|청$)", org):
+        return "공공기관"
+    return ""
+
+
+def _map_site(site: dict, addr_map: dict[str, str] | None = None) -> dict:
     """brief sites[] 한 건 → 사업성 prefill."""
     facilities = site.get("facilities") or []
+    sid = site.get("site_id") or ""
+    address = (site.get("address") or "").strip()
+    if not address and addr_map:
+        address = addr_map.get(_norm_site_id(sid), "")
     return {
-        "site_id": site.get("site_id") or "",
-        "address": site.get("address") or "",
+        "site_id": sid,
+        "address": address,
         "zoning": site.get("zoning") or "",
         "facility_hint": ", ".join(f for f in facilities if f) or "",
         "site_area_sqm": _to_num(site.get("site_area_sqm")),
@@ -72,8 +183,18 @@ def map_brief(brief: dict) -> dict:
     meta = brief.get("_brief_meta") or {}
     pinfo = brief.get("brief_project_info") or {}
 
+    addr_map = _parse_site_addresses(brief)
     sites_raw = pinfo.get("sites") or []
-    sites = [_map_site(s) for s in sites_raw if isinstance(s, dict)]
+    sites = [_map_site(s, addr_map) for s in sites_raw if isinstance(s, dict)]
+
+    # 단일 부지인데 '(부지N)' 표기가 없으면 brief_site 첫 주소를 사용
+    if len(sites) == 1 and not sites[0]["address"]:
+        bs = brief.get("brief_site")
+        if isinstance(bs, list):
+            for e in bs:
+                if isinstance(e, dict) and (e.get("address") or "").strip():
+                    sites[0]["address"] = (e.get("address") or "").strip()
+                    break
 
     # 부지 정보가 없으면 _quantitative의 총 연면적으로 단일 부지 합성
     if not sites:
@@ -100,6 +221,8 @@ def map_brief(brief: dict) -> dict:
         "facility_type": meta.get("facility_type") or "",
         "source_format": meta.get("source_format") or "",
         "analyzed_at": meta.get("analyzed_at") or "",
+        "applicant_type": _detect_applicant_type(brief, meta, pinfo),
+        "relief": _map_relief(brief),
         "sites": sites,
     }
 

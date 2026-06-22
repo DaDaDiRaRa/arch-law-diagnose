@@ -52,7 +52,11 @@ export default function BriefImportPanel() {
   }
 
   const applySite = (site) => {
-    applyBriefSite(site, { competition_name: selected.competition_name })
+    applyBriefSite(site, {
+      competition_name: selected.competition_name,
+      applicant_type: selected.applicant_type,
+      relief: selected.relief,
+    })
     setOpen(false)
   }
 
@@ -141,6 +145,30 @@ export default function BriefImportPanel() {
               <div className="text-xs font-medium text-gray-800 mb-1">
                 {selected.competition_name}
               </div>
+              {/* 자동 채워질 공통 정보 (신청주체·인증 → 완화 레버) */}
+              {(selected.applicant_type ||
+                selected.relief?.green_grade ||
+                selected.relief?.energy_grade ||
+                selected.relief?.renewable_pct != null ||
+                selected.relief?.bf_grade) && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {selected.applicant_type && (
+                    <AutoBadge>신청주체 {selected.applicant_type}</AutoBadge>
+                  )}
+                  {selected.relief?.green_grade && (
+                    <AutoBadge>녹색건축 {selected.relief.green_grade}</AutoBadge>
+                  )}
+                  {selected.relief?.energy_grade && (
+                    <AutoBadge>ZEB {selected.relief.energy_grade}등급</AutoBadge>
+                  )}
+                  {selected.relief?.renewable_pct != null && (
+                    <AutoBadge>신재생 {selected.relief.renewable_pct}%</AutoBadge>
+                  )}
+                  {selected.relief?.bf_grade && (
+                    <AutoBadge>BF {selected.relief.bf_grade}</AutoBadge>
+                  )}
+                </div>
+              )}
               {selected.sites.length > 1 && (
                 <p className="text-[10px] text-gray-500 mb-2">
                   부지가 {selected.sites.length}개입니다. 검토할 부지를 하나 선택하세요.
@@ -162,6 +190,11 @@ export default function BriefImportPanel() {
                         이 부지로 채우기
                       </button>
                     </div>
+                    {s.address && (
+                      <div className="text-[10px] text-gray-600 mb-1.5">
+                        📍 {s.address}
+                      </div>
+                    )}
                     <div className="grid grid-cols-3 gap-x-2 gap-y-1 text-[10px] text-gray-600">
                       <Spec label="대지면적" v={s.site_area_sqm} unit="㎡" />
                       <Spec label="연면적" v={s.target_floor_area_sqm} unit="㎡" />
@@ -179,8 +212,9 @@ export default function BriefImportPanel() {
                 ))}
               </div>
               <p className="text-[10px] text-gray-400 mt-2">
-                채운 뒤 <b>주소</b>와 <b>시설 용도</b>는 직접 입력·선택하세요. (지침에 주소가 없거나
-                용도 매핑이 자동화되지 않은 경우)
+                주소·신청주체·인증(완화 레버)은 지침에서 자동 채워집니다. <b>시설 용도</b>만
+                직접 선택하세요. (건축법 19용도 매핑표 부재 — 위 용도 힌트 참고) 주소가 비어 있으면
+                직접 입력하세요.
               </p>
             </div>
           )}
@@ -192,6 +226,17 @@ export default function BriefImportPanel() {
 
 function Note({ children }) {
   return <div className="text-[11px] text-gray-500 py-1">{children}</div>
+}
+
+function AutoBadge({ children }) {
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded"
+      style={{ backgroundColor: 'rgba(22,163,74,0.1)', color: 'var(--color-success)' }}
+    >
+      {children}
+    </span>
+  )
 }
 
 function Spec({ label, v, unit }) {
