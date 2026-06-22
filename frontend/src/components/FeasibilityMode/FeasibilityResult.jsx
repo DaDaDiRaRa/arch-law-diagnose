@@ -1,4 +1,5 @@
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
+import ProposalSummary from './ProposalSummary'
 import GapChart from './GapChart'
 import ScenarioRecommender from './ScenarioRecommender'
 import ReviewBurdenCard from './ReviewBurdenCard'
@@ -28,6 +29,9 @@ export default function FeasibilityResult() {
 
   const hasOverCategories = result.categories?.some(
     (c) => c.gap_analysis?.status === 'over'
+  )
+  const hasAnyTarget = result.categories?.some(
+    (c) => c.gap_analysis?.has_target
   )
 
   return (
@@ -84,13 +88,22 @@ export default function FeasibilityResult() {
         </div>
       </div>
 
-      {/* 갭 분석 */}
-      <section>
-        <h3 className="text-sm font-semibold text-gray-800 mb-3">
-          갭 분석 — 공모 요구 vs 법적 가능
-        </h3>
-        <GapChart categories={result.categories || []} />
-      </section>
+      {/* 제안 우선 — 이 대지 가능 범위 */}
+      <ProposalSummary proposal={result.proposal} />
+
+      {/* 갭 분석 — 공모 요구치가 하나라도 있을 때만 */}
+      {hasAnyTarget ? (
+        <section>
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">
+            갭 분석 — 공모 요구 vs 법적 가능
+          </h3>
+          <GapChart categories={result.categories || []} />
+        </section>
+      ) : (
+        <div className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+          공모 요구치(연면적·용적률·주차 등)를 입력하면 위 가능 범위와 자동 비교한 갭 분석이 표시됩니다.
+        </div>
+      )}
 
       {/* 완화 시나리오 — over 카테고리 있을 때만 */}
       {hasOverCategories && (

@@ -21,7 +21,7 @@ export default function FeasibilityMode({ onBack }) {
             사전 사업성 검토
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            공모 요구치와 법적 가능 범위를 비교 — 참여 판단용
+            이 대지의 가능 범위(건폐율·용적률·연면적·주차)를 먼저 제시 — 공모 요구치 입력 시 갭 분석까지
           </p>
         </div>
       </div>

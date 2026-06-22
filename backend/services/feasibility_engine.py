@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from services.calculator import parking
 from services.diagnose_engine import (
     DiagnoseEngine,
     _get_default_cov_limit,
@@ -331,6 +332,63 @@ def _compute_recommendation(categories: list[dict]) -> dict:
     return {"verdict": verdict, "reason": reason}
 
 
+def _compute_proposal(
+    req: dict,
+    site_area: float,
+    cov_limit: float | None,
+    base_far_limit: float | None,
+    max_relief: dict,
+) -> dict:
+    """제안 우선 — 공모 요구치(target)와 무관하게 이 대지의 가능 범위를 산정.
+
+    target을 안 넣어도 "최대 건폐율·용적률·가능 연면적·권장 주차대수"를 먼저 제시.
+    """
+    max_far_relief = max_relief.get("max_pct")
+
+    # 건축면적 상한 (건폐율 × 대지면적)
+    max_building_area = (
+        site_area * cov_limit / 100.0 if cov_limit and cov_limit > 0 else None
+    )
+
+    # 연면적 상한 (용적률 × 대지면적) — 기본 / 완화
+    max_floor_area = (
+        site_area * base_far_limit / 100.0
+        if base_far_limit and base_far_limit > 0 else None
+    )
+    max_floor_area_relief = (
+        site_area * max_far_relief / 100.0
+        if max_far_relief and max_far_relief > 0 else None
+    )
+
+    # 권장 주차대수 — 기본 용적률로 최대로 지었을 때의 법정 최소 주차
+    recommended_parking = None
+    parking_note = None
+    if max_floor_area and max_floor_area > 0:
+        try:
+            pk = parking.calculate(
+                req["facility_use"],
+                max_floor_area,
+                units=_to_int(req.get("target_units")),
+                unit_exclusive_area=_to_float(req.get("unit_exclusive_area")),
+            )
+            recommended_parking = pk.get("required_spaces")
+            parking_note = pk.get("notes")
+        except Exception as e:  # 계산 불가 용도 등 — 제안에서만 graceful
+            logger.warning("[사업성] 권장 주차 산정 실패: %s", e)
+
+    return {
+        "max_building_coverage_pct": cov_limit,
+        "max_building_area_sqm": round(max_building_area, 1) if max_building_area else None,
+        "base_far_pct": base_far_limit,
+        "max_far_pct_relief": max_far_relief,
+        "max_floor_area_sqm": round(max_floor_area, 1) if max_floor_area else None,
+        "max_floor_area_relief_sqm": round(max_floor_area_relief, 1) if max_floor_area_relief else None,
+        "recommended_parking_spaces": recommended_parking,
+        "parking_basis_floor_area_sqm": round(max_floor_area, 1) if max_floor_area else None,
+        "parking_note": parking_note,
+    }
+
+
 async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
     """사전 사업성 검토 메인.
 
@@ -438,10 +496,16 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
             "engine_notes": "용적률 카테고리 참조",
         })
 
-    # 5. 심의 부담 (Option A — 개월수 없음)
+    # 5. 제안 우선 — target과 무관하게 이 대지의 가능 범위 산정
+    cov_limit = results.get("건폐율", {}).get("limit_pct")
+    proposal = _compute_proposal(
+        req, site_area, cov_limit, base_far_limit, max_relief,
+    )
+
+    # 6. 심의 부담 (Option A — 개월수 없음)
     review_burden = _build_review_burden(diag.get("applicable_reviews", []))
 
-    # 6. 종합 판단
+    # 7. 종합 판단
     recommendation = _compute_recommendation(categories)
 
     return {
@@ -452,6 +516,7 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
             "user_override" if req.get("site_area_override")
             else ("auto" if land.get("parcel_area") else "default_1000")
         ),
+        "proposal": proposal,
         "categories": categories,
         "review_burden": review_burden,
         "overall_recommendation": recommendation,
