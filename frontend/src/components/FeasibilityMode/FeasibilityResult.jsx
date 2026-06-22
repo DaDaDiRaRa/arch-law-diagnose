@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { api } from '../../utils/api'
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import ProposalSummary from './ProposalSummary'
 import FeasibilityWhatIf from './FeasibilityWhatIf'
@@ -20,8 +22,25 @@ const VERDICT_BG = {
 }
 
 export default function FeasibilityResult() {
-  const { result, reset, whatifOpen, openWhatif } = useFeasibilityStore()
+  const { result, reset, whatifOpen, openWhatif, formData, briefApplied } =
+    useFeasibilityStore()
+  const [exporting, setExporting] = useState(null) // 'md' | 'xlsx' | null
   if (!result) return null
+
+  const handleExport = async (format) => {
+    setExporting(format)
+    try {
+      await api.downloadFeasibilityExport(format, {
+        result,
+        form_data: formData,
+        project_name: briefApplied?.competition_name || '',
+      })
+    } catch (e) {
+      alert(`다운로드 실패: ${e.message || e}`)
+    } finally {
+      setExporting(null)
+    }
+  }
 
   const verdict = result.overall_recommendation?.verdict || '정보 부족'
   const reason = result.overall_recommendation?.reason || ''
@@ -51,12 +70,28 @@ export default function FeasibilityResult() {
               {verdict}
             </h2>
           </div>
-          <button
-            onClick={reset}
-            className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-white transition-colors"
-          >
-            ↺ 새 검토
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleExport('md')}
+              disabled={!!exporting}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-white transition-colors disabled:opacity-50"
+            >
+              {exporting === 'md' ? '…' : '⬇ MD'}
+            </button>
+            <button
+              onClick={() => handleExport('xlsx')}
+              disabled={!!exporting}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-white transition-colors disabled:opacity-50"
+            >
+              {exporting === 'xlsx' ? '…' : '⬇ Excel'}
+            </button>
+            <button
+              onClick={reset}
+              className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 hover:bg-white transition-colors"
+            >
+              ↺ 새 검토
+            </button>
+          </div>
         </div>
         <p className="text-sm text-gray-700">{reason}</p>
       </div>

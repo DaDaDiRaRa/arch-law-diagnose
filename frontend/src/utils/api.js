@@ -44,6 +44,12 @@ export const api = {
   feasibility: (payload) =>
     request('/feasibility/run', { method: 'POST', body: JSON.stringify(payload) }),
 
+  feasibilityMulti: (sites) =>
+    request('/feasibility/run-multi', {
+      method: 'POST',
+      body: JSON.stringify({ sites }),
+    }),
+
   // 공모지침 분석 결과(_brief.json) 불러오기
   listBriefs: () => request('/feasibility/briefs'),
   getBriefImport: (fileId) =>
@@ -72,6 +78,38 @@ export const api = {
       if (mAscii) filename = mAscii[1]
     }
     // 브라우저 다운로드 트리거
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return filename
+  },
+
+  // 사업성 결과 → MD / xlsx 다운로드
+  downloadFeasibilityExport: async (format, payload) => {
+    const res = await fetch(`${BASE}/feasibility/export/${format}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      throw new Error(err.detail || `HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    const cd = res.headers.get('Content-Disposition') || ''
+    let filename = `feasibility.${format}`
+    const m5987 = cd.match(/filename\*=UTF-8''([^;]+)/i)
+    if (m5987) {
+      try { filename = decodeURIComponent(m5987[1]) } catch { /* fallback below */ }
+    } else {
+      const mAscii = cd.match(/filename="?([^";]+)"?/)
+      if (mAscii) filename = mAscii[1]
+    }
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

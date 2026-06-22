@@ -404,6 +404,14 @@ class FeasibilityRequest(BaseModel):
     rema_zone: bool = Field(False, description="재정비촉진지구 특례")
     easy_remodel: bool = Field(False, description="리모델링이 쉬운 구조 (공동주택)")
 
+    # 다중 대지 비교용 라벨 (선택)
+    site_label: str | None = Field(None, description="비교표에 표시할 부지 이름")
+
+
+class MultiFeasibilityRequest(BaseModel):
+    """다중 대지 동시 사업성 비교 — 부지별 요청 목록."""
+    sites: list[FeasibilityRequest] = Field(..., min_length=1, max_length=12)
+
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, description="자연어 질문")
@@ -986,6 +994,75 @@ async def feasibility_run(req: FeasibilityRequest):
     except Exception as e:
         logger.exception("사업성 검토 오류: %s", e)
         raise HTTPException(500, f"사업성 검토 중 오류: {e}")
+
+
+@app.post("/api/feasibility/export/md")
+async def feasibility_export_md(req: ExportRequest):
+    """사업성 검토 결과 → Markdown 1장 요약 다운로드."""
+    try:
+        from fastapi.responses import Response
+
+        from services.feasibility_exporter import to_markdown as feas_to_md
+        md = feas_to_md(
+            req.result, req.form_data, req.project_name, req.company, req.author,
+        )
+        return Response(
+            content=("﻿" + md).encode("utf-8"),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": _build_content_disposition(req, ext="md"),
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        logger.exception("사업성 MD export 오류: %s", e)
+        raise HTTPException(500, f"사업성 MD export 오류: {e}")
+
+
+@app.post("/api/feasibility/export/xlsx")
+async def feasibility_export_xlsx(req: ExportRequest):
+    """사업성 검토 결과 → xlsx 다운로드."""
+    try:
+        from fastapi.responses import Response
+
+        from services.feasibility_exporter import to_xlsx as feas_to_xlsx
+        xlsx = feas_to_xlsx(
+            req.result, req.form_data, req.project_name, req.company, req.author,
+        )
+        return Response(
+            content=xlsx,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": _build_content_disposition(req, ext="xlsx"),
+                "Cache-Control": "no-store",
+            },
+        )
+    except Exception as e:
+        logger.exception("사업성 xlsx export 오류: %s", e)
+        raise HTTPException(500, f"사업성 xlsx export 오류: {e}")
+
+
+@app.post("/api/feasibility/run-multi")
+async def feasibility_run_multi(req: MultiFeasibilityRequest):
+    """다중 대지 동시 사업성 비교 — 부지별로 병렬 실행 후 결과 묶음 반환.
+
+    한 부지 실패가 전체를 막지 않도록 항목별로 오류를 격리한다.
+    """
+    if engine is None:
+        raise HTTPException(503, "서비스 초기화 중")
+
+    async def _one(site_req: FeasibilityRequest):
+        label = site_req.site_label or site_req.address
+        try:
+            res = await run_feasibility(engine, site_req.model_dump())
+            res["site_label"] = label
+            return {"ok": True, "result": res}
+        except Exception as e:  # noqa: BLE001 — 항목 격리
+            logger.warning("[다중 사업성] 부지 실패 (%s): %s", label, e)
+            return {"ok": False, "site_label": label, "error": str(e)}
+
+    results = await asyncio.gather(*[_one(s) for s in req.sites])
+    return {"results": results, "count": len(results)}
 
 
 @app.get("/api/feasibility/briefs")

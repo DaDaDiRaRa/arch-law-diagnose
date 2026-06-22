@@ -261,23 +261,40 @@ def _suggest_scenarios(
     return scenarios
 
 
-def _build_review_burden(applicable_reviews: list[dict]) -> dict:
+def _build_review_burden(applicable_reviews: Any) -> dict:
     """심의·평가 트리거 — 개월수 없이 항목만 (Option A).
 
+    엔진의 evaluate_reviews 반환 구조:
+      {items: [{name, severity, triggered_reasons, law_ref, note}], ...}
     REQUIRED만 노출. MAYBE는 별도 섹션.
     """
+    # dict({items: [...]}) 또는 list 둘 다 방어
+    if isinstance(applicable_reviews, dict):
+        items_raw = applicable_reviews.get("items") or []
+    elif isinstance(applicable_reviews, list):
+        items_raw = applicable_reviews
+    else:
+        items_raw = []
+
     required: list[dict] = []
     maybe: list[dict] = []
-    for r in applicable_reviews or []:
-        status = (r.get("status") or "").upper()
+    for r in items_raw:
+        if not isinstance(r, dict):
+            continue
+        sev = (r.get("severity") or r.get("status") or "").upper()
+        reasons = r.get("triggered_reasons")
+        if isinstance(reasons, list):
+            reason = "; ".join(str(x) for x in reasons if x)
+        else:
+            reason = reasons or ""
         item = {
             "name": r.get("name") or r.get("category") or "",
-            "reason": r.get("reason") or r.get("note") or "",
+            "reason": reason or r.get("note") or "",
             "law_ref": r.get("law_ref") or r.get("basis") or "",
         }
-        if status == "REQUIRED":
+        if sev == "REQUIRED":
             required.append(item)
-        elif status == "MAYBE":
+        elif sev == "MAYBE":
             maybe.append(item)
     return {
         "required": required,

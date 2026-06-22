@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import FeasibilityInputForm from './FeasibilityInputForm'
 import FeasibilityResult from './FeasibilityResult'
+import MultiSiteCompare from './MultiSiteCompare'
 
 export default function FeasibilityMode({ onBack }) {
   const { result, loading } = useFeasibilityStore()
-  const showResult = !!result
+  const [view, setView] = useState('single') // 'single' | 'multi'
+  const showResult = !!result && view === 'single'
 
   return (
     <div className="max-w-screen-xl mx-auto">
@@ -26,7 +29,32 @@ export default function FeasibilityMode({ onBack }) {
         </div>
       </div>
 
-      {showResult ? (
+      {/* 단일 / 다중 전환 */}
+      <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1 w-fit">
+        {[
+          { k: 'single', label: '단일 검토' },
+          { k: 'multi', label: '다중 대지 비교' },
+        ].map((t) => (
+          <button
+            key={t.k}
+            onClick={() => setView(t.k)}
+            className="text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
+            style={
+              view === t.k
+                ? { backgroundColor: 'white', color: 'var(--color-accent)', boxShadow: '0 1px 2px rgba(0,0,0,0.06)' }
+                : { color: 'var(--color-text-faint)' }
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'multi' ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+          <MultiSiteCompare />
+        </div>
+      ) : showResult ? (
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <FeasibilityResult />
         </div>

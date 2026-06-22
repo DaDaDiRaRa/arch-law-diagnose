@@ -74,6 +74,7 @@ function buildFeasibilityPayload(formData, levers = null) {
     target_open_space_sqm: toNum(pick('target_open_space_sqm')),
     target_units: toInt(f.target_units),
     unit_exclusive_area: toNum(f.unit_exclusive_area),
+    site_label: f.site_label || null,
     // 완화 레버
     green_grade: L.green_grade || null,
     energy_grade: L.energy_grade || null,
@@ -85,6 +86,29 @@ function buildFeasibilityPayload(formData, levers = null) {
 }
 
 let _altSeq = 0
+let _siteSeq = 0
+
+// 다중 비교용 부지 엔트리 (formData와 같은 필드명 → buildFeasibilityPayload 재사용)
+function makeSite(seed = {}) {
+  _siteSeq += 1
+  const s = (v) => (v == null ? '' : String(v))
+  return {
+    id: _siteSeq,
+    site_label: seed.site_label || `부지 ${_siteSeq}`,
+    address: seed.address || '',
+    pnu: seed.pnu || '',
+    zone_use_override: seed.zone_use_override || '',
+    site_area_override: s(seed.site_area_override),
+    facility_use: seed.facility_use || '',
+    applicant_type: seed.applicant_type || '개인',
+    target_floor_area_sqm: s(seed.target_floor_area_sqm),
+    target_building_coverage_pct: s(seed.target_building_coverage_pct),
+    target_far_pct: s(seed.target_far_pct),
+    target_max_height_m: s(seed.target_max_height_m),
+    target_open_space_sqm: s(seed.target_open_space_sqm),
+    building_use_detail: seed.building_use_detail || '',
+  }
+}
 
 export const useFeasibilityStore = create((set, get) => ({
   formData: { ...emptyFormData },
@@ -98,6 +122,12 @@ export const useFeasibilityStore = create((set, get) => ({
 
   // 공모지침 불러오기 적용 상태
   briefApplied: null,
+
+  // 다중 대지 비교
+  multiSites: [],
+  multiResults: null,
+  multiLoading: false,
+  multiError: null,
 
   // 대안 비교(What-If)
   whatifOpen: false,
@@ -261,6 +291,62 @@ export const useFeasibilityStore = create((set, get) => ({
 
   clearAlternatives: () => set({ alternatives: [] }),
 
+  // ── 다중 대지 비교 ──────────────────────────────────────────────────
+  addMultiSite: (seed) =>
+    set((s) => ({ multiSites: [...s.multiSites, makeSite(seed)] })),
+
+  updateMultiSite: (id, patch) =>
+    set((s) => ({
+      multiSites: s.multiSites.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    })),
+
+  removeMultiSite: (id) =>
+    set((s) => ({ multiSites: s.multiSites.filter((m) => m.id !== id) })),
+
+  clearMultiSites: () => set({ multiSites: [], multiResults: null, multiError: null }),
+
+  // 공모지침의 모든 부지를 비교 엔트리로 적재
+  loadBriefSitesToMulti: (mapped) => {
+    const sites = (mapped?.sites || []).map((s) =>
+      makeSite({
+        site_label: s.site_id || mapped.competition_name,
+        address: s.address,
+        zone_use_override: s.zoning,
+        site_area_override: s.site_area_sqm,
+        target_floor_area_sqm: s.target_floor_area_sqm,
+        target_building_coverage_pct: s.target_building_coverage_pct,
+        target_far_pct: s.target_far_pct,
+        target_max_height_m: s.target_max_height_m,
+        target_open_space_sqm: s.target_open_space_sqm,
+        building_use_detail: s.facility_hint ? `[공모] ${s.facility_hint}` : '',
+      })
+    )
+    set({ multiSites: sites, multiResults: null, multiError: null })
+  },
+
+  runMulti: async () => {
+    const { multiSites } = get()
+    if (multiSites.length === 0) {
+      set({ multiError: '비교할 부지를 추가하세요' })
+      return
+    }
+    const missing = multiSites.filter((m) => !m.address || !m.facility_use)
+    if (missing.length > 0) {
+      set({
+        multiError: `주소·용도가 비어있는 부지가 ${missing.length}개 있습니다. 모두 입력해주세요.`,
+      })
+      return
+    }
+    set({ multiLoading: true, multiError: null })
+    try {
+      const payloads = multiSites.map((m) => buildFeasibilityPayload(m))
+      const res = await api.feasibilityMulti(payloads)
+      set({ multiResults: res.results || [], multiLoading: false })
+    } catch (e) {
+      set({ multiError: e.message || '다중 비교 실패', multiLoading: false })
+    }
+  },
+
   reset: () =>
     set({
       formData: { ...emptyFormData },
@@ -269,6 +355,9 @@ export const useFeasibilityStore = create((set, get) => ({
       result: null,
       error: null,
       briefApplied: null,
+      multiSites: [],
+      multiResults: null,
+      multiError: null,
       whatifOpen: false,
       whatifLevers: { ...emptyLevers },
       whatifResult: null,
