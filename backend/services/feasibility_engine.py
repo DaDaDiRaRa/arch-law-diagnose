@@ -127,19 +127,19 @@ def _build_engine_payload(req: dict, site_area: float) -> dict:
         "unit_exclusive_area": _to_float(req.get("unit_exclusive_area")),
         "public_open_space_area": target_open_space,
         "applicant_type": req.get("applicant_type") or "개인",
-        # 사업성 모드는 raw 법한계를 보고 싶으므로 모든 완화 옵션 OFF
-        "green_grade": None,
-        "energy_grade": None,
-        "zero_energy_grade": None,
-        "pilot_project": False,
+        # 완화 레버 — 대안 비교(What-If). 미지정 시 OFF → raw 법한계.
+        "green_grade": req.get("green_grade") or None,
+        "energy_grade": req.get("energy_grade") or None,
+        "zero_energy_grade": req.get("energy_grade") or None,
+        "pilot_project": bool(req.get("pilot_project")),
         "smart_grade": None,
         "long_life_grade": None,
         "far_limit_manual_override": None,
         "relief_reason_manual": None,
-        "building_agreement": False,
+        "building_agreement": bool(req.get("building_agreement")),
         "agreement_landscape_road_facing": False,
-        "rema_zone": False,
-        "easy_remodel": False,
+        "rema_zone": bool(req.get("rema_zone")),
+        "easy_remodel": bool(req.get("easy_remodel")),
         "public_rental": False,
         # brief_conditions는 Step 2에서 처리 — 사업성 모드 v1에선 미사용
         "brief_conditions": None,
@@ -336,38 +336,41 @@ def _compute_proposal(
     req: dict,
     site_area: float,
     cov_limit: float | None,
-    base_far_limit: float | None,
+    applied_far_limit: float | None,
     max_relief: dict,
+    relief_items: list[dict] | None = None,
 ) -> dict:
-    """제안 우선 — 공모 요구치(target)와 무관하게 이 대지의 가능 범위를 산정.
+    """제안 우선 — 이 대지의 가능 범위를 산정.
 
-    target을 안 넣어도 "최대 건폐율·용적률·가능 연면적·권장 주차대수"를 먼저 제시.
+    applied_far_limit: 현재 선택한 완화 레버가 반영된 용적률 한도(엔진 결과).
+      레버 없으면 = raw 법한계. → 카드의 "최대 용적률"은 항상 현재 시나리오 기준.
+    max_relief: 이론상 모든 완화를 적용한 천장치(참고용 "완화 시 최대").
     """
-    max_far_relief = max_relief.get("max_pct")
+    max_far_ceiling = max_relief.get("max_pct")
 
     # 건축면적 상한 (건폐율 × 대지면적)
     max_building_area = (
         site_area * cov_limit / 100.0 if cov_limit and cov_limit > 0 else None
     )
 
-    # 연면적 상한 (용적률 × 대지면적) — 기본 / 완화
-    max_floor_area = (
-        site_area * base_far_limit / 100.0
-        if base_far_limit and base_far_limit > 0 else None
+    # 연면적 — 현재 적용 용적률 기준 / 이론상 천장 기준
+    floor_area = (
+        site_area * applied_far_limit / 100.0
+        if applied_far_limit and applied_far_limit > 0 else None
     )
-    max_floor_area_relief = (
-        site_area * max_far_relief / 100.0
-        if max_far_relief and max_far_relief > 0 else None
+    floor_area_ceiling = (
+        site_area * max_far_ceiling / 100.0
+        if max_far_ceiling and max_far_ceiling > 0 else None
     )
 
-    # 권장 주차대수 — 기본 용적률로 최대로 지었을 때의 법정 최소 주차
+    # 권장 주차대수 — 현재 적용 용적률로 최대로 지었을 때의 법정 최소 주차
     recommended_parking = None
     parking_note = None
-    if max_floor_area and max_floor_area > 0:
+    if floor_area and floor_area > 0:
         try:
             pk = parking.calculate(
                 req["facility_use"],
-                max_floor_area,
+                floor_area,
                 units=_to_int(req.get("target_units")),
                 unit_exclusive_area=_to_float(req.get("unit_exclusive_area")),
             )
@@ -379,13 +382,14 @@ def _compute_proposal(
     return {
         "max_building_coverage_pct": cov_limit,
         "max_building_area_sqm": round(max_building_area, 1) if max_building_area else None,
-        "base_far_pct": base_far_limit,
-        "max_far_pct_relief": max_far_relief,
-        "max_floor_area_sqm": round(max_floor_area, 1) if max_floor_area else None,
-        "max_floor_area_relief_sqm": round(max_floor_area_relief, 1) if max_floor_area_relief else None,
+        "far_pct": applied_far_limit,
+        "max_far_pct_relief": max_far_ceiling,
+        "max_floor_area_sqm": round(floor_area, 1) if floor_area else None,
+        "max_floor_area_relief_sqm": round(floor_area_ceiling, 1) if floor_area_ceiling else None,
         "recommended_parking_spaces": recommended_parking,
-        "parking_basis_floor_area_sqm": round(max_floor_area, 1) if max_floor_area else None,
+        "parking_basis_floor_area_sqm": round(floor_area, 1) if floor_area else None,
         "parking_note": parking_note,
+        "applied_relief_items": relief_items or [],
     }
 
 
@@ -496,10 +500,13 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
             "engine_notes": "용적률 카테고리 참조",
         })
 
-    # 5. 제안 우선 — target과 무관하게 이 대지의 가능 범위 산정
+    # 5. 제안 우선 — 현재 완화 레버가 반영된 이 대지의 가능 범위 산정
     cov_limit = results.get("건폐율", {}).get("limit_pct")
+    far_result = results.get("용적률", {})
+    applied_far_limit = far_result.get("limit_pct")
+    relief_items = (far_result.get("relief_info") or {}).get("applied_items", [])
     proposal = _compute_proposal(
-        req, site_area, cov_limit, base_far_limit, max_relief,
+        req, site_area, cov_limit, applied_far_limit, max_relief, relief_items,
     )
 
     # 6. 심의 부담 (Option A — 개월수 없음)

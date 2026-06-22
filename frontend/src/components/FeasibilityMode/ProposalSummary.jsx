@@ -12,7 +12,7 @@ export default function ProposalSummary({ proposal }) {
   const {
     max_building_coverage_pct,
     max_building_area_sqm,
-    base_far_pct,
+    far_pct,
     max_far_pct_relief,
     max_floor_area_sqm,
     max_floor_area_relief_sqm,
@@ -22,8 +22,8 @@ export default function ProposalSummary({ proposal }) {
 
   const hasFarRelief =
     max_far_pct_relief != null &&
-    base_far_pct != null &&
-    max_far_pct_relief > base_far_pct
+    far_pct != null &&
+    max_far_pct_relief > far_pct
 
   return (
     <section>
@@ -45,7 +45,7 @@ export default function ProposalSummary({ proposal }) {
         />
         <Card
           title="최대 용적률"
-          main={base_far_pct != null ? `${fmt(base_far_pct, 1)}%` : '확인 불가'}
+          main={far_pct != null ? `${fmt(far_pct, 1)}%` : '확인 불가'}
           sub={
             hasFarRelief
               ? `완화 적용 시 최대 ${fmt(max_far_pct_relief, 1)}%`

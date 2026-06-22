@@ -1,5 +1,6 @@
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import ProposalSummary from './ProposalSummary'
+import FeasibilityWhatIf from './FeasibilityWhatIf'
 import GapChart from './GapChart'
 import ScenarioRecommender from './ScenarioRecommender'
 import ReviewBurdenCard from './ReviewBurdenCard'
@@ -19,7 +20,7 @@ const VERDICT_BG = {
 }
 
 export default function FeasibilityResult() {
-  const { result, reset } = useFeasibilityStore()
+  const { result, reset, whatifOpen, openWhatif } = useFeasibilityStore()
   if (!result) return null
 
   const verdict = result.overall_recommendation?.verdict || '정보 부족'
@@ -90,6 +91,18 @@ export default function FeasibilityResult() {
 
       {/* 제안 우선 — 이 대지 가능 범위 */}
       <ProposalSummary proposal={result.proposal} />
+
+      {/* 대안 비교(What-If) 진입 */}
+      {!whatifOpen && (
+        <button
+          onClick={openWhatif}
+          className="w-full text-xs font-semibold py-2.5 rounded-lg border-2 border-dashed hover:bg-gray-50 transition-colors"
+          style={{ borderColor: 'var(--color-accent)', color: 'var(--color-accent)' }}
+        >
+          🔀 대안 비교 열기 — 완화·용도를 바꿔가며 비교하기
+        </button>
+      )}
+      <FeasibilityWhatIf />
 
       {/* 갭 분석 — 공모 요구치가 하나라도 있을 때만 */}
       {hasAnyTarget ? (

@@ -44,6 +44,11 @@ export const api = {
   feasibility: (payload) =>
     request('/feasibility/run', { method: 'POST', body: JSON.stringify(payload) }),
 
+  // 공모지침 분석 결과(_brief.json) 불러오기
+  listBriefs: () => request('/feasibility/briefs'),
+  getBriefImport: (fileId) =>
+    request(`/feasibility/briefs/${encodeURIComponent(fileId)}`),
+
   // 진단 결과 → MD / xlsx 다운로드 — Response를 직접 받아 blob으로 처리
   downloadDiagnoseExport: async (format, payload) => {
     const res = await fetch(`${BASE}/diagnose/export/${format}`, {

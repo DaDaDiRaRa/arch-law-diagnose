@@ -1,5 +1,6 @@
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import AddressSearch from '../AddressSearch'
+import BriefImportPanel from './BriefImportPanel'
 
 const FACILITY_USES = [
   '제1종근린생활시설', '제2종근린생활시설', '근린생활시설',
@@ -41,6 +42,9 @@ export default function FeasibilityInputForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* 0. 공모지침 불러오기 */}
+      <BriefImportPanel />
+
       {/* 1. 대지 정보 */}
       <section>
         <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">

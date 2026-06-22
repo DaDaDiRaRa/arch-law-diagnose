@@ -396,6 +396,14 @@ class FeasibilityRequest(BaseModel):
         None, gt=0, description="세대 평균 전용면적 (㎡, 공동주택·다가구·오피스텔)"
     )
 
+    # 완화 레버 — 대안 비교(What-If)용. 미지정 시 모두 OFF (= raw 법한계)
+    green_grade: str | None = Field(None, description="녹색건축 인증 등급: 우수/최우수")
+    energy_grade: str | None = Field(None, description="제로에너지건축 등급: 1~5")
+    pilot_project: bool = Field(False, description="녹색건축 시범사업 여부")
+    building_agreement: bool = Field(False, description="건축협정 체결 (§110의7)")
+    rema_zone: bool = Field(False, description="재정비촉진지구 특례")
+    easy_remodel: bool = Field(False, description="리모델링이 쉬운 구조 (공동주택)")
+
 
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=2, description="자연어 질문")
@@ -978,6 +986,35 @@ async def feasibility_run(req: FeasibilityRequest):
     except Exception as e:
         logger.exception("사업성 검토 오류: %s", e)
         raise HTTPException(500, f"사업성 검토 중 오류: {e}")
+
+
+@app.get("/api/feasibility/briefs")
+async def feasibility_brief_list():
+    """공모지침 분석 결과(_brief.json) 목록 — BRIEF_DIR(공유 GCS 마운트) 스캔.
+
+    Competition Analyzer가 저장한 brief를 사업성 모드로 불러오기 위한 목록.
+    """
+    from services import brief_importer
+    try:
+        return {"briefs": brief_importer.list_briefs()}
+    except Exception as e:
+        logger.exception("brief 목록 조회 오류: %s", e)
+        raise HTTPException(500, f"brief 목록 조회 오류: {e}")
+
+
+@app.get("/api/feasibility/briefs/{file_id}")
+async def feasibility_brief_get(file_id: str):
+    """선택한 brief를 사업성 prefill(부지별 target_*)로 매핑해 반환."""
+    from services import brief_importer
+    try:
+        return brief_importer.get_brief_mapped(file_id)
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.exception("brief 매핑 오류: %s", e)
+        raise HTTPException(500, f"brief 매핑 오류: {e}")
 
 
 @app.post("/api/query")
