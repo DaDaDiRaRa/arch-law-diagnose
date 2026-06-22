@@ -203,18 +203,33 @@ export default function BriefImportPanel() {
                       <Spec label="최고높이" v={s.target_max_height_m} unit="m" />
                       <Spec label="공개공지" v={s.target_open_space_sqm} unit="㎡" />
                     </div>
-                    {s.facility_hint && (
-                      <div className="text-[10px] text-gray-500 mt-1.5 pt-1.5 border-t border-gray-100">
-                        용도 힌트: {s.facility_hint}
+                    {(s.facility_hint || s.facility_use || s.facility_use_candidates?.length > 0) && (
+                      <div className="text-[10px] mt-1.5 pt-1.5 border-t border-gray-100 space-y-0.5">
+                        {s.facility_use ? (
+                          <div className="text-gray-700">
+                            시설 용도 자동 감지:{' '}
+                            <span className="font-semibold" style={{ color: 'var(--color-success)' }}>
+                              {s.facility_use}
+                            </span>
+                          </div>
+                        ) : s.facility_use_candidates?.length > 1 ? (
+                          <div className="text-gray-500">
+                            용도 후보: {s.facility_use_candidates.join(', ')}{' '}
+                            <span className="text-gray-400">(복합 — 직접 선택)</span>
+                          </div>
+                        ) : null}
+                        {s.facility_hint && (
+                          <div className="text-gray-500">용도 힌트: {s.facility_hint}</div>
+                        )}
                       </div>
                     )}
                   </div>
                 ))}
               </div>
               <p className="text-[10px] text-gray-400 mt-2">
-                주소·신청주체·인증(완화 레버)은 지침에서 자동 채워집니다. <b>시설 용도</b>만
-                직접 선택하세요. (건축법 19용도 매핑표 부재 — 위 용도 힌트 참고) 주소가 비어 있으면
-                직접 입력하세요.
+                주소·신청주체·인증(완화 레버)·용도지역(자동조회)이 채워집니다. <b>시설 용도</b>는
+                괄호표기에서 하나로 명확할 때만 자동 채움 — 복합·불명이면 직접 선택하세요.
+                주소가 비어 있으면 직접 입력하세요.
               </p>
             </div>
           )}

@@ -37,6 +37,41 @@ def _norm_site_id(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
+# 건축법 시설용도 — 사업성 폼 드롭다운과 동일. 자동 채움 후보 판별용.
+# 구체적인 용도를 앞에 둬서, 한 항목당 가장 구체적인 1개만 매칭(예: '제1종근린생활시설'이
+# '근린생활시설'보다 먼저). 매핑표 부재로 '주민편의시설' 등 비표준 용어는 의도적으로 제외.
+_BUILDING_USES = [
+    "제1종근린생활시설", "제2종근린생활시설", "근린생활시설",
+    "공동주택", "단독주택",
+    "공공업무시설", "업무시설",
+    "판매시설", "숙박시설", "의료시설", "교육연구시설",
+    "문화및집회시설", "종교시설", "운동시설", "노유자시설",
+    "위락시설", "공장", "창고시설",
+]
+
+
+def _detect_building_uses(facilities: list[str]) -> list[str]:
+    """facilities 괄호표기에서 건축법 시설용도 후보 추출(중복 제거·순서 유지).
+
+    예) ['어린이집(노유자시설)', '부설주차장'] → ['노유자시설']
+        ['…(주민편의시설)', '부설주차장'] → []  (주민편의시설은 19용도 아님)
+    괄호가 있으면 괄호 안만, 없으면 항목 전체에서 탐색. 한 항목당 가장 구체적 1개.
+    """
+    found: list[str] = []
+    for f in facilities or []:
+        if not f:
+            continue
+        inner = re.findall(r"\(([^)]*)\)", f)
+        targets = inner if inner else [f]
+        for t in targets:
+            for use in _BUILDING_USES:
+                if use in t:
+                    if use not in found:
+                        found.append(use)
+                    break  # 한 항목당 가장 구체적 용도 1개만
+    return found
+
+
 def _resolve_brief_dir() -> Path:
     raw = os.getenv("BRIEF_DIR")
     if raw:
@@ -155,10 +190,15 @@ def _map_site(site: dict, addr_map: dict[str, str] | None = None) -> dict:
     address = (site.get("address") or "").strip()
     if not address and addr_map:
         address = addr_map.get(_norm_site_id(sid), "")
+    # 건축법 시설용도 자동 감지 — 후보가 정확히 1개일 때만 자동 채움(복합·불명은 사용자 선택)
+    use_candidates = _detect_building_uses(facilities)
+    facility_use = use_candidates[0] if len(use_candidates) == 1 else ""
     return {
         "site_id": sid,
         "address": address,
         "zoning": site.get("zoning") or "",
+        "facility_use": facility_use,
+        "facility_use_candidates": use_candidates,
         "facility_hint": ", ".join(f for f in facilities if f) or "",
         "site_area_sqm": _to_num(site.get("site_area_sqm")),
         "target_floor_area_sqm": _to_num(site.get("floor_area_sqm")),
@@ -205,6 +245,8 @@ def map_brief(brief: dict) -> dict:
                 "site_id": "전체",
                 "address": "",
                 "zoning": "",
+                "facility_use": "",
+                "facility_use_candidates": [],
                 "facility_hint": meta.get("facility_type") or "",
                 "site_area_sqm": None,
                 "target_floor_area_sqm": tfa,

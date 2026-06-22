@@ -162,6 +162,8 @@ export const useFeasibilityStore = create((set, get) => ({
         zone_use_override: site.zoning || s.formData.zone_use_override,
         // 발주처가 공공기관이면 신청주체 자동 설정
         applicant_type: meta.applicant_type || s.formData.applicant_type,
+        // 시설 용도 — 괄호표기에서 단일 감지된 경우만 자동 채움(복합·불명은 빈 채로)
+        facility_use: site.facility_use || s.formData.facility_use,
         // 용도 힌트는 세부 용도란에 참고용으로
         building_use_detail:
           s.formData.building_use_detail ||

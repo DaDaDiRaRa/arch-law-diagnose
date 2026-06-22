@@ -454,8 +454,9 @@ async def _compute_alternative(
     payload["total_floor_area"] = (
         payload["floor_area_above"] + payload["floor_area_below"]
     )
+    # land 사본 전달 — diagnose_fast가 land를 변이하므로 동시 실행 간 공유 방지
     diag = await engine.diagnose_fast(
-        payload, zone_use=zone_use, land_info=land, skip_ai=True,
+        payload, zone_use=zone_use, land_info=dict(land), skip_ai=True,
     )
     results = diag.get("results", {})
     cov_result = results.get("건폐율", {})
@@ -522,15 +523,22 @@ async def _generate_alternatives(
     프리셋을 병렬로 돌리고, 결과가 같은(완화 상한에 걸려 동일해진) 조합은
     더 가벼운 쪽만 남긴 뒤 연면적 큰 순으로 정렬한다.
     """
+    # 대안은 부가 기능 — 한 프리셋이 실패해도 본 검토는 살린다(예외 격리)
     raw = await asyncio.gather(*[
         _compute_alternative(engine, req, land, site_area, zone_use, max_relief, p)
         for p in _ALT_PRESETS
-    ])
+    ], return_exceptions=True)
+    ok: list[dict] = []
+    for p, a in zip(_ALT_PRESETS, raw):
+        if isinstance(a, Exception):
+            logger.warning("[사업성] 대안 '%s' 계산 실패: %s", p["key"], a)
+            continue
+        ok.append(a)
 
     # 결과가 동일한 조합 제거 — 프리셋이 가벼운 순이므로 앞(부담 적은)을 남김
     seen: set = set()
     deduped: list[dict] = []
-    for a in raw:
+    for a in ok:
         sig = (a.get("far_pct"), a.get("max_floor_area_sqm"))
         if sig in seen:
             continue
