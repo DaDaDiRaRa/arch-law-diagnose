@@ -135,7 +135,7 @@ def compute_relief(
                 "label": _kind_label(kind, grade),
                 "relief_pct": relief,
                 "basis": rule.get("law", ""),
-                "note": f"{grade} 등급 · 완화율은 국토부 고시 기준 추정값 — 실제 고시 확인 필요",
+                "note": f"{grade} 등급 · 건축물 에너지절약설계기준(국토부 고시) 별표9 기준",
             })
             cert_total += relief
 

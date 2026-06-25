@@ -560,7 +560,7 @@ class DiagnoseEngine:
             zone_area=land.get("zone_area"),
         )
         r_railway = railway_protection.calculate(
-            lat=lat,
+            lat=land.get("lat"),
             lng=land.get("lon"),
         )
 

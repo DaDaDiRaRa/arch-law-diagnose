@@ -25,6 +25,21 @@ logger = logging.getLogger(__name__)
 
 LURIS_BASE = "https://apis.data.go.kr/1613000/arLandUseInfoService"
 
+# 공공데이터포털 표준 서비스 에러 봉투 마커 (throttle·quota·키오류 등)
+# 예: <OpenAPI_ServiceResponse><cmmMsgHeader><returnReasonCode>22</returnReasonCode>
+_SERVICE_ERROR_MARKERS = (
+    "OpenAPI_ServiceResponse",
+    "cmmMsgHeader",
+    "returnReasonCode",
+    "SERVICE_KEY_IS_NOT_REGISTERED",
+    "LIMITED_NUMBER_OF_SERVICE_REQUESTS",
+)
+
+
+def _is_service_error(text: str) -> bool:
+    """공공데이터포털 서비스 에러 응답인지 판별 (정상 '데이터 없음'과 구분)."""
+    return any(m in text for m in _SERVICE_ERROR_MARKERS)
+
 
 class LurisClient:
     """LURIS 행위제한정보 클라이언트 (Async)."""
@@ -133,9 +148,15 @@ class LurisClient:
             logger.error("LURIS get_act_info 오류: %s", e)
             return None
 
+        # 공공데이터포털 서비스 에러(throttle·quota·키오류) 봉투는 일시 장애 →
+        # 캐싱하지 않고 None 반환(다음 호출 재시도). 캐싱하면 90일간 오답 고착.
+        if _is_service_error(text):
+            logger.warning("LURIS 서비스 에러 응답 — 캐싱 생략(일시 장애로 간주)")
+            return None
+
         info = self._parse_act_info(text)
 
-        # 3) 결과 캐싱 (None도 저장 — 한도 절약)
+        # 3) 결과 캐싱 (None=정상 '데이터 없음'도 저장 — 한도 절약)
         if self._cache is not None:
             try:
                 await self._cache.set_luris_act_info(area_cd, ucode, land_use_nm, info)

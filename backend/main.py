@@ -1292,7 +1292,7 @@ async def brief_extract(file: UploadFile = File(...)):
 
     from services.brief_extractor import extract_from_pdf
     try:
-        result = extract_from_pdf(pdf_bytes, llm_client)
+        result = await extract_from_pdf(pdf_bytes, llm_client)
         logger.info(
             "지침서 추출 완료: %s (%d chars, %d pages)",
             file.filename, result.get("_text_length", 0), result.get("_pages_extracted", 0),

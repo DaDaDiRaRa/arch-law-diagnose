@@ -101,9 +101,20 @@ class LandUseResolver:
         info_task = self._vworld.get_land_info(pnu) if pnu else asyncio.sleep(0, result={})
         parcel_task = self._vworld.get_parcel_polygon(lon, lat)
         road_task = self._vworld.get_road_width(lon, lat)
-        zone_info, land_extra, parcel, road = await asyncio.gather(
-            zone_task, info_task, parcel_task, road_task, return_exceptions=False
+        raw = await asyncio.gather(
+            zone_task, info_task, parcel_task, road_task, return_exceptions=True
         )
+        # 개별 호출이 예외를 던져도 전체 요청이 죽지 않도록 안전 기본값으로 강등
+        defaults = ({}, {}, None, None)
+        zone_info, land_extra, parcel, road = (
+            v if not isinstance(v, BaseException) else d
+            for v, d in zip(raw, defaults)
+        )
+        for v, name in zip(raw, ("용도지역", "지목·공시지가", "지적폴리곤", "도로폭")):
+            if isinstance(v, BaseException):
+                logger.warning("VWorld %s 조회 예외: %s", name, v)
+        zone_info = zone_info or {}
+        land_extra = land_extra or {}
         if not zone_info.get("zone_use"):
             logger.warning("용도지역 조회 결과 없음: lon=%.6f lat=%.6f", lon, lat)
             if stale_cached:
@@ -113,6 +124,10 @@ class LandUseResolver:
                 )
                 stale_cached["cache_hit"] = True
                 return stale_cached
+            # stale 캐시도 없으면 빈 결과를 캐시에 저장하지 않는다 —
+            # 빈 레코드가 "fresh"로 굳으면 향후 stale fallback이 영구 무력화됨(캐시 오염).
+            logger.warning("용도지역 조회 실패 + stale 캐시 없음 — 빈 결과 반환(미저장)")
+            return _empty_result(address, pnu)
         parcel_geometry = parcel.get("geometry") if parcel else None
         # PNU 보정 — 사용자가 비워서 보내도 폴리곤 props 에서 추출 가능
         if not pnu and parcel:

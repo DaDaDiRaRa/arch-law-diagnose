@@ -301,6 +301,11 @@ class VWorldClient:
         """
         if not self._key or not pnu:
             return {}
+        # PNU는 숫자 19자리. CQL filter 문자열 보간 전 형식 검증(인젝션 방지).
+        pnu = str(pnu).strip()
+        if not (pnu.isdigit() and len(pnu) == 19):
+            logger.warning("VWorld get_land_info: 잘못된 PNU 형식 무시: %r", pnu)
+            return {}
 
         params = {
             "service": "data",

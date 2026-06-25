@@ -29,9 +29,9 @@ _MAX_CHARS_PER_PAGE = 3000
 # 총 전달 최대 문자 수
 _MAX_TOTAL_CHARS = 20000
 
-_EXTRACT_PROMPT = """당신은 건축 설계공모·인허가 발주처 지침서에서 설계 조건을 추출하는 전문가입니다.
+_EXTRACT_SYSTEM = """당신은 건축 설계공모·인허가 발주처 지침서에서 설계 조건을 추출하는 전문가입니다.
 
-아래 지침서 원문에서 다음 항목들을 추출하여 **JSON만** 반환하세요.
+지침서 원문에서 다음 항목들을 추출하여 **JSON만** 반환하세요.
 값이 명시되지 않은 항목은 null로 표기하세요. 수치 단위를 반드시 확인하세요.
 
 추출 항목:
@@ -46,12 +46,7 @@ _EXTRACT_PROMPT = """당신은 건축 설계공모·인허가 발주처 지침�
 - special_conditions: 기타 주요 설계 조건 (문자열 배열, 없으면 [])
 - source_excerpt: 각 수치의 근거가 된 원문 핵심 문장 (문자열)
 
-반드시 JSON만 반환하고, 설명·주석 없이 { } 로만 응답하세요.
-
----
-지침서 원문:
-{text}
-"""
+반드시 JSON만 반환하고, 설명·주석 없이 { } 로만 응답하세요."""
 
 
 def extract_text_from_pdf(pdf_bytes: bytes) -> str:
@@ -78,24 +73,16 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     return combined
 
 
-def parse_conditions_with_llm(text: str, llm_client: Any) -> dict:
+async def parse_conditions_with_llm(text: str, llm_client: Any) -> dict:
     """LLM으로 지침서 텍스트 → 설계 조건 JSON 파싱."""
-    prompt = _EXTRACT_PROMPT.format(text=text[:_MAX_TOTAL_CHARS])
-    result = llm_client.judge_json(
-        prompt=prompt,
-        schema_hint={
-            "max_bcr_pct": "number|null",
-            "max_far_pct": "number|null",
-            "max_floors": "integer|null",
-            "max_height_m": "number|null",
-            "min_landscape_pct": "number|null",
-            "min_parking_spaces": "integer|null",
-            "required_uses": "array",
-            "prohibited_uses": "array",
-            "special_conditions": "array",
-            "source_excerpt": "string",
-        },
-    )
+    user_prompt = f"지침서 원문:\n{text[:_MAX_TOTAL_CHARS]}"
+    result = await llm_client.judge_json(_EXTRACT_SYSTEM, user_prompt)
+    if not result:
+        # API 키 누락·호출 실패·JSON 파싱 실패 모두 None → graceful degrade
+        raise ValueError(
+            "지침서에서 설계 조건을 추출하지 못했습니다 "
+            "(AI 응답 없음 또는 형식 오류). PDF 내용을 확인하거나 수기로 입력하세요."
+        )
     return _validate(result)
 
 
@@ -134,10 +121,10 @@ def _validate(raw: dict) -> dict:
     }
 
 
-def extract_from_pdf(pdf_bytes: bytes, llm_client: Any) -> dict:
+async def extract_from_pdf(pdf_bytes: bytes, llm_client: Any) -> dict:
     """전체 파이프라인: PDF bytes → 설계 조건 dict."""
     text = extract_text_from_pdf(pdf_bytes)
-    conditions = parse_conditions_with_llm(text, llm_client)
+    conditions = await parse_conditions_with_llm(text, llm_client)
     conditions["_text_length"] = len(text)
     conditions["_pages_extracted"] = text.count("[p.")
     return conditions
