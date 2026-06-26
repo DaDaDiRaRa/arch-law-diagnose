@@ -17,6 +17,8 @@ import xml.etree.ElementTree as ET
 import httpx
 from dotenv import load_dotenv
 
+from services.http_retry import request_with_retry
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ class LawGoKrClient:
         }
 
         try:
-            r = await self._http.get(f"{BASE}/lawSearch.do", params=params)
+            r = await request_with_retry(self._http, "GET",f"{BASE}/lawSearch.do", params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
@@ -114,7 +116,7 @@ class LawGoKrClient:
         target = "ordin" if law_type == "CST" else "law"
         params = {"OC": self._key, "target": target, "MST": law_id, "type": "XML"}
         try:
-            r = await self._http.get(f"{BASE}/lawService.do", params=params)
+            r = await request_with_retry(self._http, "GET",f"{BASE}/lawService.do", params=params)
             r.raise_for_status()
             xml_text = r.text
         except Exception as e:
@@ -149,7 +151,7 @@ class LawGoKrClient:
                 "page": page,
             }
             try:
-                r = await self._http.get(f"{BASE}/lawSearch.do", params=params)
+                r = await request_with_retry(self._http, "GET",f"{BASE}/lawSearch.do", params=params)
                 r.raise_for_status()
                 body = r.json()
             except Exception as e:

@@ -11,6 +11,8 @@ import logging
 import httpx
 from dotenv import load_dotenv
 
+from services.http_retry import request_with_retry
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -74,7 +76,7 @@ class AddressApiClient:
             "size": min(count, 30),
         }
         try:
-            r = await self._http.get(KAKAO_BASE, params=params)
+            r = await request_with_retry(self._http, "GET",KAKAO_BASE, params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:

@@ -15,6 +15,8 @@ import os
 import httpx
 from dotenv import load_dotenv
 
+from services.http_retry import request_with_retry
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ class VWorldClient:
             "key": self._key,
         }
         try:
-            r = await self._http.get(GEOCODE_URL, params=params)
+            r = await request_with_retry(self._http, "GET",GEOCODE_URL, params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
@@ -76,7 +78,7 @@ class VWorldClient:
             # 도로명 실패 시 지번 재시도
             params["type"] = "parcel"
             try:
-                r = await self._http.get(GEOCODE_URL, params=params)
+                r = await request_with_retry(self._http, "GET",GEOCODE_URL, params=params)
                 r.raise_for_status()
                 body = r.json()
             except Exception as e:
@@ -132,7 +134,7 @@ class VWorldClient:
             "geomFilter": f"POINT({lon} {lat})",
         }
         try:
-            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
+            r = await request_with_retry(self._http, "GET",DATA_URL, params=params, headers=self._wfs_headers)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
@@ -229,7 +231,7 @@ class VWorldClient:
             "geomFilter": bbox_geom,
         }
         try:
-            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
+            r = await request_with_retry(self._http, "GET",DATA_URL, params=params, headers=self._wfs_headers)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
@@ -318,7 +320,7 @@ class VWorldClient:
             "filter": f"pnu='{pnu}'",
         }
         try:
-            r = await self._http.get(DATA_URL, params=params)
+            r = await request_with_retry(self._http, "GET",DATA_URL, params=params)
             r.raise_for_status()
             body = r.json()
         except Exception as e:
@@ -365,7 +367,7 @@ class VWorldClient:
             "geomFilter": f"POINT({lon} {lat})",
         }
         try:
-            r = await self._http.get(DATA_URL, params=params, headers=self._wfs_headers)
+            r = await request_with_retry(self._http, "GET",DATA_URL, params=params, headers=self._wfs_headers)
             r.raise_for_status()
             body = r.json()
         except Exception as e:

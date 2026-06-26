@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 import httpx
 from dotenv import load_dotenv
 
+from services.http_retry import request_with_retry
+
 if TYPE_CHECKING:
     from services.cache_manager import CacheManager
 
@@ -76,7 +78,7 @@ class LurisClient:
             "landUseNm": name,
         }
         try:
-            r = await self._http.get(f"{LURIS_BASE}/DTsearchLunCd", params=params)
+            r = await request_with_retry(self._http, "GET",f"{LURIS_BASE}/DTsearchLunCd", params=params)
             r.raise_for_status()
             text = r.content.decode("euc-kr", errors="replace")
         except Exception as e:
@@ -140,7 +142,7 @@ class LurisClient:
             "landUseNm": land_use_nm,
         }
         try:
-            r = await self._http.get(f"{LURIS_BASE}/DTarLandUseInfo", params=params)
+            r = await request_with_retry(self._http, "GET",f"{LURIS_BASE}/DTarLandUseInfo", params=params)
             r.raise_for_status()
             text = r.content.decode("euc-kr", errors="replace")
         except Exception as e:

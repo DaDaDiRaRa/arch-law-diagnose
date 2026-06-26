@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING
 import httpx
 from dotenv import load_dotenv
 
+from services.http_retry import request_with_retry
+
 if TYPE_CHECKING:
     from services.cache_manager import CacheManager
 
@@ -60,7 +62,7 @@ class EumClient:
             return None
         full_params = {"id": self._id, "key": self._key, **params}
         try:
-            r = await self._http.get(f"{EUM_BASE}/{path}", params=full_params)
+            r = await request_with_retry(self._http, "GET",f"{EUM_BASE}/{path}", params=full_params)
             r.raise_for_status()
         except Exception as e:
             logger.error("토지이음 API 오류 (%s): %s", path, e)
@@ -89,7 +91,7 @@ class EumClient:
             return None
         full_params = {"id": self._id, "key": self._key, **params}
         try:
-            r = await self._http.get(f"{EUM_BASE}/{path}", params=full_params)
+            r = await request_with_retry(self._http, "GET",f"{EUM_BASE}/{path}", params=full_params)
             r.raise_for_status()
             return r.json()
         except Exception as e:
