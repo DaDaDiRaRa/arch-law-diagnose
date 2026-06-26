@@ -22,15 +22,19 @@
 - **E3** 사업성 1장 요약 MD/Excel (`feasibility_exporter.py`, `/api/feasibility/export/*`)
 - fix: `_build_review_burden`가 applicable_reviews(dict{items}) 구조를 list로 오순회하던 버그
 
+**2026-06-26 갱신** — 코드 점검 fix + 검증 인프라 + Step 8 제거 + Step 9 동작 확인:
+
+- 진단 엔진/캐시/클라이언트 **버그 5건 수정** (다필지 gather 예외내성·신호 GREEN오신호·EUM 빈리스트 캐시·VWorld 응답 방어·LLM 타임아웃)
+- **pytest 게이트 CI** (`.github/workflows/deploy.yml`에 test job + `needs: test`). 계산기 회귀 테스트 20건 + 캐시 4건 + 기존 9건 = **33건 통과**
+- **Step 8 (사내 케이스 DB + 정확도 harness) 제거** — `case_matcher.py`·`CaseReference/`·`KUNWON_DB/`·`/api/cases/*`·`CaseMatchRequest` 전부 삭제. 더미 데이터라 일단 제외 (필요 시 git 복원).
+- **Step 9 동작 검증됨** — 실제 brief 샘플이 `data/briefs/_brief.json`(영등포 신청사 국제공모, 실데이터)에 이미 있음. `map_brief()` 직접 실행 → 2부지·주소·용도힌트(노유자시설)·완화레버·공공판정 정상 매핑. **E1 "자동입력 강화"(주소·용도힌트)는 이미 구현·동작 중.** 소스 앱은 `competition_comparison`(출력 파일명은 `{brief_id}.json`, "_brief.json"은 내부 통칭).
+
 **보류 (나중에) — 외부 의존 있음**:
 
 - **D** 부대시설·사업성 지표(분양면적·사업비 등 추가 데이터·기준 필요)
-- **E5** 사내 케이스 매칭(케이스 DB 더미 → Step 8 실데이터 입력 후)
-- **용도 매핑표** brief 사업유형 ↔ 건축법 19용도 전체표(시니어 회의). ※ 단, brief 괄호표기("(노유자시설)" 등)에서 부분 자동감지는 가능 — 아래 참고
+- **용도 매핑표** brief 사업유형 ↔ 건축법 19용도 전체표(시니어 회의). ※ 단, brief 괄호표기("(노유자시설)" 등)에서 부분 자동감지는 이미 동작.
 
-**검토 중 (E1 자동입력 강화 후보)**: `_brief.json`의 `brief_site[]`에 **주소**("…당산동3가 385(부지1)…")·현황용도가, `sites[].facilities`에 **건축법 용도 힌트**("(노유자시설)")가 있음. 현재 매퍼는 `brief_project_info.sites[]`(면적·건폐율·용적률)만 사용 → 주소·용도 자동 채움까지 확장 가능 (사용자 수기입력 최소화).
-
-*히스토리*: 2026-06-19 Step 7 (사업성 모드 초판). 2026-05-22 Step 5a·5b·6 (법령 수치 검증·배포 인프라·디자인 토큰).
+*히스토리*: 2026-06-22 사업성 A~E 확장. 2026-06-19 Step 7 (사업성 모드 초판). 2026-05-22 Step 5a·5b·6 (법령 수치 검증·배포 인프라·디자인 토큰).
 
 ### 📋 현재 상태 (한 줄 진단)
 
@@ -40,9 +44,9 @@
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel 다운로드 | ✅ 운영급 |
 | API 키 6개 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 사내 케이스 DB | ❌ 더미 (`KUNWON_DB/cases/sample_cases.json`) |
-| 검증 인프라 (pytest·정확도 측정 harness) | ❌ 부재 |
-| brief 연계 (Step 9) | ⏸ 미착수 (샘플 1~2건 필요) |
+| 검증 인프라 (pytest 33건 + CI 게이트) | ✅ 도입 (2026-06-26) |
+| brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json`로 매핑 검증) |
+| 사내 케이스 DB (Step 8) | 🗑 제거 (더미라 일단 삭제, git 복원 가능) |
 | 일부 SHP 누락 (철도 / 시·도별 도시계획시설 일부) | ❌ |
 
 ### 🎯 즉시 액션 체크리스트
@@ -55,17 +59,16 @@
 
 #### 🟡 단기 (1~2주, 사용자 행정 작업)
 
-- [ ] **사내 시니어에게 인허가 통과 케이스 5~10건 요청** (Step 8 트리거, ROI 최고)
-- [ ] **brief 샘플 1~2건 GCS에서 다운로드** 후 공유 (Step 9 트리거, 5분 작업)
 - [ ] 토지이음 두 404 엔드포인트 문의 (✉ luris@korea.kr · ☎ 1522-4484)
 - [ ] 도시계획시설 SHP 영등포구 등 자주 다루는 자치구 `nsdi.go.kr` 재다운로드
 
 #### 🟢 중기 (1~2개월, 코드 작업)
 
-- [ ] Step 8 — 사내 케이스 입력 + `tools/eval/` 정확도 측정 harness 구축 (ARCO 차별화 1순위)
-- [ ] Step 9 — brief→law 자동 연계 (샘플 받으면 1주)
-- [ ] Step 10 — 카테고리 계산식 노출 ("55.1% = 4131÷7498×100" UI 표시, 검증 옵션 4)
+- [ ] Step 9 후속 — brief 추가 샘플(민간·다부지)로 매핑 견고화 (핵심 매핑은 이미 동작)
+- [ ] ~~Step 10 계산식 노출~~ — 사용자 요청으로 보류 (안 함)
 - [ ] Step 11 — 법규 의미 그래프 도입 (ARCO arch-law-mcp 차용, What-If 정교화)
+
+> Step 8(사내 케이스 DB + 정확도 harness)·Step 10(계산식 노출)은 사용자 결정으로 제외.
 
 ---
 
@@ -116,18 +119,17 @@
 | ~~Step 5b~~ | #13·#14·#15·Spec 9·Phase 2 | ✅ 완료 (2026-05-20) |
 | ~~Step 6~~ | Docker·Cloud Run·디자인 토큰 | ✅ 완료 (2026-05-22) |
 | ~~Step 7~~ | 사업성 모드 + MD/Excel 다운로드 + 다수 버그 fix (urban_facility=0 / exporter / encoding) | ✅ 완료 (2026-06-19) |
-| **Step 8** | 사내 케이스 5~10건 입력 + `tools/eval/` 정확도 측정 harness | ⏸ 사용자 데이터 대기 |
-| **Step 9** | brief→law 자동 연계 (competition-brief-analyzer 통합) | ⏸ brief 샘플 대기 |
-| Step 10 | 카테고리 계산식 노출 (UI에 분모·분자·식 표시) | 미착수 |
+| ~~Step 8~~ | 사내 케이스 DB + 정확도 harness | 🗑 제거 (2026-06-26, 더미라 제외) |
+| **Step 9** | brief→law 자동 연계 (`competition_comparison` 통합) | ✅ 핵심 매핑 동작 (2026-06-26 검증). 추가 샘플로 견고화만 남음 |
+| ~~Step 10~~ | 카테고리 계산식 노출 | 🚫 보류 (사용자 결정, 안 함) |
 | Step 11 | 법규 의미 그래프 도입 (조문 관계 NetworkX, What-If 정교화) | 미착수 |
 
 ### 사용자가 직접 처리해야 할 항목
 
-1. **사내 인허가 통과 케이스 5~10건 입력** (Step 8 트리거 · ROI 최고) — `KUNWON_DB/cases/sample_cases.json` 더미를 실데이터로 교체. 케이스당 주소·용도·면적·실제 인허가 산정값·완화 내역·심의 결과·반려 사유(있으면) 수집. 시니어 PM에 요청 → 인허가 검토서·심의 결과서에서 추출.
-2. **brief 샘플 1~2건 다운로드 후 공유** (Step 9 트리거) — competition-brief-analyzer GCS 버킷에서 `_brief.json` 1~2건. 가능하면 공공 1건 + 민간 1건 + 다부지 1건. 5분 작업.
-3. **토지이음 두 404 엔드포인트 문의** — `iuLawInfo` (3.3) + `sDevList` (3.8). ✉ luris@korea.kr + ☎ 1522-4484 각각 연락. 회신 오면 코드 조치 진행.
-4. **도시계획시설 SHP 갱신** — 영등포 케이스에서 6시설 100% 저촉 오판정 발생. NSDI(`nsdi.go.kr`)에서 자주 다루는 자치구 SHP 분기 갱신.
-5. **사내 시설용도 매핑표** (Step 9 보조) — brief 14개 사업유형 ↔ 건축법 19개 용도 변환표. 시니어 1명 30분 회의로 결정.
+1. **brief 추가 샘플 다운로드 후 공유** (Step 9 견고화) — `competition_comparison` 출력 `{brief_id}.json`을 민간 1건 + 다부지 1건. 공공 1건(영등포 신청사)은 이미 `data/briefs/`에 있어 매핑 검증 완료. 5분 작업.
+2. **토지이음 두 404 엔드포인트 문의** — `iuLawInfo` (3.3) + `sDevList` (3.8). ✉ luris@korea.kr + ☎ 1522-4484 각각 연락. 회신 오면 코드 조치 진행.
+3. **도시계획시설 SHP 갱신** — 영등포 케이스에서 6시설 100% 저촉 오판정 발생. NSDI(`nsdi.go.kr`)에서 자주 다루는 자치구 SHP 분기 갱신.
+4. **사내 시설용도 매핑표** (Step 9 보조) — brief 14개 사업유형 ↔ 건축법 19개 용도 변환표. 시니어 1명 30분 회의로 결정.
 
 ### 공유 폴더 전략 (셋업 완료, 2026-05-18)
 
@@ -265,7 +267,6 @@
 | `DataQualityBanner/` | 데이터 출처·fallback 경고 |
 | `LegalReviewReport/` | 종합 검토 보고서 (인쇄 미리보기 포함, `--color-print-*` 토큰 사용) |
 | `QueryBox/` | 자연어 질의 |
-| `CaseReference/` | 사내 유사 케이스 추천 |
 
 ---
 
@@ -273,7 +274,6 @@
 
 - **도로폭 자동 조회** — VWorld 레이어에 폭 속성 없음. 인프라 완료, 데이터 소스만 보류. 토지이음 도입 후 재검토.
 - **토지이음 `iuLawInfo`·`sDevList` 404** — 코드 문제 아님, 서버 측 장애. `LawInfoPanel`·`DevTrendPanel` 빈 결과, 핵심 8개 카테고리 영향 없음. 사용자가 직접 문의 후 회신 시 처리.
-- **사내 케이스 DB** — `KUNWON_DB/cases/sample_cases.json` 더미만 있음. 실제 케이스 수작업 입력 필요.
 - **JUSO_API_KEY** — `.env`에 등록되어 있으나 코드에서 사용 안 함 (행안부 폴백 미구현). Kakao로 충분히 동작 중. 폴백 필요 시 `address_api_client.py` 보강.
 
 ---
@@ -354,12 +354,13 @@
 
 ### 도입 순서 권장 (즉시 ROI 기준)
 
-1. **사내 케이스 10건** (C) — 단일 작업 ROI 최고. 케이스 매칭·정확도 측정 둘 다 즉시 잠금.
-2. **brief 샘플 1~2건** (C) — Step 2 진입 트리거. 작업 5분.
+1. ~~pytest 도입~~ — ✅ 완료 (2026-06-26, 33건 + CI 게이트).
+2. **brief 추가 샘플** (C) — 민간·다부지 각 1건으로 Step 9 매핑 견고화. 작업 5분. (공공 1건은 이미 검증)
 3. **도시계획시설 SHP 영등포구·자주 다루는 자치구 갱신** (B) — 998배 부풀리기 같은 함정 방지.
-4. **pytest 도입** (D) — 회귀 테스트 자산화. ARCO 영원히 못 따라잡는 차별점.
-5. **NSDI API 연동** (A) — SHP 자동 다운로드로 B의 수동 작업 자동화.
-6. **학교·문화재 API** (A) — `review_triggers` MAYBE 고정 항목 확정 판정.
+4. **NSDI API 연동** (A) — SHP 자동 다운로드로 B의 수동 작업 자동화.
+5. **학교·문화재 API** (A) — `review_triggers` MAYBE 고정 항목 확정 판정.
+
+> ~~사내 케이스 10건~~ — Step 8 제거로 보류(사용자 결정). 향후 정확도 측정이 다시 필요하면 git에서 `case_matcher.py` 복원.
 
 ---
 

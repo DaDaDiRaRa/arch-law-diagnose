@@ -596,7 +596,8 @@ class DiagnoseEngine:
 
         if risks:
             signal = "RED"
-        elif warnings or (overall is not None and overall < 7.0):
+        elif overall is None or warnings or overall < 7.0:
+            # overall is None = 채점 가능한 항목 없음(진단 불가) → GREEN 오신호 방지
             signal = "YELLOW"
         else:
             signal = "GREEN"

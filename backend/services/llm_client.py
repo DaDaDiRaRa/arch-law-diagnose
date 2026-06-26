@@ -35,7 +35,8 @@ class LLMClient:
             logger.warning("ANTHROPIC_API_KEY 미설정 — AI 판단 항목 비활성화")
             self._client: AsyncAnthropic | None = None
         else:
-            self._client = AsyncAnthropic(api_key=api_key)
+            # 네트워크 장애 시 무한 대기 방지 (다른 httpx 클라이언트와 동일 정책)
+            self._client = AsyncAnthropic(api_key=api_key, timeout=30.0)
         self._model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     @property

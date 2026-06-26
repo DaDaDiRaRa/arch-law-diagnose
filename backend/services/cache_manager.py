@@ -479,7 +479,8 @@ class CacheManager:
     ) -> None:
         """EUM 행위제한 응답 저장 (info=None / 빈 list도 캐싱)."""
         now = datetime.utcnow().isoformat()
-        payload = json.dumps(info, ensure_ascii=False) if info else None
+        # 빈 list([])도 "해당 없음" 정상 결과이므로 캐싱 (None만 미캐싱) — LURIS와 일관
+        payload = json.dumps(info, ensure_ascii=False) if info is not None else None
         await self._db.execute(
             """INSERT INTO eum_act_restriction_cache
                (area_cd, ucode, land_use_nm, info_json, fetched_at)

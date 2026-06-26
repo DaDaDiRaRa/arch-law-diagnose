@@ -1,14 +1,37 @@
-name: Deploy to Cloud Run
+name: CI / Deploy
 
 on:
   push:
     branches: [main]
+  pull_request:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  test:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: 의존성 설치
+        run: pip install -r backend/requirements.txt
+
+      - name: 테스트 실행
+        working-directory: backend
+        run: python -m pytest -q
+
   deploy:
+    name: Deploy to Cloud Run
+    needs: test                      # 테스트 통과해야만 배포 (게이트)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

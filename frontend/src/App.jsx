@@ -229,7 +229,6 @@ function VerifyMode({ hasOutput, activeTab, setActiveTab, onBack }) {
               <li>합필 진단 — 여러 필지 동시 진단 + 면적 안분 (국토계획법 제84조)</li>
               <li>용적률 4가지 제외 — 지하·지상주차장·피난안전구역·경사지붕 대피공간</li>
               <li>자연어 질의 — 진단 컨텍스트 기반 AI 답변 + 조문 인용</li>
-              <li>사내 케이스 연계 (KUNWON_DB) — 유사 프로젝트 자동 매칭</li>
               <li>법규 변경 모니터링 — SHA256 해시 비교 + 변경 배너</li>
               <li>시니어 검토 요청 버튼 (Slack/로그)</li>
             </ul>

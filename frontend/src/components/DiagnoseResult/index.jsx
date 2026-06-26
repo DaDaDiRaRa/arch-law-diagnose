@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import { api } from '../../utils/api'
-import CaseReference from '../CaseReference'
 import DataQualityBanner from '../DataQualityBanner'
 import DevTrendPanel from '../DevTrendPanel'
 import LawChangeAlert from '../LawChangeAlert'
@@ -104,10 +103,6 @@ export default function DiagnoseResult() {
     signal: result.signal,
     overall_score: result.overall_score,
   }
-
-  // CaseReference 에 전달할 인자
-  const jurisdiction = inferJurisdiction(result.address)
-  const siteAreaNum = formData?.site_area ? parseFloat(formData.site_area) : undefined
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[295px_minmax(0,1fr)] gap-5 items-start">
@@ -296,13 +291,6 @@ export default function DiagnoseResult() {
             </div>
           </div>
 
-          {/* Phase 4 — 유사 사내 케이스 */}
-          <CaseReference
-            buildingUse={formData?.building_use}
-            zoneUse={result.land_info?.zone_use}
-            siteArea={siteAreaNum}
-            jurisdiction={jurisdiction}
-          />
         </div>
       </div>
     </div>
@@ -482,13 +470,6 @@ function ApplicableReviewsCard({ reviews }) {
       </p>
     </div>
   )
-}
-
-function inferJurisdiction(address) {
-  if (!address) return undefined
-  // "서울특별시 영등포구 ..." → "영등포구" 추출
-  const m = address.match(/\s([가-힣]+(?:구|군|시))(?:\s|$)/)
-  return m ? m[1] : undefined
 }
 
 const CALC_MODE_BADGE = {

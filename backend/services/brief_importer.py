@@ -31,6 +31,34 @@ _ADMIN_PREFIX_RE = re.compile(
 # "당산동3가 385(부지1)" 처럼 주소부분 + (부지N)
 _SITE_ADDR_RE = re.compile(r"([^,()]+?)\s*\(\s*(부지\s*\d+)\s*\)")
 
+# brief 파일명 패턴: "20260619_050919_public" → (날짜8, 시각6, 카테고리)
+# 파일을 열지 않고도 날짜·카테고리를 얻기 위해 사용(목록 정렬·필터).
+_FNAME_RE = re.compile(r"^(\d{8})_(\d{6})_(.+)$")
+
+# list_briefs 요약 캐시 — {stem: {"mtime": float, "summary": dict | None}}
+# 같은 파일(이름+수정시각)은 재파싱하지 않는다. 879KB×수백건을 매번 읽는 비용 방지.
+_LIST_CACHE: dict[str, dict] = {}
+
+
+def _parse_fname(stem: str) -> tuple[str, str]:
+    """파일명 stem → (정렬용 타임스탬프 'YYYYMMDDHHMMSS', 카테고리).
+
+    패턴 불일치 시 ('', '') — 정렬에서 뒤로 밀리고 카테고리 필터에 안 걸린다.
+    """
+    m = _FNAME_RE.match(stem)
+    if not m:
+        return "", ""
+    return m.group(1) + m.group(2), m.group(3)
+
+
+def _fname_analyzed_at(stem: str) -> str:
+    """파일명에서 analyzed_at 폴백(ISO) 생성. 메타가 비었을 때만 사용."""
+    m = _FNAME_RE.match(stem)
+    if not m:
+        return ""
+    d, t = m.group(1), m.group(2)
+    return f"{d[0:4]}-{d[4:6]}-{d[6:8]}T{t[0:2]}:{t[2:4]}:{t[4:6]}"
+
 
 def _norm_site_id(s: str) -> str:
     """'부지 1' / '부지1' 표기 차이를 흡수."""
@@ -278,37 +306,82 @@ def _safe_path(file_id: str, base: Path) -> Path:
     return candidate
 
 
-def list_briefs() -> list[dict]:
-    """BRIEF_DIR의 *.json을 스캔해 요약 목록 반환 (최신순)."""
+def _read_summary(path: Path) -> dict | None:
+    """brief 파일 1건 → 요약 dict. brief가 아니거나 읽기 실패 시 None.
+
+    파일을 열어야만 얻는 값(공모명·부지수)을 위해 전체 파싱한다.
+    (날짜·카테고리는 호출부가 파일명에서 채우므로 여기서 신경 안 씀.)
+    """
+    stem = path.stem
+    try:
+        brief = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning("[brief] 읽기 실패 %s: %s", path.name, e)
+        return None
+    if not isinstance(brief, dict):
+        return None
+    # brief 파일인지 최소 검증
+    if "brief_project_info" not in brief and "_brief_meta" not in brief:
+        return None
+    meta = brief.get("_brief_meta") or {}
+    pinfo = brief.get("brief_project_info") or {}
+    sites = pinfo.get("sites") or []
+    return {
+        "file_id": stem,
+        "brief_id": meta.get("brief_id") or stem,
+        "competition_name": pinfo.get("competition_name") or meta.get("brief_name") or stem,
+        "facility_type": meta.get("facility_type") or _parse_fname(stem)[1],
+        "analyzed_at": meta.get("analyzed_at") or _fname_analyzed_at(stem),
+        "site_count": len(sites),
+    }
+
+
+def _summary_cached(path: Path) -> dict | None:
+    """(stem, mtime) 키 캐시 — 변경 없는 파일은 재파싱 생략."""
+    stem = path.stem
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return None
+    hit = _LIST_CACHE.get(stem)
+    if hit is not None and hit["mtime"] == mtime:
+        return hit["summary"]
+    summary = _read_summary(path)
+    _LIST_CACHE[stem] = {"mtime": mtime, "summary": summary}
+    return summary
+
+
+def list_briefs(limit: int = 100, category: str | None = None) -> list[dict]:
+    """BRIEF_DIR의 *.json을 스캔해 요약 목록 반환 (최신순).
+
+    성능: 파일명(`YYYYMMDD_HHMMSS_카테고리`)으로 먼저 정렬·필터해(파일 오픈 0건),
+    최근 `limit`건만 본문을 읽는다. 읽은 결과는 (이름, 수정시각) 캐시 → 다음 호출 땐
+    새/변경 파일만 다시 읽는다. (879KB×수백건 매번 재파싱 방지)
+
+    Args:
+      limit: 본문을 읽어 상세를 채울 최대 건수(최근순). 0 이하면 전부.
+      category: 파일명 카테고리(public·residential 등)로 필터. None이면 전체.
+    """
     base = _resolve_brief_dir()
     if not base.is_dir():
         logger.warning("[brief] 디렉터리 없음: %s", base)
         return []
 
-    items: list[dict] = []
+    # 1) 파일명만으로 정렬·필터 (오픈 0건)
+    cands: list[Path] = []
     for path in base.glob("*.json"):
-        try:
-            brief = json.loads(path.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.warning("[brief] 읽기 실패 %s: %s", path.name, e)
+        if category and _parse_fname(path.stem)[1] != category:
             continue
-        if not isinstance(brief, dict):
-            continue
-        # brief 파일인지 최소 검증
-        if "brief_project_info" not in brief and "_brief_meta" not in brief:
-            continue
-        meta = brief.get("_brief_meta") or {}
-        pinfo = brief.get("brief_project_info") or {}
-        sites = pinfo.get("sites") or []
-        items.append({
-            "file_id": path.stem,
-            "brief_id": meta.get("brief_id") or path.stem,
-            "competition_name": pinfo.get("competition_name") or meta.get("brief_name") or path.stem,
-            "facility_type": meta.get("facility_type") or "",
-            "analyzed_at": meta.get("analyzed_at") or "",
-            "site_count": len(sites),
-        })
-    items.sort(key=lambda x: x.get("analyzed_at") or "", reverse=True)
+        cands.append(path)
+    cands.sort(key=lambda p: _parse_fname(p.stem)[0] or p.stem, reverse=True)
+
+    total = len(cands)
+    if limit and limit > 0 and total > limit:
+        logger.info("[brief] %d건 중 최근 %d건만 상세 로드 (limit)", total, limit)
+        cands = cands[:limit]
+
+    # 2) 최근 N건만 본문 읽기(캐시 경유)
+    items = [s for s in (_summary_cached(p) for p in cands) if s is not None]
     return items
 
 

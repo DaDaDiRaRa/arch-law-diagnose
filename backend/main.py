@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 
 from services.address_api_client import AddressApiClient
 from services.cache_manager import CacheManager
-from services.case_matcher import CaseMatcher
 from services.diagnose_engine import DiagnoseEngine
 from services.diagnose_exporter import to_markdown as diagnose_to_markdown
 from services.diagnose_exporter import to_xlsx as diagnose_to_xlsx
@@ -50,7 +49,6 @@ query_engine: QueryEngine | None = None
 law_client: LawGoKrClient | None = None
 luris_client: LurisClient | None = None
 eum_client: EumClient | None = None
-case_matcher: CaseMatcher | None = None
 law_tracker: LawChangeTracker | None = None
 review_notifier: ReviewNotifier | None = None
 law_change_scheduler = None  # APScheduler 인스턴스 (lifespan 안에서 시작)
@@ -61,7 +59,7 @@ async def lifespan(app: FastAPI):
     global cache_manager, address_client, vworld_client, land_resolver, llm_client
     global ordinance_extractor, ordinance_resolver
     global engine, query_engine
-    global law_client, luris_client, eum_client, case_matcher, law_tracker, review_notifier
+    global law_client, luris_client, eum_client, law_tracker, review_notifier
     cache_manager = CacheManager()
     await cache_manager.init()
     seed_stats = await load_seed_into_db(cache_manager)
@@ -90,7 +88,6 @@ async def lifespan(app: FastAPI):
     query_engine = QueryEngine(llm_client)
 
     # Phase 4
-    case_matcher = CaseMatcher()
     law_tracker = LawChangeTracker(cache_manager, law_client)
     review_notifier = ReviewNotifier()
 
@@ -424,14 +421,6 @@ class QueryRequest(BaseModel):
 # ── Phase 4 스키마 ──────────────────────────────────────────────────────────
 
 
-class CaseMatchRequest(BaseModel):
-    building_use: str = Field(..., description="건축물 용도")
-    zone_use: str = Field("", description="용도지역")
-    site_area: float | None = Field(None, gt=0, description="대지면적 (㎡)")
-    jurisdiction: str | None = Field(None, description="관할 구역(예: 영등포구)")
-    limit: int = Field(5, ge=1, le=20)
-
-
 class ReviewRequest(BaseModel):
     address: str = Field(..., description="대상 대지 주소")
     risk_category: str = Field(..., description="위험 카테고리 (예: 건폐율)")
@@ -749,13 +738,31 @@ async def diagnose_multi(req: MultiDiagnoseRequest):
         raise HTTPException(503, "서비스 초기화 중")
     try:
         # 1. 각 필지 용도지역 병렬 조회 + zone_use_override 반영
+        #    한 필지 조회가 실패해도 전체 요청이 죽지 않도록 예외를 개별 수집
         lands = await asyncio.gather(*[
             land_resolver.resolve(p.address, pnu=p.pnu or "")
             for p in req.parcels
-        ])
+        ], return_exceptions=True)
+        failed: list[str] = []
         for p, land in zip(req.parcels, lands):
+            if isinstance(land, Exception):
+                logger.warning("필지 조회 실패: %s (%s)", p.address, land)
+                failed.append(p.address)
+                continue
             if p.zone_use_override:
                 land["zone_use"] = p.zone_use_override
+        if failed:
+            raise HTTPException(
+                400,
+                {
+                    "error": "ZONE_LOOKUP_FAILED",
+                    "message": (
+                        f"{len(failed)}개 필지 조회 실패. "
+                        "주소를 다시 선택하거나 용도지역을 직접 지정해주세요."
+                    ),
+                    "failed_addresses": failed,
+                },
+            )
 
         # 2. 용도지역 정보 부족한 필지 검사
         missing = [
@@ -1092,14 +1099,18 @@ async def feasibility_run_multi(req: MultiFeasibilityRequest):
 
 
 @app.get("/api/feasibility/briefs")
-async def feasibility_brief_list():
-    """공모지침 분석 결과(_brief.json) 목록 — BRIEF_DIR(공유 GCS 마운트) 스캔.
+async def feasibility_brief_list(
+    limit: int = Query(100, ge=1, le=1000, description="상세 로드할 최근 건수"),
+    category: str | None = Query(None, description="카테고리 필터(public·residential 등)"),
+):
+    """공모지침 분석 결과(_brief.json) 목록 — BRIEF_DIR(공유 GCS 마운트)의 _briefs/ 스캔.
 
     Competition Analyzer가 저장한 brief를 사업성 모드로 불러오기 위한 목록.
+    파일명(날짜·카테고리)으로 정렬·필터 후 최근 limit건만 본문을 읽는다(성능).
     """
     from services import brief_importer
     try:
-        return {"briefs": brief_importer.list_briefs()}
+        return {"briefs": brief_importer.list_briefs(limit=limit, category=category)}
     except Exception as e:
         logger.exception("brief 목록 조회 오류: %s", e)
         raise HTTPException(500, f"brief 목록 조회 오류: {e}")
@@ -1140,33 +1151,6 @@ async def query(req: QueryRequest):
 
 
 # ── Phase 4 엔드포인트 ─────────────────────────────────────────────────────
-
-
-@app.post("/api/cases/match")
-async def cases_match(req: CaseMatchRequest):
-    """사내 케이스 매칭 — 같은 용도+지역 유사 프로젝트 추천."""
-    if case_matcher is None:
-        raise HTTPException(503, "서비스 초기화 중")
-    try:
-        return case_matcher.match(
-            building_use=req.building_use,
-            zone_use=req.zone_use,
-            site_area=req.site_area,
-            jurisdiction=req.jurisdiction,
-            limit=req.limit,
-        )
-    except Exception as e:
-        logger.exception("케이스 매칭 오류: %s", e)
-        raise HTTPException(500, f"케이스 매칭 오류: {e}")
-
-
-@app.post("/api/cases/reload")
-async def cases_reload():
-    """KUNWON_DB 디스크 재스캔."""
-    if case_matcher is None:
-        raise HTTPException(503, "서비스 초기화 중")
-    count = case_matcher.reload()
-    return {"loaded": count}
 
 
 @app.get("/api/law/changes")

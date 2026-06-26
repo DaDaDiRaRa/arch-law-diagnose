@@ -86,7 +86,7 @@ class VWorldClient:
                 logger.warning("주소 좌표 변환 실패: %s", address)
                 return None
 
-        result = body["response"].get("result", {})
+        result = body.get("response", {}).get("result", {})
         point = result.get("point", {})
         try:
             lon = float(point.get("x", 0))
