@@ -9,7 +9,44 @@ import json
 import pytest
 
 from services import law_graph as lg
+from services.law_go_kr_client import _parse_law_xml
 from services.law_graph_harvest import extract_refs
+
+
+# ── 국가법령(target=law) XML 파싱 — 조문단위 스키마 (2026-06-26 버그 회귀) ──────
+_NATIONAL_XML = """<LawService>
+  <조문단위 조문키="0005600">
+    <조문번호>56</조문번호>
+    <조문가지번호></조문가지번호>
+    <조문제목>건축물의 용적률</조문제목>
+    <조문내용><![CDATA[제56조(건축물의 용적률) 건축물의 용적률은 「국토의 계획 및 이용에 관한 법률」 제78조에 따른다.]]></조문내용>
+  </조문단위>
+  <조문단위 조문키="0005302">
+    <조문번호>53</조문번호>
+    <조문가지번호>2</조문가지번호>
+    <조문제목>범죄예방</조문제목>
+    <조문내용><![CDATA[제53조의2(범죄예방) ...]]></조문내용>
+  </조문단위>
+  <조문단위 조문키="0001000">
+    <조문번호>1</조문번호>
+    <조문내용><![CDATA[제1장 총칙]]></조문내용>
+  </조문단위>
+</LawService>"""
+
+
+def test_parse_national_law_articles():
+    arts = _parse_law_xml(_NATIONAL_XML)
+    by_no = {a["article_no"]: a for a in arts}
+    # 6자리 코드: 제56조=005600, 제53조의2=005302
+    assert "005600" in by_no and "005302" in by_no
+    assert by_no["005600"]["content"].startswith("제56조")
+    assert "제78조" in by_no["005600"]["content"]
+
+
+def test_parse_excludes_chapter_heading():
+    arts = _parse_law_xml(_NATIONAL_XML)
+    # "제1장 총칙"은 제N조 패턴이 아니므로 제외
+    assert all(not a["content"].startswith("제1장") for a in arts)
 
 
 def test_extract_named_ref():

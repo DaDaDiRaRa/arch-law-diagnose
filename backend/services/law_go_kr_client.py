@@ -247,6 +247,7 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
         logger.error("법령 XML 파싱 오류: %s", e)
         return []
 
+    # ─── 자치법규(target=ordin) 스키마: <조> ──────────────────────────────
     for jo in root.iter("조"):
         if (jo.findtext("조문여부") or "").strip() != "Y":
             continue
@@ -261,6 +262,33 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
                 "title": title_text,
                 "content": content_text,
             })
+
+    # ─── 국가법령(target=law) 스키마: <조문단위> ──────────────────────────
+    # 조문번호(4자리)+조문가지번호(2자리) → 6자리 코드(005600=제56조, 005302=제53조의2).
+    # 장·절 제목 단위는 본문이 "제N조"로 시작하지 않으므로 제외.
+    for unit in root.iter("조문단위"):
+        no = (unit.findtext("조문번호") or "").strip()
+        if not no.isdigit():
+            continue
+        sub = (unit.findtext("조문가지번호") or "0").strip() or "0"
+        title_text = (unit.findtext("조문제목") or "").strip()
+        # 조문내용 + 항(상호참조가 항에 있을 수 있음)만 수집.
+        # 주의: unit.itertext()는 조문번호·제목까지 합쳐 "제N조"로 시작 안 함 → 개별 수집.
+        parts: list[str] = []
+        body = unit.find("조문내용")
+        if body is not None:
+            parts.append(" ".join(t.strip() for t in body.itertext() if t and t.strip()))
+        for hang in unit.findall("항"):
+            parts.append(" ".join(t.strip() for t in hang.itertext() if t and t.strip()))
+        content_text = " ".join(p for p in parts if p).strip()
+        if not re.match(r"제\d+조", content_text):
+            continue
+        article_no = f"{int(no):04d}{int(sub):02d}"
+        articles.append({
+            "article_no": article_no,
+            "title": title_text,
+            "content": content_text,
+        })
 
     # 별표 — 본문은 hwp 첨부라 비어있지만 제목·URL 은 article 로 보존
     # (진단 시 "별표 N 참조 필요" 신호로 사용)

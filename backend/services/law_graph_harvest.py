@@ -42,6 +42,12 @@ def _art(num: str, sub: str | None) -> str:
     return f"제{num}조" + (f"의{sub}" if sub else "")
 
 
+def _art_key(article_no: str) -> tuple[int, int]:
+    """법제처 6자리 조문번호 → (조, 의). 예) '005600'→(56,0), '005302'→(53,2)."""
+    s = article_no.zfill(6)
+    return (int(s[:4]), int(s[4:]))
+
+
 def extract_refs(text: str, current_law: str, self_article: str | None = None) -> list[dict]:
     """조문 본문 → 상호참조 목록 [{law, article, kind}].
 
@@ -115,15 +121,17 @@ async def harvest(client) -> dict:
             logger.warning("[harvest] 검색 실패: %s", law)
             continue
         articles = await client.get_law_articles(found[0]["law_id"], "LAW")
-        # 조문번호(000560) → content
-        by_no = {a["article_no"].lstrip("0"): a for a in articles if a.get("article_no")}
+        # 조문번호는 6자리 인코딩: 앞 4=조, 뒤 2=의(서브). 예) 제56조=005600, 제53조의2=005302
+        by_key = {
+            _art_key(a["article_no"]): a
+            for a in articles if (a.get("article_no") or "").isdigit()
+        }
 
         for node in nodes:
-            # "제56조" → "56", "제53조의2" → "53"(본조)·서브는 별도
-            m = re.match(r"제(\d+)조", node["article"])
+            m = re.match(r"제(\d+)조(?:의(\d+))?", node["article"])
             if not m:
                 continue
-            art = by_no.get(m.group(1))
+            art = by_key.get((int(m.group(1)), int(m.group(2) or 0)))
             if not art or not art.get("content"):
                 continue
             refs = extract_refs(art["content"], law, self_article=node["article"])
