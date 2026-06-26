@@ -22,12 +22,14 @@
 - **E3** 사업성 1장 요약 MD/Excel (`feasibility_exporter.py`, `/api/feasibility/export/*`)
 - fix: `_build_review_burden`가 applicable_reviews(dict{items}) 구조를 list로 오순회하던 버그
 
-**2026-06-26 갱신** — 코드 점검 fix + 검증 인프라 + Step 8 제거 + Step 9 동작 확인:
+**2026-06-26 갱신** — 코드 점검 fix + 검증 인프라 + Step 8 제거 + Step 9·11 완료:
 
-- 진단 엔진/캐시/클라이언트 **버그 5건 수정** (다필지 gather 예외내성·신호 GREEN오신호·EUM 빈리스트 캐시·VWorld 응답 방어·LLM 타임아웃)
-- **pytest 게이트 CI** (`.github/workflows/deploy.yml`에 test job + `needs: test`). 계산기 회귀 테스트 20건 + 캐시 4건 + 기존 9건 = **33건 통과**
-- **Step 8 (사내 케이스 DB + 정확도 harness) 제거** — `case_matcher.py`·`CaseReference/`·`KUNWON_DB/`·`/api/cases/*`·`CaseMatchRequest` 전부 삭제. 더미 데이터라 일단 제외 (필요 시 git 복원).
-- **Step 9 동작 검증됨** — 실제 brief 샘플이 `data/briefs/_brief.json`(영등포 신청사 국제공모, 실데이터)에 이미 있음. `map_brief()` 직접 실행 → 2부지·주소·용도힌트(노유자시설)·완화레버·공공판정 정상 매핑. **E1 "자동입력 강화"(주소·용도힌트)는 이미 구현·동작 중.** 소스 앱은 `competition_comparison`(출력 파일명은 `{brief_id}.json`, "_brief.json"은 내부 통칭).
+- 진단 엔진/캐시/클라이언트 **버그 5건 수정** (다필지 gather 예외내성·신호 GREEN오신호·EUM 빈리스트 캐시·VWorld 응답 방어·LLM 타임아웃). 추가로 `get_law_articles(LAW)` 국가법령 본문 파서 버그(자치법규 스키마만 지원하던 것) 수정.
+- **pytest 게이트 CI** (`.github/workflows/deploy.yml` test job + `needs: test`, PR에서도 실행) + **회귀 테스트 141건** (계산기 전반·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers·height·landscape·building_agreement·feasibility).
+- **외부 API 재시도/백오프** (`http_retry.py` — 정부 API GET 14곳 래핑, 전송오류·5xx만 지수백오프 2회. 일시장애로 "확인필요" 떨어지는 것 방지).
+- **Step 8 (사내 케이스 DB + harness) 제거** — `case_matcher.py`·`CaseReference/`·`KUNWON_DB/`·`/api/cases/*`·`CaseMatchRequest` 전부 삭제. 더미라 제외 (git 복원 가능).
+- **Step 9 brief 연계 완료·검증** — 실샘플 `data/briefs/_brief.json`(영등포 신청사)로 `map_brief()` 검증(주소·용도힌트·완화레버·공공판정 자동). `list_briefs` 성능개선(파일명 정렬·카테고리필터·mtime 캐시) + 프론트 필터/검색 + **다부지→E2 다중비교 연동**(전체 부지 전송 버튼). 소스앱=`competition_comparison`, 버킷=`kunwon-competition-db/_briefs/`(파일명 `{YYYYMMDD}_{HHMMSS}_{카테고리}.json` — `BRIEF_DIR`은 `_briefs/` 하위 지정).
+- **Step 11 법규 의미 그래프 완료** — 조문 참조 그래프(`law_graph.py`, networkx, 코드수확 시드 49노드) + API 3종 + 프론트 탐색기 + 카테고리→그래프 점프 + react-flow 캔버스(lazy) + 법제처 자동수확(`law_graph_auto.json`, origin=auto 태깅 자동병합 → 총 138노드).
 
 **보류 (나중에) — 외부 의존 있음**:
 
@@ -53,9 +55,9 @@
 
 #### 🔴 이번 주 (30분~1시간)
 
-- [ ] `git push origin main` — 오늘 fix 묶음 GCP 반영 (exporter `_g()`·BOM·RFC5987·severity 키·urban_facility_exclude_area=0 버그·LAW_API_KEY 로그)
-- [ ] GCP에서 MD 다운로드 재테스트 — 한글 정상 + 트리거 "필요" 라벨 + 분모 자동보정 비활성 정상 확인
-- [ ] 사업성 모드 본격 테스트 (모드 선택 → "사전 사업성" → 갭 분석 화면 동작)
+- [ ] 남은 미푸시 커밋 `git push origin main` → CI 141건 통과 후 GCP 자동 배포 확인
+- [ ] GCP에서 신기능 동작 확인 — 법규 그래프 패널(탐색기/캔버스·카테고리 점프) + 공모지침 불러오기(필터/검색·다부지 E2 비교)
+- [ ] 사업성 모드 본격 테스트 (모드 선택 → "사전 사업성" → 갭 분석 → 다부지 비교)
 
 #### 🟡 단기 (1~2주, 사용자 행정 작업)
 
@@ -72,23 +74,15 @@
 
 ---
 
-### 🚨 Step 5a: 법령 수치 검증 (최우선 — 현재 코드에 미검증 수치 다수)
+### ✅ Step 5a: 법령 수치 검증 (완료 2026-05-20)
 
-기존 코드에 법령 원문을 직접 대조하지 않고 추정값으로 구현된 항목들이 발견됐다.
-**작업 방법론**: 각 항목마다 법제처(law.go.kr) 원문 또는 국토부·에너지공단 공식 고시 원문을 직접 열어 수치를 확인한 뒤 수정한다. 모르면 해당 값을 제거하고 `pass=None, confidence=1, notes="법령 원문 확인 필요"` 처리.
+추정값으로 구현됐던 8개 항목을 법제처/국토부 고시 원문에 직접 대조해 검증·수정 완료. 핵심:
 
-**원문 공유 방법**: 아래 "법제처 검색 경로"로 해당 조문 텍스트를 복사 → Claude에 붙여넣기. 한 번에 다 안 해도 되고 항목별로 진행 가능.
-
-| # | 파일 | 문제 | 확인할 법령 원문 | 법제처 검색 경로 | 작업 |
-| --- | --- | --- | --- | --- |---|
-| 1 | `far_relief_rules.json` | ✅ **완료 (2026-05-20)** | 건축물의 에너지절약설계기준 국토부 고시 제2025-738호 별표9 원문 대조 완료. 녹색건축: 최우수 6%·우수 3% (기존 9%·6% 오류). ZEB: 1등급 15%~5등급 11%. 시범사업 10% 추가. smart_building·long_life_housing 별표9 미포함 → by_grade 비워둠. | — | — |
-| 2 | `public_certification.py` | ✅ **완료 (2026-05-20)** | 별표 2 원문 이미지 직접 확인: 2020→30%, 2022→32%, 2024→34%, 2026→36%, 2028→38%, 2030이후→40%. 기존 추정값과 완전 일치 → "추정값" 표시 제거, 원문 확인 완료로 처리. | — | — |
-| 3 | `landscape_standards.json` | ✅ **완료 (2026-05-20)** | §27 ②항 원문 대조: 공장·공항·철도역·200~300㎡만 직접 수치 명시, 나머지는 조례 위임. by_zone 숫자값 전체 제거. landscape.py에서 limit_override·by_use_override 미매칭 시 `pass=None, confidence=2, notes="지자체 조례 확인 필요"` 반환하도록 수정. | — | — |
-| 4 | `public_certification.py` | ✅ **완료 (2026-05-20)** | ZEB 의무 대상 용도 frozenset 기반 분류 + 연면적 조건(녹색건축/BEMS 3,000㎡, ZEB 1,000㎡) 분리 구현. 제23호의2(국방·군사) ≠ 제23호(교정) 확인 반영. | — | — |
-| 5 | `building_agreement.py` | ✅ **완료 (2026-05-20)** | §110조의7 제1호 원문 확인: "해당 지역에 적용하는 조경 면적기준의 100분의 20의 범위에서 완화" → `_LANDSCAPE_RATIO = 0.80` 정확. 코드 수정 불필요. | — | — |
-| 6 | `review_triggers.py` | ✅ **완료 (2026-05-20)** | 연면적 기반 판단 제거. MAYBE 고정 + "학교 경계 200m 이내 토지이음/교육청 직접 확인" 안내로 교체. 제한 가능 용도(숙박·유흥·위락 등) 힌트만 유지. | — | — |
-| 7 | `review_triggers.py` | ✅ **완료 (2026-05-20)** | 주석·note에 "법 기준은 개발행위 면적, 입력값(대지면적)으로 대체 판단 중" 명시. triggered_reasons 라벨도 "개발행위 면적"으로 수정. | — | — |
-| 8 | `review_triggers.py` | ✅ **완료 (2026-05-20)** | 추정 깊이임을 note·triggered_reasons에 명시. "실제 굴착 깊이로 구조설계 확정 후 재확인" 안내 추가. | — | — |
+- `far_relief_rules.json` — 에너지절약설계기준(고시 제2025-738호) 별표9: 녹색건축 최우수 6%·우수 3%(기존 9%/6% 오류 수정), ZEB 1등급 15%~5등급 11%, 시범사업 10%. smart·long_life는 별표9 미포함이라 비워둠.
+- `public_certification.py` — 별표2 제로에너지 의무비율(2020 30%→2030↑ 40%) 원문 확인, ZEB 의무 용도 frozenset + 연면적 조건(녹색/BEMS 3,000㎡, ZEB 1,000㎡) 분리.
+- `landscape_standards.json` — §27②: 직접 명시 외 by_zone 추정값 전체 제거 → 미매칭 시 `pass=None, confidence=2`(조례 확인 필요).
+- `building_agreement.py` — §110의7 1호 "100분의 20 범위 완화" → `_LANDSCAPE_RATIO=0.80` 확정.
+- `review_triggers.py` — 교육환경 MAYBE 고정(좌표 필요), 개발행위 면적·굴착깊이 추정 한계를 note·triggered_reasons에 명시.
 
 ### 구현 Spec 진행 상황
 
@@ -235,10 +229,10 @@
 | `ordinance_resolver.py` | 조례 cascade 조회. `needs_review=True` 레코드는 자동 skip → 시행령 fallback |
 | `ordinance_extractor.py` | 법령 본문 → 건폐율/용적률 수치 추출 (regex + LLM) |
 | `land_use_resolver.py` | 토지 정보 조회 + stale 캐시 fallback |
-| `far_relief.py` | 용적률 완화 4종. 인증 합산 캡 15%, 전체 캡 1.15배 |
+| `far_relief.py` | 용적률 완화 6레버(공개공지·녹색·ZEB·시범·지능형·장수명)+수동. 인증 합산 캡 15%, 전체 캡 1.15배 |
 | `building_agreement.py` | 건축협정 §110의7 완화 사후 보정 |
 | `multi_parcel.py` | 합필 진단 (면적 안분 + 소규모 예외) |
-| `review_triggers.py` | 심의 자동 트리거 9종 |
+| `review_triggers.py` | 심의 자동 트리거 11종 (건축위·교통·경관·재해·교육·문화재·환경·도시계획위·지하안전·안전영향·범죄예방) |
 | `law_change_tracker.py` ⚠️ | 법규 변경 감지 (수동 호출만) |
 | `cache_manager.py` | SQLite Lazy Cache (조례 30일 TTL + 진단 이력) |
 | `llm_client.py` | Claude API (temp=0, prompt caching) |
@@ -312,6 +306,8 @@
 
 ### C. 사내 데이터 (수동 수집 — ROI 최고)
 
+> ⚠ 케이스 매칭/정확도 harness 코드(Step 8)는 2026-06-26 제거됨. 아래 케이스 항목은 향후 재도입 시의 후보 (재도입하려면 git에서 `case_matcher.py` 복원).
+
 | 데이터 | 용도 | 형태 | 작업량 |
 |---|---|---|---|
 | **인허가 통과 케이스 10건+** | 정확도 측정 ground_truth + 케이스 매칭 | JSON (주소·용도·면적·실제 산정값·완화 내역·심의 결과) | 케이스당 30~60분 |
@@ -325,9 +321,9 @@
 
 | 라이브러리 | 용도 | 도입 시점 |
 |---|---|---|
-| `pytest`, `pytest-asyncio` | 회귀 테스트 (현재 0건) | 정확도 측정 인프라 구축 시 |
-| `httpx-mock` 또는 `respx` | 외부 API 모킹 (오프라인 테스트) | 위와 동시 |
-| `networkx` | 법규 의미 그래프 (조문 간 관계 추론, ARCO arch-law-mcp 참고) | What-If 슬라이더 정교화 시 |
+| `pytest`, `pytest-asyncio` | 회귀 테스트 | ✅ 도입 (141건, 2026-06-26) |
+| `httpx-mock` 또는 `respx` | 외부 API 모킹 (오프라인 테스트) | 미도입 — 클라이언트(vworld·eum·luris) 테스트 시 |
+| `networkx` | 법규 의미 그래프 (조문 간 관계) | ✅ 도입 (Step 11, 2026-06-26) |
 | `python-docx` | brief DOCX 파싱 (PDF만 아니라 DOCX도) | Step 2 brief 연계 시 |
 | `rasterio` 또는 `GDAL` | DEM 처리 (3D 지형) | 단계 2-3 진입 시 |
 | `rhino3dm` | Rhino 3DM 모델 생성 | 단계 2-3 진입 시 |
@@ -340,7 +336,7 @@
 | 도구 | 용도 | 우선순위 |
 |---|---|---|
 | **pre-commit hooks (ruff, mypy)** | 커밋 전 코드 품질 자동 검사 | 🟡 |
-| **GitHub Actions 확장** | `pytest` 자동 실행 + 배포 게이트 | 🔴 (pytest 도입 후) |
+| ~~GitHub Actions 확장~~ | `pytest` 자동 실행 + 배포 게이트 | ✅ 완료 (deploy.yml test job + needs) |
 | **GCP Cloud Logging + Error Reporting** | 운영 에러 추적 (현재 콘솔만) | 🟡 |
 | **GCP Cloud Scheduler** | `ENABLE_LAW_CHANGE_CRON` 외부 트리거 (Cloud Run 무인 운영) | 🟢 |
 | **BigQuery** | 진단 이력 누적 분석 (어떤 카테고리·지역에서 자주 막히나) | 🟢 |
@@ -357,7 +353,7 @@
 
 ### 도입 순서 권장 (즉시 ROI 기준)
 
-1. ~~pytest 도입~~ — ✅ 완료 (2026-06-26, 33건 + CI 게이트).
+1. ~~pytest 도입~~ — ✅ 완료 (2026-06-26, 141건 + CI 게이트).
 2. **brief 추가 샘플** (C) — 민간·다부지 각 1건으로 Step 9 매핑 견고화. 작업 5분. (공공 1건은 이미 검증)
 3. **도시계획시설 SHP 영등포구·자주 다루는 자치구 갱신** (B) — 998배 부풀리기 같은 함정 방지.
 4. **NSDI API 연동** (A) — SHP 자동 다운로드로 B의 수동 작업 자동화.
