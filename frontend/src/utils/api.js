@@ -62,6 +62,10 @@ export const api = {
   getBriefImport: (fileId) =>
     request(`/feasibility/briefs/${encodeURIComponent(fileId)}`),
 
+  // 법규 의미 그래프 (Step 11)
+  lawGraph: () => request('/law-graph'),
+  lawGraphNode: (nodeId) => request(`/law-graph/node/${encodeURIComponent(nodeId)}`),
+
   // 진단 결과 → MD / xlsx 다운로드 — Response를 직접 받아 blob으로 처리
   downloadDiagnoseExport: async (format, payload) => {
     const res = await fetch(`${BASE}/diagnose/export/${format}`, {

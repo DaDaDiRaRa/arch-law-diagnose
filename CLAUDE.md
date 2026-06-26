@@ -66,7 +66,7 @@
 
 - [ ] Step 9 후속 — brief 추가 샘플(민간·다부지)로 매핑 견고화 (핵심 매핑은 이미 동작)
 - [ ] ~~Step 10 계산식 노출~~ — 사용자 요청으로 보류 (안 함)
-- [ ] Step 11 — 법규 의미 그래프 도입 (ARCO arch-law-mcp 차용, What-If 정교화)
+- [x] ~~Step 11 — 법규 의미 그래프~~ v1 완료 (2026-06-26): 조문 참조 그래프(코드 수확 시드) + API + 탐색기. 후속: 법제처 자동수확·캔버스 시각화
 
 > Step 8(사내 케이스 DB + 정확도 harness)·Step 10(계산식 노출)은 사용자 결정으로 제외.
 
@@ -122,7 +122,7 @@
 | ~~Step 8~~ | 사내 케이스 DB + 정확도 harness | 🗑 제거 (2026-06-26, 더미라 제외) |
 | **Step 9** | brief→law 자동 연계 (`competition_comparison` 통합) | ✅ 핵심 매핑 동작 (2026-06-26 검증). 추가 샘플로 견고화만 남음 |
 | ~~Step 10~~ | 카테고리 계산식 노출 | 🚫 보류 (사용자 결정, 안 함) |
-| Step 11 | 법규 의미 그래프 도입 (조문 관계 NetworkX, What-If 정교화) | 미착수 |
+| ~~Step 11~~ | 법규 의미 그래프 (조문 참조 그래프 NetworkX) | ✅ v1 완료 (2026-06-26) — 코드 수확 시드 + API + 탐색기 |
 
 ### 사용자가 직접 처리해야 할 항목
 
@@ -243,6 +243,8 @@
 | `cache_manager.py` | SQLite Lazy Cache (조례 30일 TTL + 진단 이력) |
 | `llm_client.py` | Claude API (temp=0, prompt caching) |
 | `query_engine.py` ⚠️ | 자연어 질의 (조문 자동 인용 미완) |
+| `law_graph.py` | 법규 의미 그래프 (networkx DiGraph, `config/law_graph_seed.json`) — 조문 관계 탐색 |
+| `http_retry.py` | 외부 API 공용 재시도/백오프 (`request_with_retry`) |
 
 ## 주요 프론트엔드 파일 (frontend/src/)
 

@@ -1150,6 +1150,40 @@ async def query(req: QueryRequest):
         raise HTTPException(500, f"자연어 질의 오류: {e}")
 
 
+# ── 법규 의미 그래프 (Step 11) ──────────────────────────────────────────────
+
+
+@app.get("/api/law-graph")
+async def law_graph_all():
+    """법규 의미 그래프 전체 (노드 + 엣지 + 메타) — 관계 탐색 UI용."""
+    from services import law_graph
+    try:
+        return law_graph.get_graph_dict()
+    except Exception as e:
+        logger.exception("법규 그래프 조회 오류: %s", e)
+        raise HTTPException(500, f"법규 그래프 조회 오류: {e}")
+
+
+@app.get("/api/law-graph/node/{node_id}")
+async def law_graph_node(node_id: str):
+    """노드 1개 + 인접 관계(나가는/들어오는, rel별)."""
+    from services import law_graph
+    detail = law_graph.node_detail(node_id)
+    if detail is None:
+        raise HTTPException(404, f"노드 없음: {node_id}")
+    return detail
+
+
+@app.get("/api/law-graph/category/{node_id}")
+async def law_graph_category(node_id: str):
+    """카테고리(또는 임의) 노드에서 도달하는 서브그래프."""
+    from services import law_graph
+    sub = law_graph.category_subgraph(node_id)
+    if sub is None:
+        raise HTTPException(404, f"노드 없음: {node_id}")
+    return sub
+
+
 # ── Phase 4 엔드포인트 ─────────────────────────────────────────────────────
 
 

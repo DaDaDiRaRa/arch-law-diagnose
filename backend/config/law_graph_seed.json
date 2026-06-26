@@ -1,0 +1,124 @@
+{
+  "_comment": "법규 의미 그래프 시드 — 이 시스템이 실제로 인용하는 조문/근거를 노드로, 적용·위임·완화·트리거·제외·참조 관계를 엣지로 모델링. 계산기 law_refs·far_relief_rules·review_triggers에서 수확. 확장: 노드/엣지 추가 또는 향후 법제처 API 자동 수확.",
+  "_disclaimer": "참고용 관계도. 실제 적용·해석은 시니어 건축사 확인 필요.",
+  "node_kinds": ["카테고리", "법률", "시행령", "시행규칙", "고시", "별표", "조례", "심의"],
+  "edge_rels": {
+    "근거": "진단 카테고리가 적용하는 핵심 조문",
+    "위임": "상위 규정이 하위(시행령·조례·고시)로 기준을 위임",
+    "완화": "해당 한도를 완화할 수 있는 근거",
+    "제외": "산정에서 제외되는 근거",
+    "트리거": "조건 충족 시 심의·평가를 유발",
+    "참조": "상호 참조"
+  },
+
+  "nodes": [
+    {"id": "cat_far", "kind": "카테고리", "law": "용적률", "article": "", "title": "용적률", "weight": true},
+    {"id": "cat_bcr", "kind": "카테고리", "law": "건폐율", "article": "", "title": "건폐율", "weight": true},
+    {"id": "cat_height", "kind": "카테고리", "law": "높이·일조", "article": "", "title": "높이·일조", "weight": true},
+    {"id": "cat_parking", "kind": "카테고리", "law": "주차", "article": "", "title": "주차", "weight": true},
+    {"id": "cat_landscape", "kind": "카테고리", "law": "조경", "article": "", "title": "조경", "weight": true},
+    {"id": "cat_fire", "kind": "카테고리", "law": "설비·소방", "article": "", "title": "설비·소방", "weight": true},
+    {"id": "cat_landuse", "kind": "카테고리", "law": "행위제한", "article": "", "title": "행위제한", "weight": true},
+    {"id": "cat_urban", "kind": "카테고리", "law": "도시계획시설", "article": "", "title": "도시계획시설", "weight": true},
+    {"id": "cat_bf", "kind": "카테고리", "law": "BF 인증", "article": "", "title": "BF 인증", "weight": false},
+    {"id": "cat_crime", "kind": "카테고리", "law": "범죄예방", "article": "", "title": "범죄예방 건축기준", "weight": false},
+
+    {"id": "buildingact_55", "kind": "법률", "law": "건축법", "article": "제55조", "title": "건축물의 건폐율", "url": "https://www.law.go.kr/법령/건축법/제55조"},
+    {"id": "buildingact_56", "kind": "법률", "law": "건축법", "article": "제56조", "title": "건축물의 용적률", "url": "https://www.law.go.kr/법령/건축법/제56조"},
+    {"id": "buildingact_42", "kind": "법률", "law": "건축법", "article": "제42조", "title": "대지의 조경", "url": "https://www.law.go.kr/법령/건축법/제42조"},
+    {"id": "buildingact_43", "kind": "법률", "law": "건축법", "article": "제43조", "title": "공개 공지 등의 확보", "url": "https://www.law.go.kr/법령/건축법/제43조"},
+    {"id": "buildingact_60", "kind": "법률", "law": "건축법", "article": "제60조", "title": "건축물의 높이 제한(가로구역)", "url": "https://www.law.go.kr/법령/건축법/제60조"},
+    {"id": "buildingact_61", "kind": "법률", "law": "건축법", "article": "제61조", "title": "일조 등의 확보를 위한 높이 제한", "url": "https://www.law.go.kr/법령/건축법/제61조"},
+    {"id": "buildingact_53_2", "kind": "법률", "law": "건축법", "article": "제53조의2", "title": "범죄예방 기준", "url": "https://www.law.go.kr/법령/건축법/제53조의2"},
+    {"id": "buildingact_4_2", "kind": "법률", "law": "건축법", "article": "제4조의2", "title": "건축위원회 심의", "url": "https://www.law.go.kr/법령/건축법/제4조의2"},
+    {"id": "buildingact_13_2", "kind": "법률", "law": "건축법", "article": "제13조의2", "title": "건축물 안전영향평가", "url": "https://www.law.go.kr/법령/건축법/제13조의2"},
+
+    {"id": "buildingdecree_27", "kind": "시행령", "law": "건축법 시행령", "article": "제27조", "title": "대지의 조경", "url": "https://www.law.go.kr/법령/건축법시행령/제27조"},
+    {"id": "buildingdecree_34", "kind": "시행령", "law": "건축법 시행령", "article": "제34조", "title": "직통계단의 설치", "url": "https://www.law.go.kr/법령/건축법시행령/제34조"},
+    {"id": "buildingdecree_35", "kind": "시행령", "law": "건축법 시행령", "article": "제35조", "title": "피난계단의 설치", "url": "https://www.law.go.kr/법령/건축법시행령/제35조"},
+    {"id": "buildingdecree_46", "kind": "시행령", "law": "건축법 시행령", "article": "제46조", "title": "방화구획의 설치", "url": "https://www.law.go.kr/법령/건축법시행령/제46조"},
+    {"id": "buildingdecree_63_7", "kind": "시행령", "law": "건축법 시행령", "article": "제63조의7", "title": "범죄예방 기준 대상", "url": "https://www.law.go.kr/법령/건축법시행령/제63조의7"},
+    {"id": "buildingdecree_82", "kind": "시행령", "law": "건축법 시행령", "article": "제82조", "title": "건축물 높이 제한(가로구역)", "url": "https://www.law.go.kr/법령/건축법시행령/제82조"},
+    {"id": "buildingdecree_86", "kind": "시행령", "law": "건축법 시행령", "article": "제86조", "title": "일조 등 높이 제한", "url": "https://www.law.go.kr/법령/건축법시행령/제86조"},
+    {"id": "buildingdecree_89", "kind": "시행령", "law": "건축법 시행령", "article": "제89조", "title": "승용 승강기의 설치", "url": "https://www.law.go.kr/법령/건축법시행령/제89조"},
+    {"id": "buildingdecree_90", "kind": "시행령", "law": "건축법 시행령", "article": "제90조", "title": "비상용 승강기의 설치", "url": "https://www.law.go.kr/법령/건축법시행령/제90조"},
+    {"id": "buildingdecree_119", "kind": "시행령", "law": "건축법 시행령", "article": "제119조", "title": "면적 등의 산정방법", "url": "https://www.law.go.kr/법령/건축법시행령/제119조"},
+    {"id": "buildingdecree_10_3", "kind": "시행령", "law": "건축법 시행령", "article": "제10조의3", "title": "건축물 안전영향평가 대상", "url": "https://www.law.go.kr/법령/건축법시행령/제10조의3"},
+
+    {"id": "nuca_76", "kind": "법률", "law": "국토계획법", "article": "제76조", "title": "용도지역 안에서의 행위 제한", "url": "https://www.law.go.kr/법령/국토의계획및이용에관한법률/제76조"},
+    {"id": "nuca_43", "kind": "법률", "law": "국토계획법", "article": "제43조", "title": "도시·군계획시설의 설치", "url": "https://www.law.go.kr/법령/국토의계획및이용에관한법률/제43조"},
+    {"id": "nucadecree_84", "kind": "시행령", "law": "국토계획법 시행령", "article": "제84조", "title": "용도지역 안에서의 건폐율", "url": "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령/제84조"},
+    {"id": "nucadecree_85", "kind": "시행령", "law": "국토계획법 시행령", "article": "제85조", "title": "용도지역 안에서의 용적률", "url": "https://www.law.go.kr/법령/국토의계획및이용에관한법률시행령/제85조"},
+
+    {"id": "parkingact_19", "kind": "법률", "law": "주차장법", "article": "제19조", "title": "부설주차장의 설치", "url": "https://www.law.go.kr/법령/주차장법/제19조"},
+    {"id": "parkingdecree_b1", "kind": "별표", "law": "주차장법 시행령", "article": "별표 1", "title": "부설주차장의 설치대상 및 설치기준", "url": "https://www.law.go.kr/법령/주차장법시행령"},
+
+    {"id": "fireact_decree_b4", "kind": "별표", "law": "소방시설 설치 및 관리에 관한 법률 시행령", "article": "별표 4", "title": "특정소방대상물의 소방시설 설치기준", "url": "https://www.law.go.kr/법령/소방시설설치및관리에관한법률시행령"},
+
+    {"id": "bfact_10_2", "kind": "법률", "law": "장애인·노인·임산부 편의증진보장법", "article": "제10조의2", "title": "장애물 없는 생활환경 인증(BF)", "url": "https://www.law.go.kr/법령/장애인노인임산부등의편의증진보장에관한법률/제10조의2"},
+
+    {"id": "crime_notice_2021_930", "kind": "고시", "law": "국토교통부 고시", "article": "제2021-930호", "title": "범죄예방 건축기준", "url": "https://www.law.go.kr"},
+
+    {"id": "greenact_14", "kind": "법률", "law": "녹색건축물 조성 지원법", "article": "제14조", "title": "녹색건축물 인증·제로에너지건축물 인증", "url": "https://www.law.go.kr/법령/녹색건축물조성지원법/제14조"},
+    {"id": "greenact_15", "kind": "법률", "law": "녹색건축물 조성 지원법", "article": "제15조", "title": "건축기준 완화(용적률·높이)", "url": "https://www.law.go.kr/법령/녹색건축물조성지원법/제15조"},
+    {"id": "energy_notice_b9", "kind": "별표", "law": "건축물의 에너지절약설계기준(국토부 고시 제2025-738호)", "article": "별표 9", "title": "완화 비율(녹색건축·제로에너지 등급별)", "url": "https://www.law.go.kr"},
+
+    {"id": "review_committee", "kind": "심의", "law": "건축위원회 심의", "article": "", "title": "건축위원회 심의", "url": ""},
+    {"id": "review_traffic", "kind": "심의", "law": "교통영향평가", "article": "도시교통정비촉진법 제15조", "title": "교통영향평가", "url": "https://www.law.go.kr/법령/도시교통정비촉진법/제15조"},
+    {"id": "review_landscape", "kind": "심의", "law": "경관심의", "article": "경관법 제27조", "title": "경관심의", "url": "https://www.law.go.kr/법령/경관법/제27조"},
+    {"id": "review_env", "kind": "심의", "law": "환경영향평가", "article": "환경영향평가법 제22조", "title": "환경영향평가", "url": "https://www.law.go.kr/법령/환경영향평가법/제22조"},
+    {"id": "review_edu", "kind": "심의", "law": "교육환경평가", "article": "교육환경 보호에 관한 법률", "title": "교육환경평가", "url": "https://www.law.go.kr/법령/교육환경보호에관한법률"},
+    {"id": "review_safety", "kind": "심의", "law": "건축물 안전영향평가", "article": "건축법 제13조의2", "title": "건축물 안전영향평가", "url": "https://www.law.go.kr/법령/건축법/제13조의2"},
+    {"id": "review_underground", "kind": "심의", "law": "지하안전평가", "article": "지하안전관리에 관한 특별법", "title": "지하안전평가", "url": "https://www.law.go.kr/법령/지하안전관리에관한특별법"}
+  ],
+
+  "edges": [
+    {"source": "cat_bcr", "target": "buildingact_55", "rel": "근거", "note": "건폐율 한도의 근거 법률"},
+    {"source": "buildingact_55", "target": "nucadecree_84", "rel": "위임", "note": "용도지역별 건폐율 기준을 시행령에 위임"},
+    {"source": "nucadecree_84", "target": "buildingact_55", "rel": "참조", "note": "조례로 더 강화 가능(지자체 도시계획조례)"},
+
+    {"source": "cat_far", "target": "buildingact_56", "rel": "근거", "note": "용적률 한도의 근거 법률"},
+    {"source": "buildingact_56", "target": "nucadecree_85", "rel": "위임", "note": "용도지역별 용적률 기준을 시행령에 위임"},
+    {"source": "cat_far", "target": "buildingdecree_119", "rel": "제외", "note": "지하층·부속주차장·피난안전구역 등 용적률 산정 제외"},
+    {"source": "cat_far", "target": "buildingact_43", "rel": "완화", "note": "공개공지 확보 시 용적률·높이 완화"},
+    {"source": "cat_far", "target": "greenact_15", "rel": "완화", "note": "녹색건축·제로에너지 인증 시 건축기준(용적률·높이) 완화"},
+    {"source": "greenact_15", "target": "greenact_14", "rel": "참조", "note": "완화 전제: 동법 제14조 인증 취득"},
+    {"source": "greenact_15", "target": "energy_notice_b9", "rel": "위임", "note": "등급별 완화 비율은 에너지절약설계기준 별표9"},
+    {"source": "cat_height", "target": "buildingact_60", "rel": "근거", "note": "가로구역별 최고높이"},
+    {"source": "buildingact_60", "target": "buildingdecree_82", "rel": "위임", "note": "높이 결정 시 고려사항을 시행령에 위임"},
+    {"source": "cat_height", "target": "buildingact_61", "rel": "근거", "note": "일조 등 확보 높이제한"},
+    {"source": "buildingact_61", "target": "buildingdecree_86", "rel": "위임", "note": "정북방향 이격거리 등 구체기준을 시행령에 위임"},
+
+    {"source": "cat_landscape", "target": "buildingact_42", "rel": "근거", "note": "대지의 조경 의무"},
+    {"source": "buildingact_42", "target": "buildingdecree_27", "rel": "위임", "note": "조경 면적·기준을 시행령에 위임"},
+
+    {"source": "cat_parking", "target": "parkingact_19", "rel": "근거", "note": "부설주차장 설치 의무"},
+    {"source": "parkingact_19", "target": "parkingdecree_b1", "rel": "위임", "note": "용도별 설치기준을 시행령 별표1에 위임"},
+
+    {"source": "cat_fire", "target": "buildingdecree_46", "rel": "근거", "note": "방화구획"},
+    {"source": "cat_fire", "target": "buildingdecree_34", "rel": "근거", "note": "직통계단"},
+    {"source": "cat_fire", "target": "buildingdecree_35", "rel": "근거", "note": "피난계단"},
+    {"source": "cat_fire", "target": "buildingdecree_89", "rel": "근거", "note": "승용 승강기"},
+    {"source": "cat_fire", "target": "buildingdecree_90", "rel": "근거", "note": "비상용 승강기"},
+    {"source": "cat_fire", "target": "fireact_decree_b4", "rel": "근거", "note": "스프링클러·옥내소화전 등 소방시설"},
+
+    {"source": "cat_landuse", "target": "nuca_76", "rel": "근거", "note": "용도지역 안에서의 행위제한"},
+    {"source": "cat_urban", "target": "nuca_43", "rel": "근거", "note": "도시·군계획시설 설치"},
+
+    {"source": "cat_crime", "target": "buildingact_53_2", "rel": "근거", "note": "범죄예방 기준"},
+    {"source": "buildingact_53_2", "target": "buildingdecree_63_7", "rel": "위임", "note": "대상 용도를 시행령에 위임"},
+    {"source": "buildingact_53_2", "target": "crime_notice_2021_930", "rel": "위임", "note": "세부 기준은 국토부 고시"},
+
+    {"source": "cat_bf", "target": "bfact_10_2", "rel": "근거", "note": "장애물 없는 생활환경 인증"},
+
+    {"source": "cat_far", "target": "review_committee", "rel": "트리거", "note": "일정 규모 이상 건축위원회 심의 대상"},
+    {"source": "review_committee", "target": "buildingact_4_2", "rel": "근거", "note": "건축위원회 심의 근거"},
+    {"source": "cat_parking", "target": "review_traffic", "rel": "트리거", "note": "연면적·세대 규모 이상 교통영향평가"},
+    {"source": "cat_height", "target": "review_landscape", "rel": "트리거", "note": "경관지구·일정 규모 경관심의"},
+    {"source": "cat_landuse", "target": "review_env", "rel": "트리거", "note": "환경영향평가 대상 사업 규모/입지"},
+    {"source": "cat_landuse", "target": "review_edu", "rel": "트리거", "note": "교육환경보호구역 내 입지 시 교육환경평가"},
+    {"source": "cat_far", "target": "review_safety", "rel": "트리거", "note": "초고층/대규모(50층·200m·연면적 10만㎡) 안전영향평가"},
+    {"source": "review_safety", "target": "buildingdecree_10_3", "rel": "위임", "note": "대상 규모를 시행령 제10조의3에 위임"},
+    {"source": "cat_far", "target": "review_underground", "rel": "트리거", "note": "굴착 깊이 등 지하안전평가"}
+  ]
+}

@@ -4,6 +4,7 @@ import { api } from '../../utils/api'
 import DataQualityBanner from '../DataQualityBanner'
 import DevTrendPanel from '../DevTrendPanel'
 import LawChangeAlert from '../LawChangeAlert'
+import LawGraphPanel from '../LawGraphPanel'
 import LawInfoPanel from '../LawInfoPanel'
 import LegalReviewReport from '../LegalReviewReport'
 import ReviewRequestButton from '../ReviewRequestButton'
@@ -290,6 +291,9 @@ export default function DiagnoseResult() {
               })}
             </div>
           </div>
+
+          {/* 법규 관계 그래프 (Step 11) */}
+          <LawGraphPanel />
 
         </div>
       </div>
