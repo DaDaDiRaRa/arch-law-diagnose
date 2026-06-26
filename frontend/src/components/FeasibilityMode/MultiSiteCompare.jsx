@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { api } from '../../utils/api'
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
+import BriefList from './BriefList'
 
 const FACILITY_USES = [
   '제1종근린생활시설', '제2종근린생활시설', '근린생활시설',
@@ -109,29 +110,11 @@ export default function MultiSiteCompare() {
   )
 }
 
-// ── 공모지침 일괄 로더 ──────────────────────────────────────────────────
+// ── 공모지침 일괄 로더 (공용 BriefList 사용 — 카테고리 필터 + 검색) ──────────
 function BriefLoader({ onLoad }) {
   const [open, setOpen] = useState(false)
-  const [briefs, setBriefs] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-
-  const toggle = async () => {
-    const next = !open
-    setOpen(next)
-    if (next && briefs === null) {
-      setLoading(true)
-      try {
-        const res = await api.listBriefs()
-        setBriefs(res.briefs || [])
-      } catch (e) {
-        setError(e.message || '목록 조회 실패')
-        setBriefs([])
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
 
   const pick = async (fileId) => {
     setLoading(true)
@@ -150,7 +133,7 @@ function BriefLoader({ onLoad }) {
   return (
     <div className="border border-gray-200 rounded-lg bg-gray-50">
       <button
-        onClick={toggle}
+        onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-3 py-2.5 text-left"
       >
         <span className="text-xs font-semibold text-gray-700">
@@ -163,29 +146,10 @@ function BriefLoader({ onLoad }) {
       </button>
       {open && (
         <div className="px-3 pb-3 border-t border-gray-200 pt-3">
-          {loading && <div className="text-[11px] text-gray-500 py-1">불러오는 중…</div>}
           {error && (
             <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-1.5 rounded mb-2">{error}</div>
           )}
-          {!loading && briefs && briefs.length === 0 && (
-            <div className="text-[11px] text-gray-500 py-1">불러올 공모지침이 없습니다.</div>
-          )}
-          {briefs && briefs.length > 0 && (
-            <div className="space-y-1.5">
-              {briefs.map((b) => (
-                <button
-                  key={b.file_id}
-                  onClick={() => pick(b.file_id)}
-                  className="w-full text-left border border-gray-200 rounded px-3 py-2 bg-white hover:border-gray-400"
-                >
-                  <div className="text-xs font-medium text-gray-800 truncate">{b.competition_name}</div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
-                    부지 {b.site_count}개 {b.facility_type && `· ${b.facility_type}`}
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+          <BriefList onPick={pick} picking={loading} />
         </div>
       )}
     </div>

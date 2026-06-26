@@ -1,12 +1,10 @@
-import { useState } from 'react'
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import FeasibilityInputForm from './FeasibilityInputForm'
 import FeasibilityResult from './FeasibilityResult'
 import MultiSiteCompare from './MultiSiteCompare'
 
 export default function FeasibilityMode({ onBack }) {
-  const { result, loading } = useFeasibilityStore()
-  const [view, setView] = useState('single') // 'single' | 'multi'
+  const { result, loading, view, setView } = useFeasibilityStore()
   const showResult = !!result && view === 'single'
 
   return (

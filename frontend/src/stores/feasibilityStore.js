@@ -123,6 +123,9 @@ export const useFeasibilityStore = create((set, get) => ({
   // 공모지침 불러오기 적용 상태
   briefApplied: null,
 
+  // 단일/다중 탭 (store에 두어 BriefImportPanel에서도 전환 가능)
+  view: 'single', // 'single' | 'multi'
+
   // 다중 대지 비교
   multiSites: [],
   multiResults: null,
@@ -139,6 +142,8 @@ export const useFeasibilityStore = create((set, get) => ({
   whatifLoading: false,
   whatifError: null,
   alternatives: [],
+
+  setView: (view) => set({ view }),
 
   setFormData: (patch) =>
     set((s) => ({ formData: { ...s.formData, ...patch } })),
@@ -364,6 +369,8 @@ export const useFeasibilityStore = create((set, get) => ({
       makeSite({
         site_label: s.site_id || mapped.competition_name,
         address: s.address,
+        // 괄호표기에서 단일 용도가 명확히 감지된 경우만 자동 채움(복합·불명은 빈칸 → 직접 선택)
+        facility_use: s.facility_use || '',
         zone_use_override: s.zoning,
         applicant_type: mapped.applicant_type || '개인',
         site_area_override: s.site_area_sqm,
