@@ -17,13 +17,39 @@ import networkx as nx
 logger = logging.getLogger(__name__)
 
 _SEED_PATH = Path(__file__).parent.parent / "config" / "law_graph_seed.json"
+_AUTO_PATH = Path(__file__).parent.parent / "config" / "law_graph_auto.json"
 
 _GRAPH: nx.DiGraph | None = None
 _META: dict = {}
 
 
+def _add_nodes(g: nx.DiGraph, nodes: list[dict], origin: str) -> None:
+    for node in nodes:
+        nid = node.get("id")
+        if not nid:
+            continue
+        if nid in g:  # 시드 우선 — 자동 노드가 시드를 덮어쓰지 않음
+            continue
+        attrs = {k: v for k, v in node.items() if k != "id"}
+        attrs.setdefault("origin", origin)
+        g.add_node(nid, **attrs)
+
+
+def _add_edges(g: nx.DiGraph, edges: list[dict], origin: str) -> int:
+    dropped = 0
+    for edge in edges:
+        s, t = edge.get("source"), edge.get("target")
+        if s not in g or t not in g:
+            logger.warning("[law_graph] 끊어진 엣지 skip: %s → %s (노드 누락)", s, t)
+            dropped += 1
+            continue
+        g.add_edge(s, t, rel=edge.get("rel", "참조"),
+                   note=edge.get("note", ""), origin=edge.get("origin", origin))
+    return dropped
+
+
 def _build() -> nx.DiGraph:
-    """시드 JSON → DiGraph. 끊어진 엣지(노드 누락)는 경고 후 skip(graceful)."""
+    """시드 JSON → DiGraph. 자동수확 파일(있으면) 병합(origin=auto). 끊어진 엣지는 skip."""
     global _META
     with open(_SEED_PATH, encoding="utf-8") as f:
         seed = json.load(f)
@@ -35,24 +61,25 @@ def _build() -> nx.DiGraph:
     }
 
     g = nx.DiGraph()
-    for node in seed.get("nodes", []):
-        nid = node.get("id")
-        if not nid:
-            continue
-        g.add_node(nid, **{k: v for k, v in node.items() if k != "id"})
+    _add_nodes(g, seed.get("nodes", []), "seed")
+    dropped = _add_edges(g, seed.get("edges", []), "seed")
 
-    dropped = 0
-    for edge in seed.get("edges", []):
-        s, t = edge.get("source"), edge.get("target")
-        if s not in g or t not in g:
-            logger.warning("[law_graph] 끊어진 엣지 skip: %s → %s (노드 누락)", s, t)
-            dropped += 1
-            continue
-        g.add_edge(s, t, rel=edge.get("rel", "참조"), note=edge.get("note", ""))
+    # 자동수확 병합 (있을 때만) — origin="auto"로 구분 태깅
+    auto_n = auto_e = 0
+    if _AUTO_PATH.exists():
+        try:
+            with open(_AUTO_PATH, encoding="utf-8") as f:
+                auto = json.load(f)
+            _add_nodes(g, auto.get("nodes", []), "auto")
+            dropped += _add_edges(g, auto.get("edges", []), "auto")
+            auto_n, auto_e = len(auto.get("nodes", [])), len(auto.get("edges", []))
+            _META["has_auto"] = True
+        except Exception as e:
+            logger.warning("[law_graph] 자동수확 파일 로드 실패: %s", e)
 
     logger.info(
-        "[law_graph] 노드 %d · 엣지 %d 적재 (끊어진 엣지 %d skip)",
-        g.number_of_nodes(), g.number_of_edges(), dropped,
+        "[law_graph] 노드 %d · 엣지 %d (자동 노드 %d·엣지 %d, 끊어진 엣지 %d skip)",
+        g.number_of_nodes(), g.number_of_edges(), auto_n, auto_e, dropped,
     )
     return g
 
@@ -75,7 +102,8 @@ def get_graph_dict() -> dict:
     return {
         "nodes": [_node_obj(g, n) for n in g.nodes],
         "edges": [
-            {"source": s, "target": t, "rel": d.get("rel"), "note": d.get("note", "")}
+            {"source": s, "target": t, "rel": d.get("rel"), "note": d.get("note", ""),
+             "origin": d.get("origin", "seed")}
             for s, t, d in g.edges(data=True)
         ],
         "meta": _META,
@@ -88,11 +116,13 @@ def node_detail(node_id: str) -> dict | None:
     if node_id not in g:
         return None
     out = [
-        {"rel": d.get("rel"), "note": d.get("note", ""), "node": _node_obj(g, t)}
+        {"rel": d.get("rel"), "note": d.get("note", ""),
+         "origin": d.get("origin", "seed"), "node": _node_obj(g, t)}
         for _, t, d in g.out_edges(node_id, data=True)
     ]
     inc = [
-        {"rel": d.get("rel"), "note": d.get("note", ""), "node": _node_obj(g, s)}
+        {"rel": d.get("rel"), "note": d.get("note", ""),
+         "origin": d.get("origin", "seed"), "node": _node_obj(g, s)}
         for s, _, d in g.in_edges(node_id, data=True)
     ]
     return {"node": _node_obj(g, node_id), "out": out, "in": inc}
@@ -109,7 +139,8 @@ def category_subgraph(node_id: str) -> dict | None:
         "root": node_id,
         "nodes": [_node_obj(g, n) for n in sub.nodes],
         "edges": [
-            {"source": s, "target": t, "rel": d.get("rel"), "note": d.get("note", "")}
+            {"source": s, "target": t, "rel": d.get("rel"), "note": d.get("note", ""),
+             "origin": d.get("origin", "seed")}
             for s, t, d in sub.edges(data=True)
         ],
     }

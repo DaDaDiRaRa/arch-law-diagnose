@@ -28,6 +28,20 @@ const CATEGORY_LABELS = {
   철도보호지구: '철도보호지구 (30m)',
 }
 
+// 진단 카테고리 → 법규 그래프 노드 id (있는 것만 "관계" 버튼 노출)
+const CATEGORY_NODE = {
+  행위제한: 'cat_landuse',
+  도시계획시설: 'cat_urban',
+  건폐율: 'cat_bcr',
+  용적률: 'cat_far',
+  높이_일조: 'cat_height',
+  주차: 'cat_parking',
+  조경: 'cat_landscape',
+  설비_소방: 'cat_fire',
+  BF_인증: 'cat_bf',
+  범죄예방_건축기준: 'cat_crime',
+}
+
 const CONFIDENCE_STARS = (n) => {
   if (n === null || n === undefined) return '★☆☆☆☆'
   const filled = '★'.repeat(Math.min(n, 5))
@@ -45,6 +59,8 @@ export default function DiagnoseResult() {
   const { result: rawResult, error, loading, reset, formData } = useDiagnoseStore()
   const [reportOpen, setReportOpen] = useState(false)
   const [downloading, setDownloading] = useState(null)  // 'md' | 'xlsx' | null
+  const [graphFocus, setGraphFocus] = useState(null)    // 카테고리 → 법규 그래프 점프 (#3)
+  const showGraph = (nodeId) => setGraphFocus({ id: nodeId, ts: Date.now() })
 
   const handleDownload = async (format) => {
     if (downloading || !rawResult) return
@@ -286,6 +302,8 @@ export default function DiagnoseResult() {
                     key={key}
                     label={(CATEGORY_LABELS[key] || key) + reliefSuffix}
                     cat={cat}
+                    nodeId={CATEGORY_NODE[key]}
+                    onShowGraph={showGraph}
                   />
                 )
               })}
@@ -293,7 +311,7 @@ export default function DiagnoseResult() {
           </div>
 
           {/* 법규 관계 그래프 (Step 11) */}
-          <LawGraphPanel />
+          <LawGraphPanel focus={graphFocus} />
 
         </div>
       </div>
@@ -643,7 +661,7 @@ function LandInfoCard({ info }) {
   )
 }
 
-function CategoryCard({ label, cat }) {
+function CategoryCard({ label, cat, nodeId, onShowGraph }) {
   const passed = cat.pass
   const borderCls =
     passed === false ? 'border-red-300' :
@@ -726,6 +744,18 @@ function CategoryCard({ label, cat }) {
           </div>
         </div>
       </button>
+
+      {nodeId && onShowGraph && (
+        <div className="px-3 pb-2 -mt-1">
+          <button
+            type="button"
+            onClick={() => onShowGraph(nodeId)}
+            className="text-[10px] text-blue-600 hover:underline"
+          >
+            🕸 이 항목의 법규 관계 보기
+          </button>
+        </div>
+      )}
 
       {open && hasDetail && (
         <div className="px-3 pb-3 pt-1 border-t border-gray-100 space-y-2">

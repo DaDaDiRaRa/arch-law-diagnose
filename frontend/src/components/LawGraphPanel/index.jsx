@@ -5,8 +5,11 @@
  * 카테고리/노드 선택 → 인접 조문을 관계별로 묶어 클릭 가능한 칩으로 표시 → 이동(브라우징).
  * 무거운 그래프 캔버스 라이브러리 없이 관계 탐색에 집중(신규 의존성 0).
  */
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { api } from '../../utils/api'
+
+// 무거운 react-flow는 캔버스 뷰를 열 때만 로드(초기 번들 경량화)
+const GraphCanvas = lazy(() => import('./GraphCanvas'))
 
 const REL_STYLE = {
   근거: { bg: 'rgba(37,99,235,0.1)', fg: '#2563eb' },
@@ -22,36 +25,55 @@ const KIND_BADGE = {
   고시: '고시', 별표: '별표', 조례: '조례', 심의: '심의',
 }
 
-export default function LawGraphPanel() {
+export default function LawGraphPanel({ focus }) {
   const [open, setOpen] = useState(false)
   const [graph, setGraph] = useState(null) // {nodes, edges, meta}
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [current, setCurrent] = useState(null) // 선택 노드 id
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState('explorer') // 'explorer' | 'canvas'
+  const rootRef = useRef(null)
+
+  const ensureLoaded = async () => {
+    if (graph !== null) return graph
+    setLoading(true)
+    try {
+      const g = await api.lawGraph()
+      setGraph(g)
+      const firstCat = (g.nodes || []).find((n) => n.kind === '카테고리')
+      setCurrent((c) => c || firstCat?.id || g.nodes?.[0]?.id || null)
+      return g
+    } catch (e) {
+      setError(e.message || '그래프 조회 실패')
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const toggle = async () => {
     const next = !open
     setOpen(next)
-    if (next && graph === null) {
-      setLoading(true)
-      try {
-        const g = await api.lawGraph()
-        setGraph(g)
-        // 기본 진입: 첫 카테고리(용적률)
-        const firstCat = (g.nodes || []).find((n) => n.kind === '카테고리')
-        setCurrent(firstCat?.id || g.nodes?.[0]?.id || null)
-      } catch (e) {
-        setError(e.message || '그래프 조회 실패')
-      } finally {
-        setLoading(false)
-      }
-    }
+    if (next) await ensureLoaded()
   }
+
+  // 카테고리 카드의 "관계 보기" → 패널 열고 해당 노드로 점프 + 스크롤 (#3)
+  useEffect(() => {
+    if (!focus?.id) return
+    setOpen(true)
+    setSearch('')
+    ;(async () => {
+      await ensureLoaded()
+      setCurrent(focus.id)
+      rootRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.id, focus?.ts])
 
   if (!graph) {
     return (
-      <Shell open={open} onToggle={toggle}>
+      <Shell open={open} onToggle={toggle} rootRef={rootRef}>
         {loading && <div className="text-[11px] text-gray-500 py-1">그래프 불러오는 중…</div>}
         {error && (
           <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-1.5 rounded">{error}</div>
@@ -78,7 +100,31 @@ export default function LawGraphPanel() {
     : null
 
   return (
-    <Shell open={open} onToggle={toggle}>
+    <Shell open={open} onToggle={toggle} rootRef={rootRef}>
+      {/* 뷰 전환: 탐색기 / 그래프 캔버스 */}
+      <div className="flex gap-1 mb-2 bg-gray-100 rounded p-0.5 w-fit">
+        {[['explorer', '탐색기'], ['canvas', '그래프']].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setViewMode(k)}
+            className="text-[10px] font-medium px-2 py-0.5 rounded transition-colors"
+            style={
+              viewMode === k
+                ? { backgroundColor: 'white', color: 'var(--color-accent)' }
+                : { color: '#9ca3af' }
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === 'canvas' ? (
+        <Suspense fallback={<div className="text-[11px] text-gray-500 py-2">그래프 렌더링 중…</div>}>
+          <GraphCanvas graph={graph} current={current} onPick={setCurrent} />
+        </Suspense>
+      ) : (
+      <>
       {/* 검색 */}
       <input
         type="text"
@@ -149,6 +195,8 @@ export default function LawGraphPanel() {
           )}
         </>
       )}
+      </>
+      )}
 
       {graph.meta?.disclaimer && (
         <p className="text-[10px] text-gray-400 mt-3 pt-2 border-t border-gray-100">
@@ -164,10 +212,11 @@ function groupByRel(edges, otherId, byId) {
   for (const e of edges) {
     const other = byId[otherId(e)]
     if (!other) continue
-    ;(groups[e.rel] ||= []).push({ note: e.note, node: other })
+    ;(groups[e.rel] ||= []).push({ note: e.note, origin: e.origin, node: other })
   }
   return groups
 }
+
 
 function RelGroups({ title, groups, onPick }) {
   const rels = Object.keys(groups)
@@ -180,7 +229,7 @@ function RelGroups({ title, groups, onPick }) {
           <div key={rel} className="flex flex-wrap items-center gap-1">
             <RelTag rel={rel} />
             {groups[rel].map((g, i) => (
-              <NodeChip key={i} node={g.node} note={g.note} onClick={() => onPick(g.node.id)} />
+              <NodeChip key={i} node={g.node} note={g.note} auto={g.origin === 'auto'} onClick={() => onPick(g.node.id)} />
             ))}
           </div>
         ))}
@@ -198,15 +247,18 @@ function RelTag({ rel }) {
   )
 }
 
-function NodeChip({ node, note, onClick }) {
+function NodeChip({ node, note, auto, onClick }) {
+  const isAuto = auto || node.origin === 'auto'
   return (
     <button
       onClick={onClick}
-      title={note || ''}
-      className="text-[10px] px-2 py-0.5 rounded border border-gray-200 bg-white hover:border-gray-400 text-gray-700 transition-colors"
+      title={note ? (isAuto ? `${note} · 자동수확(미검증)` : note) : (isAuto ? '자동수확(미검증)' : '')}
+      className="text-[10px] px-2 py-0.5 rounded border bg-white hover:border-gray-400 text-gray-700 transition-colors"
+      style={isAuto ? { borderStyle: 'dashed', borderColor: '#cbd5e1' } : { borderColor: '#e5e7eb' }}
     >
       {node.kind !== '카테고리' && <KindBadge kind={node.kind} small />}
       <span className="ml-1">{node.article ? `${node.law} ${node.article}` : node.title}</span>
+      {isAuto && <span className="ml-1 text-[8px] text-gray-400">자동</span>}
     </button>
   )
 }
@@ -221,9 +273,9 @@ function KindBadge({ kind, small }) {
   )
 }
 
-function Shell({ open, onToggle, children }) {
+function Shell({ open, onToggle, children, rootRef }) {
   return (
-    <div className="border border-gray-200 rounded-lg bg-gray-50">
+    <div ref={rootRef} className="border border-gray-200 rounded-lg bg-gray-50">
       <button
         type="button"
         onClick={onToggle}
