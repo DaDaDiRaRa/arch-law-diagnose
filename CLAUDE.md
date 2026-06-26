@@ -40,13 +40,13 @@
 
 ### 📋 현재 상태 (한 줄 진단)
 
-핵심 계산 엔진은 운영급 완성 (건폐율·용적률·완화 합산·심의 트리거 정확). **막혀있는 건 "데이터"와 "검증 인프라"** — 둘 다 사용자가 외부에서 채워야 할 영역.
+핵심 계산 엔진은 운영급 완성 (건폐율·용적률·완화 합산·심의 트리거 정확). **막혀있는 건 "데이터"** — SHP·고시·brief 샘플 등 사용자가 외부에서 채워야 할 영역.
 
 | 영역 | 상태 |
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel 다운로드 | ✅ 운영급 |
 | API 키 6개 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 141건 + CI 게이트) | ✅ 도입 (2026-06-26) — 계산기 전반·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers·height·landscape·building_agreement·feasibility |
+| 검증 인프라 (pytest 210건 + CI 게이트) | ✅ 도입 (2026-06-26) — 계산기 전반·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers·height·landscape·building_agreement·feasibility + 외부 API 클라이언트(vworld·eum·luris) + 소형 계산기(public_cert·bf·multi_use·query_engine) |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json`로 매핑 검증) |
 | 사내 케이스 DB (Step 8) | 🗑 제거 (더미라 일단 삭제, git 복원 가능) |
 | 일부 SHP 누락 (철도 / 시·도별 도시계획시설 일부) | ❌ |
@@ -58,16 +58,17 @@
 
 #### 🟢 지금 코드로 가능 (외부 데이터 불필요)
 
-- [ ] **외부 API 클라이언트 테스트 (1순위)** — `respx`/httpx-mock 도입 → vworld·eum·luris·ordinance_extractor 오프라인 모킹. 회귀망 마지막 큰 공백, 정부 API 응답 변형 대응.
-- [ ] 소형 계산기 테스트 — public_certification·bf_certification·multi_use·query_engine (커버리지 마무리)
+- [x] **외부 API 클라이언트 테스트 (완료 2026-06-26)** — `respx` 0.23.1 도입. `test_vworld_client.py` (16건) · `test_eum_client.py` (13건) · `test_luris_client.py` (9건) = 38건 추가. 전체 179건 통과.
+- [x] 소형 계산기 테스트 (완료 2026-06-26) — `test_small_calculators.py` 31건 (public_certification 9·bf_certification 6·multi_use 11·query_engine 5). 전체 210건 통과.
 - [ ] 법규 그래프 검증 워크플로 — 시니어가 자동수확(origin=auto) 엣지 검토 → 맞는 것 시드 승격(auto→seed). 재수확: `python -m services.law_graph_harvest`
 - [ ] 가로구역 최고높이 seed (현재 0건 → §60 자동판정 거의 안 됨) — 단, 고시 PDF 수집 선행
-- [ ] (낮음) markdown lint 일괄 정리 / dev 의존성 `npm audit fix`(vite·babel, 빌드 검증 필요)
+- [x] markdown lint 일괄 정리 (완료 2026-06-26) — MD034 bare URL 2건 + MD060 테이블 구분선 스타일 통일
+- [ ] (낮음) dev 의존성 `npm audit fix`(vite·babel, 빌드 검증 필요)
 
 #### 🟡 외부 데이터·사용자 대기 (코드는 준비됨)
 
 - [ ] brief 추가 샘플(민간·다부지) → Step 9 매핑 견고화 (공공 1건은 검증됨, 5분 다운로드)
-- [ ] 토지이음 두 404 엔드포인트 문의 (✉ luris@korea.kr · ☎ 1522-4484) → LawInfoPanel·DevTrendPanel 활성화
+- [ ] 토지이음 두 404 엔드포인트 문의 (✉ <luris@korea.kr> · ☎ 1522-4484) → LawInfoPanel·DevTrendPanel 활성화
 - [ ] 도시계획시설 SHP 영등포구 등 `nsdi.go.kr` 재다운로드 → 시설 저촉 오판정 방지
 - [ ] 사내 시설용도 매핑표 (시니어 30분) → brief 용도 완전 자동화
 
@@ -97,7 +98,7 @@
 ### 구현 Spec 진행 상황
 
 | Spec | 내용 | 상태 |
-|---|---|---|
+| --- | --- | --- |
 | Spec 1~8, 10~11 | 공개공지 완화·결정고시·공공인증·BF·범죄예방·가로구역·신재생·철도보호·중첩지구·폐기물매립 | ✅ 코드 완료 (수치 검증은 Step 5a에서) |
 | Spec 9 | 조경 기준 고시 반영 (국토부 고시 제2021-1778호, `landscape.py` 보강) | ✅ 완료 (2026-05-20) — 고시 §7조 원문 대조. 용도지역별 교목·관목 최소 수량 자동 계산(상업 0.1/관목 1.0, 공업 0.3/1.0, 주거·녹지 0.2/1.0주 per ㎡). §4조·§5조 체크리스트 notes 추가. `landscape_standards.json`에 planting_rates 추가. |
 | #13 | 세부 주차 분류 (`parking.py` + `parking_standards.json` 보강) | ✅ 완료 (2026-05-20) — count_based 타입 추가(골프장·골프연습장·관람장·옥외수영장), 학생용기숙사·데이터센터 신규, 버그 3종 수정 |
@@ -107,7 +108,7 @@
 ### Step 6: 배포 인프라 + 디자인 시스템 (✅ 완료, 2026-05-22)
 
 | 항목 | 내용 | 상태 |
-|---|---|---|
+| --- | --- | --- |
 | Docker 배포 | 멀티 스테이지 Dockerfile (Node 20 → Python 3.12-slim), .dockerignore, FastAPI SPA serving | ✅ 완료 |
 | GCP Cloud Run | 단일 컨테이너 포트 8080, Secret Manager 환경변수, DEPLOY.md 작성 | ✅ 완료 |
 | kunwon-tokens.css | CSS 변수 60여 개 선언 (색상·폰트·간격·인쇄 전용 토큰), index.css·tailwind.config.js 연결 | ✅ 완료 |
@@ -131,7 +132,7 @@
 ### 사용자가 직접 처리해야 할 항목
 
 1. **brief 추가 샘플 다운로드 후 공유** (Step 9 견고화) — `competition_comparison` 출력 `{brief_id}.json`을 민간 1건 + 다부지 1건. 공공 1건(영등포 신청사)은 이미 `data/briefs/`에 있어 매핑 검증 완료. 5분 작업.
-2. **토지이음 두 404 엔드포인트 문의** — `iuLawInfo` (3.3) + `sDevList` (3.8). ✉ luris@korea.kr + ☎ 1522-4484 각각 연락. 회신 오면 코드 조치 진행.
+2. **토지이음 두 404 엔드포인트 문의** — `iuLawInfo` (3.3) + `sDevList` (3.8). ✉ <luris@korea.kr> + ☎ 1522-4484 각각 연락. 회신 오면 코드 조치 진행.
 3. **도시계획시설 SHP 갱신** — 영등포 케이스에서 6시설 100% 저촉 오판정 발생. NSDI(`nsdi.go.kr`)에서 자주 다루는 자치구 SHP 분기 갱신.
 4. **사내 시설용도 매핑표** (Step 9 보조) — brief 14개 사업유형 ↔ 건축법 19개 용도 변환표. 시니어 1명 30분 회의로 결정.
 
@@ -157,7 +158,7 @@
 ## 외부 API (.env 키)
 
 | 서비스 | 환경변수 | 용도 |
-|---|---|---|
+| --- | --- | --- |
 | Anthropic Claude | `ANTHROPIC_API_KEY` (필수), `ANTHROPIC_MODEL`(선택) | 설비·소방 정성 판단·자연어 질의·조례 본문 수치 추출 |
 | 법제처 DRF | `LAW_API_KEY` | 조례 본문 수집, 조례 변경 감지 |
 | VWorld | `VWORLD_API_KEY` | 좌표 변환·용도지역·지적도·도로폭·지적 폴리곤(WFS) |
@@ -177,7 +178,7 @@
 ### 핵심 8개 (가중치 적용 → 종합점수 반영)
 
 | 코드 | 계산기 | 출처 |
-|---|---|---|
+| --- | --- | --- |
 | 행위제한 | `land_use_act.py` | LURIS + EUM 교차검증 |
 | 도시계획시설 | `urban_facility.py` | VWorld 지적도 ∩ 시설 SHP |
 | 건폐율 | `coverage.py` | 조례 우선 → 시행령 (zone_limits.json) |
@@ -190,7 +191,7 @@
 ### 추가 정보 카드 3개 (가중치 0, 정보 표시 전용)
 
 | 코드 | 계산기 | 조건 |
-|---|---|---|
+| --- | --- | --- |
 | 공공시설_의무인증 | `public_certification.py` | `applicant_type=공공기관` 시 5종 의무 YELLOW 표시 |
 | BF_인증 | `bf_certification.py` | 공공기관 또는 의무 용도 시 등급 표시 |
 | 범죄예방_건축기준 | `crime_prevention.py` | 대상 용도 시 체크리스트 표시 |
@@ -231,10 +232,11 @@
 ## 주요 서비스 파일 (backend/services/)
 
 | 파일 | 역할 |
-|---|---|
+| --- | --- |
 | `diagnose_engine.py` | 진단 전체 오케스트레이션 |
 | `zone_use_normalizer.py` | 용도지역 표준명 정규화 (19종 + 별칭 61개) |
 | `eum_client.py` | 토지이음 7개 API |
+| `luris_client.py` | 공공데이터포털 LURIS 행위제한 2개 API (EUC-KR XML) |
 | `vworld_client.py` ⚠️ | VWorld WFS 지적 폴리곤 + 지오코딩 (검증 필요) |
 | `ordinance_resolver.py` | 조례 cascade 조회. `needs_review=True` 레코드는 자동 skip → 시행령 fallback |
 | `ordinance_extractor.py` | 법령 본문 → 건폐율/용적률 수치 추출 (regex + LLM) |
@@ -255,7 +257,7 @@
 ### 디자인 시스템
 
 | 파일 | 역할 |
-|---|---|
+| --- | --- |
 | `kunwon-tokens.css` | CSS 변수 60여 개 (색상·폰트·간격·인쇄 전용 `--color-print-*`) |
 | `index.css` | `@import './kunwon-tokens.css'` + Tailwind base |
 | `tailwind.config.js` | CSS 변수를 Tailwind 테마로 연결 (colors·fontFamily·fontSize 등) |
@@ -264,7 +266,7 @@
 ### 주요 컴포넌트 (frontend/src/components/)
 
 | 컴포넌트 | 역할 |
-|---|---|
+| --- | --- |
 | `InputForm/` | 전체 입력 폼 (건축협정·특별지구 토글 포함) |
 | `DiagnoseResult/` | 8개 카테고리 진단 카드 |
 | `WhatIfPanel/` | What-if 슬라이더 5개 + 비교 매트릭스 |
@@ -304,7 +306,7 @@
 ### B. 외부 데이터셋 (SHP·고시 — 다운로드형)
 
 | 데이터 | 용도 | 어디서 | 갱신 주기 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **도시계획시설 SHP (시·도별)** | 시설 저촉 자동 판정 | NSDI → 도시계획시설 결정도면 | 분기 |
 | **철도망 SHP** | 철도보호지구(30m) 판정 | NSDI 또는 철도산업정보센터 | 연 1회 |
 | **지구단위계획구역 SHP** | 지구단위 자동 감지 → 결정사항 조회 | NSDI → 도시·군관리계획 | 분기 |
@@ -319,7 +321,7 @@
 > ⚠ 케이스 매칭/정확도 harness 코드(Step 8)는 2026-06-26 제거됨. 아래 케이스 항목은 향후 재도입 시의 후보 (재도입하려면 git에서 `case_matcher.py` 복원).
 
 | 데이터 | 용도 | 형태 | 작업량 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **인허가 통과 케이스 10건+** | 정확도 측정 ground_truth + 케이스 매칭 | JSON (주소·용도·면적·실제 산정값·완화 내역·심의 결과) | 케이스당 30~60분 |
 | **반려·재검토 케이스 3~5건** | anti-pattern 학습 (`pattern_builder` 의 `loser_stats`) | JSON (동일 + 반려 사유) | 케이스당 30분 |
 | **brief 샘플 PDF/DOCX 3건+** | Step 2 매핑 룰 결정 (공공/민간/다부지 각 1건) | 원본 + 추출된 `_brief.json` | 5분 (다운로드만) |
@@ -330,9 +332,9 @@
 ### D. Python 라이브러리 (필요 시 추가)
 
 | 라이브러리 | 용도 | 도입 시점 |
-|---|---|---|
+| --- | --- | --- |
 | `pytest`, `pytest-asyncio` | 회귀 테스트 | ✅ 도입 (141건, 2026-06-26) |
-| `httpx-mock` 또는 `respx` | 외부 API 모킹 (오프라인 테스트) | 미도입 — 클라이언트(vworld·eum·luris) 테스트 시 |
+| `respx` | 외부 API 모킹 (오프라인 테스트) | ✅ 도입 (2026-06-26) — vworld·eum·luris 38건 |
 | `networkx` | 법규 의미 그래프 (조문 간 관계) | ✅ 도입 (Step 11, 2026-06-26) |
 | `python-docx` | brief DOCX 파싱 (PDF만 아니라 DOCX도) | Step 2 brief 연계 시 |
 | `rasterio` 또는 `GDAL` | DEM 처리 (3D 지형) | 단계 2-3 진입 시 |
@@ -344,7 +346,7 @@
 ### E. 개발·운영 인프라
 
 | 도구 | 용도 | 우선순위 |
-|---|---|---|
+| --- | --- | --- |
 | **pre-commit hooks (ruff, mypy)** | 커밋 전 코드 품질 자동 검사 | 🟡 |
 | ~~GitHub Actions 확장~~ | `pytest` 자동 실행 + 배포 게이트 | ✅ 완료 (deploy.yml test job + needs) |
 | **GCP Cloud Logging + Error Reporting** | 운영 에러 추적 (현재 콘솔만) | 🟡 |
@@ -356,7 +358,7 @@
 ### F. 외부 통합 (선택)
 
 | 도구 | 용도 | 비고 |
-|---|---|---|
+| --- | --- | --- |
 | **Claude Desktop MCP wrapper** | arch-law-diagnose 계산기를 MCP 도구로 노출 → Claude Desktop·다른 에이전트에서 직접 호출 | 사내 단일 사용처면 오버엔지니어링. 외부 제공 계획 있을 때만 |
 | **Notion API** | 사내 케이스 DB를 Notion에서 관리 → 진단 도구가 Notion에서 동기화 | 사내가 이미 Notion 쓰는 경우만 |
 | **Slack 양방향** | 시니어 검토 요청 + 회신을 Slack 스레드로 (현재 단방향 webhook만) | Slack 사내 사용 시 |

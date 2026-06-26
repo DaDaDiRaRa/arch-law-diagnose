@@ -18,3 +18,4 @@ networkx>=3.0  # 법규 의미 그래프 (Step 11)
 # 개발·테스트 전용 (운영 컨테이너에는 불필요)
 pytest>=8.0
 pytest-asyncio>=0.23
+respx>=0.21  # 외부 API httpx 오프라인 모킹
