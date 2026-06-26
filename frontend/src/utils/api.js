@@ -51,7 +51,14 @@ export const api = {
     }),
 
   // 공모지침 분석 결과(_brief.json) 불러오기
-  listBriefs: () => request('/feasibility/briefs'),
+  // { limit, category } — 서버가 파일명으로 정렬·필터 후 최근 limit건만 본문 로드
+  listBriefs: ({ limit, category } = {}) => {
+    const q = new URLSearchParams()
+    if (limit != null) q.set('limit', limit)
+    if (category) q.set('category', category)
+    const qs = q.toString()
+    return request(`/feasibility/briefs${qs ? `?${qs}` : ''}`)
+  },
   getBriefImport: (fileId) =>
     request(`/feasibility/briefs/${encodeURIComponent(fileId)}`),
 

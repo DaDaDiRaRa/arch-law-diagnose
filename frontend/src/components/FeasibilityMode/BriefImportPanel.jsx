@@ -11,6 +11,17 @@ import { useFeasibilityStore } from '../../stores/feasibilityStore'
 const fmt = (v, d = 0) =>
   v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d })
 
+// 생산 앱(competition_comparison) 카테고리 — 파일명 suffix와 동일. 서버사이드 필터에 사용.
+// 새 카테고리가 생겨도 "전체"에는 항상 나옴(여기 미등록 시 칩만 누락).
+const CATEGORY_OPTIONS = [
+  ['', '전체'],
+  ['public', '공공'], ['residential', '주거'], ['commercial', '상업'],
+  ['office', '업무'], ['mixed_use', '복합'], ['cultural', '문화'],
+  ['education', '교육'], ['medical', '의료'], ['hospitality', '숙박·관광'],
+  ['industrial', '산업'], ['transport', '교통'], ['reconstruction', '재정비'],
+  ['masterplan', '마스터플랜'], ['alternative', '대안'],
+]
+
 export default function BriefImportPanel() {
   const { applyBriefSite, briefApplied } = useFeasibilityStore()
   const [open, setOpen] = useState(false)
@@ -19,24 +30,45 @@ export default function BriefImportPanel() {
   const [error, setError] = useState(null)
   const [selected, setSelected] = useState(null) // 매핑된 brief
   const [siteLoading, setSiteLoading] = useState(false)
+  const [category, setCategory] = useState('') // 서버사이드 필터
+  const [search, setSearch] = useState('') // 클라이언트 검색(공모명/파일명)
+
+  // 카테고리는 서버에서 필터(수백 건 누적 대비, limit 적용 전 분기) → 변경 시 재조회
+  const load = async (cat) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await api.listBriefs({ category: cat || undefined })
+      setBriefs(res.briefs || [])
+    } catch (e) {
+      setError(e.message || '목록 조회 실패')
+      setBriefs([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const toggle = async () => {
     const next = !open
     setOpen(next)
-    if (next && briefs === null) {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await api.listBriefs()
-        setBriefs(res.briefs || [])
-      } catch (e) {
-        setError(e.message || '목록 조회 실패')
-        setBriefs([])
-      } finally {
-        setLoading(false)
-      }
-    }
+    if (next && briefs === null) await load(category)
   }
+
+  const changeCategory = async (cat) => {
+    setCategory(cat)
+    setSelected(null)
+    await load(cat)
+  }
+
+  // 검색은 로드된 목록에 대해 클라이언트에서 즉시 필터(공모명·파일명)
+  const shown = (briefs || []).filter((b) => {
+    if (!search.trim()) return true
+    const q = search.trim().toLowerCase()
+    return (
+      (b.competition_name || '').toLowerCase().includes(q) ||
+      (b.file_id || '').toLowerCase().includes(q)
+    )
+  })
 
   const selectBrief = async (fileId) => {
     setSiteLoading(true)
@@ -90,6 +122,31 @@ export default function BriefImportPanel() {
 
       {open && (
         <div className="px-3 pb-3 border-t border-gray-200 pt-3">
+          {/* 필터/검색 — 공모 선택 전에만 노출 */}
+          {!selected && (
+            <div className="flex gap-1.5 mb-2">
+              <select
+                value={category}
+                onChange={(e) => changeCategory(e.target.value)}
+                disabled={loading}
+                className="text-[11px] border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-700 disabled:opacity-50"
+              >
+                {CATEGORY_OPTIONS.map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="공모명 검색"
+                className="flex-1 min-w-0 text-[11px] border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+              />
+            </div>
+          )}
+
           {loading && <Note>목록 불러오는 중…</Note>}
           {error && (
             <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-1.5 rounded mb-2">
@@ -97,17 +154,25 @@ export default function BriefImportPanel() {
             </div>
           )}
 
-          {!loading && briefs && briefs.length === 0 && !error && (
+          {!loading && briefs && briefs.length === 0 && !error && category && (
+            <Note>이 카테고리에 해당하는 공모가 없습니다.</Note>
+          )}
+
+          {!loading && briefs && briefs.length === 0 && !error && !category && (
             <Note>
-              불러올 공모지침이 없습니다. (서버의 BRIEF_DIR에 _brief.json 필요 —
-              Competition Analyzer의 _briefs 폴더/버킷 연결)
+              불러올 공모지침이 없습니다. (서버의 BRIEF_DIR에 brief json 필요 —
+              competition_comparison 버킷의 _briefs/ 폴더 연결)
             </Note>
           )}
 
+          {!loading && briefs && briefs.length > 0 && shown.length === 0 && !selected && (
+            <Note>"{search}"에 맞는 공모가 없습니다.</Note>
+          )}
+
           {/* 1단계: 공모 목록 */}
-          {!selected && briefs && briefs.length > 0 && (
+          {!selected && shown.length > 0 && (
             <div className="space-y-1.5">
-              {briefs.map((b) => (
+              {shown.map((b) => (
                 <button
                   key={b.file_id}
                   type="button"
