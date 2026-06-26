@@ -44,7 +44,7 @@
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel 다운로드 | ✅ 운영급 |
 | API 키 6개 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 33건 + CI 게이트) | ✅ 도입 (2026-06-26) |
+| 검증 인프라 (pytest 100건 + CI 게이트) | ✅ 도입 (2026-06-26) — 계산기·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json`로 매핑 검증) |
 | 사내 케이스 DB (Step 8) | 🗑 제거 (더미라 일단 삭제, git 복원 가능) |
 | 일부 SHP 누락 (철도 / 시·도별 도시계획시설 일부) | ❌ |
