@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import { api } from '../../utils/api'
+import { graphSearchUrl } from '../../utils/graphLink'
 
 const SUGGESTIONS = [
   '이 대지에 근생 6층 지으면 주차 몇 대 필요해?',
@@ -141,21 +142,36 @@ function AnswerCard({ answer, compact }) {
         <div className="mt-3 pt-3 border-t border-gray-100">
           <p className="text-xs font-semibold text-gray-500 mb-1.5">📖 근거 조문</p>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
-            {answer.citations.map((c, i) => (
-              c.url ? (
-                <a
-                  key={i}
-                  href={c.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline"
-                >
-                  {c.name}
-                </a>
-              ) : (
-                <span key={i} className="text-xs text-gray-600">{c.name}</span>
+            {answer.citations.map((c, i) => {
+              const graphUrl = graphSearchUrl(c.name)
+              return (
+                <span key={i} className="inline-flex items-center gap-1">
+                  {c.url ? (
+                    <a
+                      href={c.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      {c.name}
+                    </a>
+                  ) : (
+                    <span className="text-xs text-gray-600">{c.name}</span>
+                  )}
+                  {graphUrl && (
+                    <a
+                      href={graphUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--font-size-2xs)] text-gray-400 hover:text-emerald-600 hover:underline"
+                      title="법령 그래프에서 조문 원문·인용관계·지자체 비교 보기"
+                    >
+                      원문↗
+                    </a>
+                  )}
+                </span>
               )
-            ))}
+            })}
           </div>
         </div>
       )}

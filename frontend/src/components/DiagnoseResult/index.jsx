@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import { api } from '../../utils/api'
+import { graphSearchUrl } from '../../utils/graphLink'
 import DataQualityBanner from '../DataQualityBanner'
 import DevTrendPanel from '../DevTrendPanel'
 import LawChangeAlert from '../LawChangeAlert'
@@ -917,18 +918,33 @@ function SourceBadge({ source }) {
 function LawRefs({ refs }) {
   return (
     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-      {refs.map((r, i) => (
-        <a
-          key={i}
-          href={r.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-0.5"
-          title={r.url}
-        >
-          📖 {r.name}
-        </a>
-      ))}
+      {refs.map((r, i) => {
+        const graphUrl = graphSearchUrl(r.name)
+        return (
+          <span key={i} className="inline-flex items-center gap-1">
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-0.5"
+              title={r.url}
+            >
+              📖 {r.name}
+            </a>
+            {graphUrl && (
+              <a
+                href={graphUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--font-size-2xs)] text-gray-400 hover:text-emerald-600 hover:underline"
+                title="법령 그래프에서 조문 원문·인용관계·지자체 비교 보기"
+              >
+                원문↗
+              </a>
+            )}
+          </span>
+        )
+      })}
     </div>
   )
 }

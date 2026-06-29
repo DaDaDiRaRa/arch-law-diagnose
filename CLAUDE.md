@@ -62,9 +62,16 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 ### ⛳ 다음에 정할 것 (사용자 결정 대기)
 
-- **A안 (추천)**: graph를 내부 법령 API로(데이터 중복 0, graph에 lookup 엔드포인트 추가 작업 발생)
-- **B안**: graph를 절대 안 건드린다 → graph.json 파일 복사 + GCS 버킷 동기화(로컬은 `GRAPH_JSON_PATH` 환경변수로 graph 폴더 직접 참조)
-- 결정 후: QueryBox를 "진단 결과 종속 어시스턴트"로 재설계 + 선택한 연계 방식 구현.
+> **2026-06-29 재판단**: 코드를 까보니 A/B 결정은 시기상조였음. query_engine은 이미 진단 결과를 컨텍스트로 받고 있었고(QueryBox도 이미 결과 종속), 진단 결과엔 계산기가 만든 **정확한 law_refs(조문명+URL)가 이미 들어있었음**. 단지 query_engine이 그걸 안 쓰고 LLM이 조문을 추측하게 두고 있던 게 "조문 자동 인용 미완"의 정체.
+>
+> **0단계 완료 (커밋됨)** — `query_engine.py`가 `_collect_law_refs()`로 진단 결과의 law_refs를 추출 → "적용 조문(진단 엔진 확정)" 블록으로 프롬프트 주입 + citation URL을 진단 엔진의 정확한 URL로 최우선 보강. 테스트 +2(전체 212). **graph 연계 없이 인용 정확도 문제의 핵심을 해결.**
+>
+> **링크아웃 ② 완료 (2026-06-29, 두 레포)** — 진단 카드 law_refs·AI 답변 citation 옆에 "원문↗" 링크 추가 → graph 검색 화면을 `?q=<조문명>`으로 염. **diagnose 레포**: `frontend/src/utils/graphLink.js`(env `VITE_GRAPH_URL`, 기본 localhost:8080, 약칭→정식명·괄호제거 정제) + `DiagnoseResult`·`QueryBox`에 링크. **graph 레포**(`D:\APPS\arch-law-graph`): `web/src/views/SearchView.jsx`에 mount 시 `?q=`/`?node=` 읽는 useEffect 추가(추가형·degrade). 양쪽 빌드 통과. ⚠ **graph 레포는 별도 커밋 필요**.
+
+남은 graph 연계 선택지 (0단계로 부족할 때만):
+
+- **A안 (RAG 그라운딩, 보류 → 입증 후)**: graph에 JSON 조회 엔드포인트(현재 `/api/ping`+`/api/chat` SSE 둘뿐) 추가 → query_engine이 적용 조문의 **본문 텍스트**를 graph에서 받아 LLM에 물림. 환각 방지 가치는 여기 있으나 두 레포 작업. **QueryBox를 실제로 써보고 답이 여전히 틀릴 때만** 착수.
+- **B안 (graph.json 복사)**: 매일 바뀌는 22MB 파일 복사·동기화 부담 → 오프라인 데모 절대요건일 때만. 사실상 제외.
 
 ---
 
