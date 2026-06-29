@@ -77,11 +77,46 @@ def _build() -> nx.DiGraph:
         except Exception as e:
             logger.warning("[law_graph] 자동수확 파일 로드 실패: %s", e)
 
+    # 큐레이션 오버레이 적용 (반려 제거 / 승격 origin 격상) — baseline 위에 덧입힘
+    _apply_curation(g)
+
     logger.info(
         "[law_graph] 노드 %d · 엣지 %d (자동 노드 %d·엣지 %d, 끊어진 엣지 %d skip)",
         g.number_of_nodes(), g.number_of_edges(), auto_n, auto_e, dropped,
     )
     return g
+
+
+def _apply_curation(g: nx.DiGraph) -> None:
+    """시니어 큐레이션 델타를 그래프에 반영.
+
+    반려(rejected) 노드/엣지는 제거하고, 승격(promoted) 노드/엣지는 origin을
+    'seed'로 격상한다. 오버레이 파일이 없으면(기본) 아무것도 하지 않는다.
+    law_graph_curate를 함수 내에서 import해 순환참조를 피한다.
+    """
+    try:
+        from services.law_graph_curate import (
+            load_promoted_sets,
+            load_rejected_sets,
+        )
+        prom_nodes, prom_edges = load_promoted_sets()
+        rej_nodes, rej_edges = load_rejected_sets()
+    except Exception as e:  # 큐레이션 로드 실패는 진단을 막지 않음
+        logger.warning("[law_graph] 큐레이션 오버레이 로드 실패: %s", e)
+        return
+
+    for nid in rej_nodes:
+        if g.has_node(nid):
+            g.remove_node(nid)  # 연결된 엣지도 함께 제거됨
+    for s, t in rej_edges:
+        if g.has_edge(s, t):
+            g.remove_edge(s, t)
+    for nid in prom_nodes:
+        if g.has_node(nid):
+            g.nodes[nid]["origin"] = "seed"
+    for s, t in prom_edges:
+        if g.has_edge(s, t):
+            g.edges[s, t]["origin"] = "seed"
 
 
 def _graph() -> nx.DiGraph:
