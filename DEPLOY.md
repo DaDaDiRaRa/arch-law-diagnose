@@ -292,7 +292,53 @@ gcloud run deploy arch-law-diagnose \
 > `--no-allow-unauthenticated`: IAM으로 접근 제어. 사내 Google 계정만 허용.  
 > 외부 공개가 필요하면 `--allow-unauthenticated`로 변경.
 
-### 6-4. 재배포 (코드 변경 시)
+---
+
+### 6-4. GCS 버킷 마운트 (GCSFUSE) — BRIEF_DIR·큐레이션 영속화
+
+Cloud Run 파일시스템은 휘발성(인스턴스 재시작·재배포 시 초기화)이다.
+아래 두 데이터는 GCS 버킷 `kunwon-competition-db`를 GCSFUSE로 마운트해 영속화한다.
+
+| 환경변수 | 버킷 경로 | 용도 |
+| --- | --- | --- |
+| `BRIEF_DIR` | `_briefs/` | Competition Analyzer brief json |
+| `LAW_GRAPH_CURATION_DIR` | `law_graph/` | 법규 그래프 승격/반려 오버레이 |
+
+#### 최초 설정 (1회만)
+
+```bash
+# 1. Cloud Run 서비스 계정에 버킷 읽기/쓰기 권한 부여
+gcloud storage buckets add-iam-policy-binding gs://kunwon-competition-db \
+  --member="serviceAccount:30350777436-compute@developer.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin" \
+  --project=arch-diagnose
+
+# 2. 기존 서비스에 볼륨 마운트 + 환경변수 추가 (이미지 재빌드 불필요)
+gcloud run services update arch-law-diagnose \
+  --region asia-northeast3 \
+  --project arch-diagnose \
+  --add-volume=name=gcs-vol,type=cloud-storage,bucket=kunwon-competition-db \
+  --add-volume-mount=volume=gcs-vol,mount-path=/gcs/kunwon-competition-db \
+  --update-env-vars "BRIEF_DIR=/gcs/kunwon-competition-db/_briefs,LAW_GRAPH_CURATION_DIR=/gcs/kunwon-competition-db/law_graph"
+```
+
+> `--update-env-vars`는 지정한 변수만 추가·갱신한다. 기존 환경변수는 그대로 유지됨.  
+> 이후 재배포(이미지 업데이트) 시에도 볼륨 마운트·환경변수는 서비스에 유지된다.
+
+#### 동작 경로
+
+```text
+GCS 버킷: kunwon-competition-db
+    _briefs/                         → /gcs/kunwon-competition-db/_briefs/
+    law_graph/                       → /gcs/kunwon-competition-db/law_graph/
+        law_graph_curation.json      ← 큐레이션 오버레이 파일 (자동 생성)
+```
+
+`law_graph/` 폴더는 첫 큐레이션(승격/반려) 시 자동 생성된다. 별도 폴더 생성 불필요.
+
+---
+
+### 6-5. 재배포 (코드 변경 시)
 
 ```bash
 # 이미지 빌드 → 푸시 → 서비스 업데이트
