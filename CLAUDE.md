@@ -113,7 +113,7 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel 다운로드 | ✅ 운영급 |
 | API 키 6개 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 210건 + CI 게이트) | ✅ 도입 (2026-06-26) — 계산기 전반·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers·height·landscape·building_agreement·feasibility + 외부 API 클라이언트(vworld·eum·luris) + 소형 계산기(public_cert·bf·multi_use·query_engine) |
+| 검증 인프라 (pytest 253건+ · CI 게이트) | ✅ 도입 (2026-06-26) — 계산기 전반·캐시·brief·재시도·법규그래프·far_relief·multi_parcel·review_triggers·height·landscape·building_agreement·feasibility + 외부 API 클라이언트(vworld·eum·luris) + 소형 계산기 + 큐레이션 오버레이 + heritage_client |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json`로 매핑 검증) |
 | 사내 케이스 DB (Step 8) | 🗑 제거 (더미라 일단 삭제, git 복원 가능) |
 | 일부 SHP 누락 (철도 / 시·도별 도시계획시설 일부) | ❌ |
@@ -125,25 +125,18 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 #### 🟢 지금 코드로 가능 (외부 데이터 불필요)
 
-- [x] **외부 API 클라이언트 테스트 (완료 2026-06-26)** — `respx` 0.23.1 도입. `test_vworld_client.py` (16건) · `test_eum_client.py` (13건) · `test_luris_client.py` (9건) = 38건 추가. 전체 179건 통과.
-- [x] 소형 계산기 테스트 (완료 2026-06-26) — `test_small_calculators.py` 31건 (public_certification 9·bf_certification 6·multi_use 11·query_engine 5). 전체 210건 통과.
-- [x] **법규 그래프 검증 워크플로 (완료 2026-06-29)** — 시니어가 탐색기에서 auto(점선) 엣지를 **승격**(seed로 영구화)/**반려**(제거+재수확 차단). `law_graph_curate.py`(promote_edge/reject_edge/reject_node + `law_graph_rejected.json`) + API `POST /api/law-graph/promote|reject` + `law_graph.invalidate()` + harvest가 seed·반려 엣지 재생성 차단 + 프론트 NodeChip "✓승격/✕반려" 버튼. 테스트 +6(전체 220). 재수확: `python -m services.law_graph_harvest`
-  - **영속성 해결 (2026-06-29)**: 큐레이션을 **델타 오버레이 한 파일**(`law_graph_curation.json` — promoted/rejected만 누적)로 분리. seed/auto 원본은 불변(baseline·재수확 유지), `law_graph._build()`가 그 위에 오버레이 적용(반려=제거, 승격=origin 격상). 오버레이 위치는 `LAW_GRAPH_CURATION_DIR` 환경변수 → Cloud Run은 **GCSFUSE 마운트 경로 지정 시 배포본 큐레이션도 재시작·재배포에 보존**됨. 미설정 시 repo `config/`(로컬 커밋 흐름 동일). 커밋 친화+GCS 영속을 한 메커니즘으로 충족. 테스트 +2(전체 253).
 - [ ] 가로구역 최고높이 seed (현재 0건 → §60 자동판정 거의 안 됨) — 단, 고시 PDF 수집 선행
-- [x] markdown lint 일괄 정리 (완료 2026-06-26) — MD034 bare URL 2건 + MD060 테이블 구분선 스타일 통일
 - [ ] (낮음) dev 의존성 `npm audit fix`(vite·babel, 빌드 검증 필요)
 
 #### 🟡 외부 데이터·사용자 대기 (코드는 준비됨)
 
 - [ ] brief 추가 샘플(민간·다부지) → Step 9 매핑 견고화 (공공 1건은 검증됨, 5분 다운로드)
 - [ ] 토지이음 두 404 엔드포인트 문의 (✉ <luris@korea.kr> · ☎ 1522-4484) → LawInfoPanel·DevTrendPanel 활성화
-- [x] **도시계획시설 SHP 수동 갱신 불필요화 (완료 2026-06-29)** — VWorld WFS 실시간 조회(`lt_c_upisuq151~159`)로 전환. SHP 수동 다운로드/설치 없이 항상 최신 시설로 저촉 판정. SHP는 VWorld 실패 시 폴백으로만. (자동 다운로드 대안 NSDI 벌크는 메모리 `nsdi-shp-download-deferred`에 보류 기록)
 - [ ] 사내 시설용도 매핑표 (시니어 30분) → brief 용도 완전 자동화
 
 #### 🔵 선택적 신규 (더 큰 투자, 상세는 "확장 후보" 섹션)
 
 - [ ] NSDI API 연동 (SHP 자동 다운로드) — 🔴 높음
-- [x] **학교·문화재 API → 교육환경·문화재 MAYBE 고정 해소 (완료 2026-06-29)** — 좌표 기반 실거리 판정으로 전환. 학교=`school_client.py`(Kakao Places SC4, 반경 200m, 기존 `KAKAO_API_KEY` 재사용·대학 제외) → 절대보호구역(50m)/상대보호구역(200m)+§7제한용도 자동 분류. 문화재=`heritage_client.py`(국가유산 공간정보 WFS `gis-heritage.go.kr/openapi/xmlService/spca.do`, **인증키 불필요**) → 6개 종목(국보·보물·사적·명승·천연기념물·국가민속, 약 2,560건) 시작 시 1회 수확·메모리 캐시, 좌표를 UTM-K(EPSG:5179)로 변환해 반경 500m 실거리 계산. 둘 다 graceful degrade(좌표·API 실패 시 기존 MAYBE/텍스트 단서 유지). 진단 엔진이 `evaluate_reviews` 전 좌표로 선조회해 주입. 테스트 +31(전체 251). ⚠ 한계: 문화재는 점 대표좌표 기반이라 면적 큰 사적의 대표점이 멀면 누락 가능.
 - [ ] 운영 인프라 — Cloud Logging·Sentry·BigQuery / 실거래가·SGIS(사업성 보강)
 
 #### ✅ 푸시 직후 운영 검증
