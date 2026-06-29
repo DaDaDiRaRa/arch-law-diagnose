@@ -102,7 +102,7 @@ class QueryEngine:
         )
         user_prompt = _USER_TEMPLATE.format(question=question.strip(), context=context)
 
-        data = await self._llm.judge_json(_SYSTEM_PROMPT, user_prompt, max_tokens=2048)
+        data = await self._llm.judge_json(_SYSTEM_PROMPT, user_prompt, max_tokens=4096)
         if data is None:
             return {
                 "answer": "AI 응답 파싱 실패 — 잠시 후 다시 시도해주세요.",
