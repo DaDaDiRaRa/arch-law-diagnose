@@ -257,7 +257,10 @@ gcloud auth configure-docker asia-northeast3-docker.pkg.dev
 IMAGE=asia-northeast3-docker.pkg.dev/YOUR_PROJECT_ID/arch-law/app
 
 # 빌드 (M1/M2 Mac이라면 --platform linux/amd64 추가)
-docker build --platform linux/amd64 -t $IMAGE:latest .
+# 자매 앱 arch-law-graph 링크아웃("원문↗")을 켜려면 VITE_GRAPH_URL 빌드 arg 주입
+# (프론트 빌드타임 값이라 런타임 env로는 안 됨. 미지정 시 localhost 기본 → 프로덕션 링크 깨짐)
+docker build --platform linux/amd64 -t $IMAGE:latest \
+  --build-arg VITE_GRAPH_URL=https://arch-law-graph-30350777436.asia-northeast3.run.app .
 
 # 푸시
 docker push $IMAGE:latest
@@ -277,6 +280,7 @@ gcloud run deploy arch-law-diagnose \
   --concurrency 80 \
   --min-instances 0 \
   --max-instances 3 \
+  --set-env-vars "GRAPH_API_URL=https://arch-law-graph-30350777436.asia-northeast3.run.app,GRAPH_API_TIMEOUT=10" \
   --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
   --set-secrets "VWORLD_API_KEY=VWORLD_API_KEY:latest" \
   --set-secrets "KAKAO_API_KEY=KAKAO_API_KEY:latest" \
@@ -292,7 +296,9 @@ gcloud run deploy arch-law-diagnose \
 
 ```bash
 # 이미지 빌드 → 푸시 → 서비스 업데이트
-docker build --platform linux/amd64 -t $IMAGE:latest . \
+# (VITE_GRAPH_URL build-arg 빠뜨리면 "원문↗" 링크가 다시 localhost로 깨짐 — 매 빌드 포함)
+docker build --platform linux/amd64 -t $IMAGE:latest \
+  --build-arg VITE_GRAPH_URL=https://arch-law-graph-30350777436.asia-northeast3.run.app . \
   && docker push $IMAGE:latest \
   && gcloud run services update-traffic arch-law-diagnose \
        --to-latest --region asia-northeast3

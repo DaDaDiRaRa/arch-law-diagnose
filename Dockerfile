@@ -1,6 +1,11 @@
 # ── Stage 1: 프론트엔드 빌드 ──────────────────────────────────────────────
 FROM node:20-slim AS frontend-builder
 
+# 자매 앱 arch-law-graph 링크아웃 주소 (빌드타임 주입). 미지정 시 기본 localhost.
+# 배포 시: docker build --build-arg VITE_GRAPH_URL=https://<graph-url>
+ARG VITE_GRAPH_URL
+ENV VITE_GRAPH_URL=$VITE_GRAPH_URL
+
 WORKDIR /build/frontend
 COPY frontend/package*.json ./
 RUN npm ci
