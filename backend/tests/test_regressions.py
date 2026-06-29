@@ -178,6 +178,36 @@ async def test_aggregate_confidence_exposed(_engine, _land):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# B (산정 근거): 정량 4개 카드에 provenance{inputs·formula·computed·basis} 추가.
+#   기존 필드·동작은 그대로(추가형).
+# ─────────────────────────────────────────────────────────────────────────────
+async def test_provenance_present_on_quant_cards(_engine, _land):
+    """정량 4개 카드에 산정 근거(provenance)가 붙고 기존 필드는 보존된다."""
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    res = result["results"]
+    for cat in ("건폐율", "용적률", "높이_일조", "주차"):
+        card = res[cat]
+        prov = card.get("provenance")
+        assert prov is not None, f"{cat} provenance 누락"
+        assert set(prov) >= {"inputs", "formula", "computed", "basis"}
+        assert isinstance(prov["inputs"], dict) and prov["inputs"]
+        assert isinstance(prov["computed"], dict) and prov["computed"]
+        # 추가형 보증 — 기존 핵심 필드가 그대로 남아 있다
+        assert "law_refs" in card and "notes" in card and "source" in card
+
+
+async def test_provenance_coverage_math_matches(_engine, _land):
+    """건폐율 provenance 의 입력·결과가 카드 표면 수치와 일치한다(재구성 정합)."""
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    cov = result["results"]["건폐율"]
+    prov = cov["provenance"]
+    # 500/1000*100 = 50% (= _req 기본값)
+    assert prov["inputs"]["building_area"] == 500.0
+    assert prov["inputs"]["site_area_used"] == 1000.0
+    assert prov["computed"]["actual_pct"] == cov["actual_pct"] == 50.0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 버그 #2: /api/brief/extract 가 항상 500 (judge_json 시그니처 불일치 + await 누락)
 # ─────────────────────────────────────────────────────────────────────────────
 async def test_brief_parse_awaits_judge_json_correctly():

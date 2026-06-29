@@ -77,7 +77,15 @@
   - 진단 이력 저장([diagnose_engine.py:790-794](../backend/services/diagnose_engine.py#L790))에 새 필드가 함께 저장되면 `cache_manager` 스키마 점검(프로젝트 규칙: 응답 새 필드 ↔ 스키마 ALTER). 단순 응답 파생 필드면 ALTER 불필요할 수 있으니 저장 경로 확인.
 - **환각 위험**: 0.
 
-### B. 산정 근거(provenance) 블록 추가
+### B. 산정 근거(provenance) 블록 추가 — ✅ 백엔드 완료 (2026-06-29)
+
+> 구현: 정량 4개 계산기([coverage](../backend/services/calculator/coverage.py)·[far](../backend/services/calculator/far.py)·[height](../backend/services/calculator/height.py)·[parking](../backend/services/calculator/parking.py))
+> 반환에 `provenance{inputs, formula, computed, basis}` 추가. `law_refs`는 top-level 그대로 두고
+> 중복하지 않음(분기 위험 회피). 계산이 일어난 카드에만 부착(확인불가 분기는 산식이 없어 생략).
+> 기존 필드·동작 불변. 테스트 +2(전체 272).
+> 프론트: [DiagnoseResult](../frontend/src/components/DiagnoseResult/index.jsx) 카테고리 카드
+> 펼침에 "🧮 산정 근거" 접이식(`ProvenanceBlock`, 입력값·산식·산출 + 키→한글 라벨). 빌드 통과.
+> ⏳ 선택(미착수): LegalReviewReport(인쇄 검토서)에도 산정 근거 노출.
 
 - **목표**: 각 정량 카드에 `{입력값, 공식, 결과, 근거조문}`을 **한 블록**으로 묶어 추가한다. **기존 필드는 그대로 둔다(추가형).**
 - **근거 위치**: `law_refs`(조문 포인터)는 이미 계산기마다 결정론적으로 있다([coverage.py:117](../backend/services/calculator/coverage.py#L117), [height.py:252](../backend/services/calculator/height.py#L252)). 다만 *입력값·공식*은 카드마다 흩어져 있고(`site_correction`은 별도, `actual_pct`는 결과 안) 한 곳에 모여 있지 않다.

@@ -707,6 +707,7 @@ function CategoryCard({ label, cat, nodeId, onShowGraph }) {
     (cat.checks && cat.checks.length > 0) ||
     (cat.implications && cat.implications.length > 0) ||
     (cat.guidelines && Object.keys(cat.guidelines).length > 0) ||
+    cat.provenance ||
     cat.source ||
     (cat.law_refs && cat.law_refs.length > 0)
 
@@ -801,6 +802,7 @@ function CategoryCard({ label, cat, nodeId, onShowGraph }) {
               {cat.warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
           )}
+          {cat.provenance && <ProvenanceBlock prov={cat.provenance} />}
           <SourceBadge source={cat.source} />
           {cat.law_refs && cat.law_refs.length > 0 && (
             <LawRefs refs={cat.law_refs} />
@@ -895,6 +897,92 @@ function CertItems({ items }) {
         </div>
       ))}
     </div>
+  )
+}
+
+// 산정 근거(provenance) 키 → 한글 라벨. 미정의 키는 원문 그대로 노출.
+const PROV_LABELS = {
+  building_area: '건축면적',
+  site_area_used: '대지면적(유효)',
+  floor_area_for_far: '용적률 산정 연면적',
+  excluded_parking_m2: '제외 부속주차',
+  excluded_refuge_m2: '제외 피난안전구역',
+  excluded_attic_refuge_m2: '제외 경사지붕 대피공간',
+  floors_below_excluded: '제외 지하층 수',
+  height_m: '건물 높이',
+  floors_above: '지상 층수',
+  zone_use: '용도지역',
+  road_width_m: '전면도로 폭',
+  north_setback_m: '정북 이격거리',
+  street_block_max_height_m: '가로구역 최고높이',
+  road_20m_adjacent: '20m 도로 접함',
+  adjacent_zone_north: '정북 인접 용도지역',
+  building_use: '건물 용도',
+  total_floor_area: '연면적',
+  units: '세대수',
+  unit_exclusive_area: '세대 전용면적',
+  capacity: '정원/홀/타석',
+  actual_pct: '산정값(%)',
+  limit_pct: '한도(%)',
+  excess_pct: '초과(%p)',
+  shadow_applies: '정북 일조 적용',
+  shadow_min_setback_m: '필요 이격(m)',
+  exemptions: '적용 제외',
+  pass: '판정',
+  required_spaces: '법정 주차대수',
+  provided_spaces: '계획 주차대수',
+}
+
+function _provVal(v) {
+  if (v === null || v === undefined || v === '') return '–'
+  if (Array.isArray(v)) return v.length ? v.join(', ') : '없음'
+  if (typeof v === 'boolean') return v ? '예' : '아니오'
+  return String(v)
+}
+
+// 산정 근거 — 계산기가 자기 입력값·산식·산출을 스스로 기술한 블록 (백엔드 provenance)
+function ProvenanceBlock({ prov }) {
+  if (!prov) return null
+  const inputs = prov.inputs || {}
+  const computed = prov.computed || {}
+  const Rows = ({ obj }) => (
+    <ul className="space-y-0.5">
+      {Object.entries(obj).map(([k, v]) => (
+        <li key={k} className="flex justify-between gap-2">
+          <span className="text-gray-500">{PROV_LABELS[k] || k}</span>
+          <span className="text-gray-700 font-medium text-right">{_provVal(v)}</span>
+        </li>
+      ))}
+    </ul>
+  )
+  return (
+    <details className="text-xs mt-1.5">
+      <summary className="cursor-pointer text-gray-600 hover:text-gray-900 font-medium">
+        🧮 산정 근거 ▾
+      </summary>
+      <div className="mt-1.5 space-y-1.5 border-l-2 border-gray-200 pl-2">
+        {prov.formula && (
+          <p className="text-gray-700 leading-relaxed">
+            <span className="text-gray-500">산식: </span>{prov.formula}
+          </p>
+        )}
+        {Object.keys(inputs).length > 0 && (
+          <div>
+            <p className="text-gray-500 mb-0.5">입력값</p>
+            <Rows obj={inputs} />
+          </div>
+        )}
+        {Object.keys(computed).length > 0 && (
+          <div>
+            <p className="text-gray-500 mb-0.5">산출</p>
+            <Rows obj={computed} />
+          </div>
+        )}
+        {prov.basis && (
+          <p className="text-[var(--font-size-2xs)] text-gray-400">근거: {prov.basis}</p>
+        )}
+      </div>
+    </details>
   )
 }
 

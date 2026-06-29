@@ -103,6 +103,26 @@ def calculate(
         "confidence": 5,
         "source": source,
         "law_refs": _law_refs(),
+        "provenance": {
+            "inputs": {
+                "floor_area_for_far": floor_area_above,  # 부속주차·피난안전구역·대피공간 차감 후 지상 연면적
+                "site_area_used": site_area,
+                "excluded_parking_m2": parking_excluded,
+                "excluded_refuge_m2": refuge_excluded,
+                "excluded_attic_refuge_m2": attic_refuge_excluded,
+                "floors_below_excluded": floors_below,
+            },
+            "formula": (
+                "용적률(%) = 지상 연면적(부속주차·피난안전구역·경사지붕 대피공간 제외) "
+                "÷ 대지면적 × 100"
+            ),
+            "computed": {
+                "actual_pct": round(actual_pct, 2),
+                "limit_pct": limit_pct,
+                "excess_pct": round(excess_pct, 2),
+            },
+            "basis": source,
+        },
         "notes": _notes(passed, actual_pct, limit_pct, zone_use) + note_extra,
     }
 

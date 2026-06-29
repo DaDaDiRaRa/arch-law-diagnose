@@ -79,6 +79,16 @@ def calculate(
         "confidence": 5,
         "source": source,
         "law_refs": _law_refs(),
+        "provenance": {
+            "inputs": {"building_area": building_area, "site_area_used": site_area},
+            "formula": "건폐율(%) = 건축면적 ÷ 대지면적 × 100",
+            "computed": {
+                "actual_pct": round(actual_pct, 2),
+                "limit_pct": limit_pct,
+                "excess_pct": round(excess_pct, 2),
+            },
+            "basis": source,
+        },
         "notes": _notes(passed, actual_pct, limit_pct, zone_use),
     }
 

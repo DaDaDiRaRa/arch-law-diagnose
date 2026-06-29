@@ -194,6 +194,12 @@ def calculate(
     if needs_manual_review:
         context_notes.append("※ 자동 판정 불가 — 정북 이격거리 등 입력 시 자동 판정 가능.")
 
+    source = (
+        "건축법 §60·§61 + 시행령 §82·§86 (입력값 기반 자동 판정)"
+        if not needs_manual_review
+        else "건축법 §60·§61 + 시행령 §82·§86 (입력 부족 — 필수 수동검토)"
+    )
+
     return {
         "category": "높이_일조",
         "actual_height_m": height,
@@ -214,12 +220,31 @@ def calculate(
         "pass": pass_value,
         "score": score,
         "confidence": confidence,
-        "source": (
-            "건축법 §60·§61 + 시행령 §82·§86 (입력값 기반 자동 판정)"
-            if not needs_manual_review
-            else "건축법 §60·§61 + 시행령 §82·§86 (입력 부족 — 필수 수동검토)"
-        ),
+        "source": source,
         "law_refs": _law_refs(),
+        "provenance": {
+            "inputs": {
+                "height_m": height,
+                "floors_above": floors_above,
+                "zone_use": zone_use,
+                "road_width_m": road_width,
+                "north_setback_m": north_setback_m,
+                "street_block_max_height_m": street_block_max_height_m,
+                "road_20m_adjacent": road_20m_adjacent,
+                "adjacent_zone_north": adjacent_zone_north,
+            },
+            "formula": (
+                "§60 가로구역 최고높이 비교 + §86 정북 일조 필요이격 "
+                "= (건물 ≤10m → 1.5m) / (>10m → 높이 ÷ 2)"
+            ),
+            "computed": {
+                "shadow_applies": effective_shadow_applies,
+                "shadow_min_setback_m": shadow_min_setback_m,
+                "exemptions": exemptions,
+                "pass": pass_value,
+            },
+            "basis": source,
+        },
         "notes": " ".join(judgement_notes + context_notes),
     }
 

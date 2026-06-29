@@ -118,6 +118,19 @@ def calculate(
 
     required = _calc_required(building_use, total_floor_area, std, units, unit_exclusive_area, capacity)
 
+    provenance = {
+        "inputs": {
+            "building_use": building_use,
+            "total_floor_area": total_floor_area,
+            "units": units,
+            "unit_exclusive_area": unit_exclusive_area,
+            "capacity": capacity,
+        },
+        "formula": f"주차장법 시행령 별표1 부설주차 산정 — {std.get('note', '')}",
+        "computed": {"required_spaces": required, "provided_spaces": provided_spaces},
+        "basis": "주차장법 시행령 별표 1",
+    }
+
     if provided_spaces is None:
         return {
             "category": "주차",
@@ -129,6 +142,7 @@ def calculate(
             "confidence": 3,
             "source": "📋 주차장법 시행령 별표 1",
             "law_refs": _law_refs(),
+            "provenance": provenance,
             "notes": (
                 f"법정 최소 주차 {required}대 필요 "
                 f"({std.get('note', '')}). 계획 대수 입력 시 적합 여부 판정. "
@@ -156,6 +170,7 @@ def calculate(
         "confidence": 4,
         "source": "📋 주차장법 시행령 별표 1",
         "law_refs": _law_refs(),
+        "provenance": provenance,
         "notes": _notes(passed, required, provided_spaces, deficit, std),
     }
 
