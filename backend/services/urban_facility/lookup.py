@@ -5,8 +5,9 @@ import functools
 from typing import Any
 
 from pyproj import Transformer
-from shapely.geometry import shape
+from shapely.geometry import Point, shape
 from shapely.ops import transform as shp_transform
+from shapely.ops import unary_union
 
 from services.urban_facility.categories import (
     category_label,
@@ -26,8 +27,11 @@ def compute_facility_overlap(
     parcel_geometry: dict | None,
     pnu: str | None = None,
     sido_code: str | None = None,
+    facilities: list[dict] | None = None,
 ) -> dict[str, Any]:
     """대지 폴리곤(WGS84 GeoJSON) ∩ 도시계획시설 → 보정 면적.
+
+    facilities(VWorld WFS 실시간 시설 목록)가 주어지면 그것을, 아니면 로컬 SHP를 사용.
 
     Returns:
       {
@@ -53,16 +57,6 @@ def compute_facility_overlap(
         out["note"] = "대지 폴리곤 정보 없음 — 면적 보정 검사 미수행"
         return out
 
-    sido = sido_code or pnu_to_sido(pnu or "")
-    if not sido:
-        out["note"] = "시·도 코드 미확인"
-        return out
-
-    idx = get_index(sido)
-    if idx is None:
-        out["note"] = f"해당 시·도({sido}) SHP 데이터 없음"
-        return out
-
     try:
         geom_wgs = shape(parcel_geometry)
     except Exception as e:
@@ -72,10 +66,24 @@ def compute_facility_overlap(
     # WGS84 → EPSG:5174 변환
     tr = _wgs84_to_5174().transform
     parcel_5174 = shp_transform(tr, geom_wgs)
+
+    # 시설 소스: VWorld 실시간(우선) → 로컬 SHP(폴백)
+    if facilities is not None:
+        per_facility, union_area = _facilities_overlap_5174(facilities, parcel_5174, tr)
+    else:
+        sido = sido_code or pnu_to_sido(pnu or "")
+        if not sido:
+            out["note"] = "시·도 코드 미확인"
+            return out
+        idx = get_index(sido)
+        if idx is None:
+            out["note"] = f"해당 시·도({sido}) 시설 데이터 없음 (VWorld·SHP 모두 미확보)"
+            return out
+        per_facility, union_area = idx.query_polygon(parcel_5174)
+
     out["parcel_area_m2"] = round(parcel_5174.area, 2)
     out["checked"] = True
 
-    per_facility, union_area = idx.query_polygon(parcel_5174)
     if not per_facility:
         out["severity"] = "GREEN"
         out["note"] = "도시계획시설 저촉 없음 — 보정 불필요"
@@ -120,11 +128,14 @@ def check_facility_conflict(
     lng: float | None,
     pnu: str | None = None,
     sido_code: str | None = None,
+    facilities: list[dict] | None = None,
 ) -> dict[str, Any]:
-    """좌표 + 시·도로 도시계획시설 저촉 여부 판정.
+    """좌표로 도시계획시설 저촉 여부 판정.
+
+    facilities(VWorld WFS 실시간 시설 목록)가 주어지면 그것을, 아니면 로컬 SHP를 사용.
 
     반환 dict:
-      - checked: bool      좌표/시도 정보가 부족하면 False
+      - checked: bool      좌표/데이터가 부족하면 False
       - conflicts: [...]   저촉 시설 목록 (UQ코드, 카테고리명, 시설명, 면적 등)
       - severity: GREEN/YELLOW/RED   최상위 신호
       - note: str          사용자 설명
@@ -140,19 +151,20 @@ def check_facility_conflict(
         out["note"] = "좌표 정보 없음 — 도시계획시설 저촉 검사 미수행"
         return out
 
-    sido = sido_code or pnu_to_sido(pnu or "")
-    if not sido:
-        out["note"] = "시·도 코드를 확인할 수 없어 시설 검사 생략"
-        return out
-
-    idx = get_index(sido)
-    if idx is None:
-        out["note"] = f"해당 시·도({sido}) SHP 데이터 없음"
-        return out
-
-    # WGS84 → EPSG:5174
-    x, y = _wgs84_to_5174().transform(lng, lat)
-    hits = idx.query(x, y)
+    # 시설 소스: VWorld 실시간(우선) → 로컬 SHP(폴백)
+    if facilities is not None:
+        hits = _facilities_at_point(facilities, lng, lat)
+    else:
+        sido = sido_code or pnu_to_sido(pnu or "")
+        if not sido:
+            out["note"] = "시·도 코드를 확인할 수 없어 시설 검사 생략"
+            return out
+        idx = get_index(sido)
+        if idx is None:
+            out["note"] = f"해당 시·도({sido}) 시설 데이터 없음 (VWorld·SHP 모두 미확보)"
+            return out
+        x, y = _wgs84_to_5174().transform(lng, lat)
+        hits = idx.query(x, y)
     out["checked"] = True
 
     if not hits:
@@ -185,6 +197,46 @@ def check_facility_conflict(
     out["conflicts"] = conflicts
     out["note"] = _build_note(conflicts, worst)
     return out
+
+
+def _facilities_at_point(facilities: list[dict], lng: float, lat: float) -> list[dict]:
+    """VWorld 시설(WGS84 GeoJSON) 중 점을 포함하는 것 — 점 포함은 좌표계 무관."""
+    pt = Point(lng, lat)
+    hits = []
+    for fac in facilities:
+        g = fac.get("geometry")
+        if not g:
+            continue
+        try:
+            geom = shape(g)
+        except Exception:
+            continue
+        if geom.covers(pt):
+            hits.append(fac)
+    return hits
+
+
+def _facilities_overlap_5174(
+    facilities: list[dict], parcel_5174, tr
+) -> tuple[list, float]:
+    """VWorld 시설 ∩ 대지(EPSG:5174) → ([(rec, area)], union_area). 면적은 5174 기준."""
+    per: list = []
+    inter_geoms: list = []
+    for fac in facilities:
+        g = fac.get("geometry")
+        if not g:
+            continue
+        try:
+            fac_5174 = shp_transform(tr, shape(g))
+        except Exception:
+            continue
+        inter = fac_5174.intersection(parcel_5174)
+        if inter.is_empty or inter.area <= 0:
+            continue
+        per.append((fac, inter.area))
+        inter_geoms.append(inter)
+    union_area = unary_union(inter_geoms).area if inter_geoms else 0.0
+    return per, union_area
 
 
 def _parse_float(v: Any) -> float | None:

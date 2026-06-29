@@ -24,8 +24,12 @@ def calculate(
     lng: float | None,
     pnu: str | None = None,
     decision_notice_confirmed: bool = False,
+    facilities: list[dict] | None = None,
 ) -> dict:
-    """도시계획시설 저촉 카드."""
+    """도시계획시설 저촉 카드.
+
+    facilities(VWorld WFS 실시간 시설 목록)가 있으면 그것을, 없으면 로컬 SHP를 사용.
+    """
     base = {
         "category": "도시계획시설",
         "actual_pct": None,
@@ -34,17 +38,20 @@ def calculate(
         "excess_pct": 0.0,
         "score": None,
         "confidence": 1,
-        "source": "🗺 토지이음 도시계획 결정도형 (SHP)",
+        "source": (
+            "🗺 VWorld 도시계획시설 WFS (실시간)" if facilities is not None
+            else "🗺 도시계획 결정도형 (SHP)"
+        ),
         "law_refs": _law_refs(),
         "notes": "",
         "conflicts": [],
     }
 
     try:
-        result = check_facility_conflict(lat=lat, lng=lng, pnu=pnu)
+        result = check_facility_conflict(lat=lat, lng=lng, pnu=pnu, facilities=facilities)
     except Exception as e:
         logger.warning("도시계획시설 검사 실패: %s", e)
-        base["notes"] = "도시계획시설 SHP 조회 실패 — 별도 확인 필요"
+        base["notes"] = "도시계획시설 조회 실패 — 별도 확인 필요"
         return base
 
     if not result["checked"]:

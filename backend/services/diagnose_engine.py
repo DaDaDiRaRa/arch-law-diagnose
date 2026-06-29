@@ -210,6 +210,18 @@ class DiagnoseEngine:
             "by_facility": [],
             "note": "",
         }
+        # 도시계획시설 — VWorld WFS 실시간 조회(1회) → 면적보정·카드에 공유.
+        # 실패 시 None → 로컬 SHP 폴백. SHP 수동 설치 없이 동작.
+        urban_facilities = None
+        if land.get("lat") is not None and land.get("lon") is not None:
+            try:
+                urban_facilities = await self._resolver.get_urban_facilities(
+                    land["lon"], land["lat"]
+                )
+            except Exception as e:
+                logger.warning("VWorld 도시계획시설 조회 실패 — SHP 폴백: %s", e)
+                urban_facilities = None
+
         manual_excl = req.get("urban_facility_exclude_area")
         # 사용자 입력 우선: 0 포함한 명시값은 그대로 적용 (자동 보정 비활성)
         # None 또는 빈 문자열만 "미입력"으로 간주 → 자동 보정 분기로 진행
@@ -237,6 +249,7 @@ class DiagnoseEngine:
             overlap = compute_facility_overlap(
                 parcel_geometry=land["parcel_geometry"],
                 pnu=pnu or land.get("pnu"),
+                facilities=urban_facilities,
             )
             site_correction["overlap_info"] = {
                 "checked": overlap["checked"],
@@ -255,7 +268,7 @@ class DiagnoseEngine:
                 site_correction["source"] = "auto"
                 site_correction["note"] = (
                     f"도시계획시설 저촉 {len(overlap['by_facility'])}건 — "
-                    f"VWorld 지적도 ∩ 시설 SHP 자동 산정 {excl:,.1f}㎡ 제외 "
+                    f"지적도 ∩ 도시계획시설 자동 산정 {excl:,.1f}㎡ 제외 "
                     f"(전체 {overlap['parcel_area_m2']:,.1f}㎡의 "
                     f"{overlap['overlap_ratio']*100:.1f}%) [시행령 §3]"
                 )
@@ -371,12 +384,13 @@ class DiagnoseEngine:
         if brief_landscape and (landscape_limit is None or float(brief_landscape) > landscape_limit):
             landscape_limit = float(brief_landscape)
 
-        # 도시계획시설 저촉 (SHP 공간 검사)
+        # 도시계획시설 저촉 (VWorld WFS 실시간 → 실패 시 SHP 폴백)
         r_urban_facility = urban_facility.calculate(
             lat=land.get("lat"),
             lng=land.get("lon"),
             pnu=pnu or land.get("pnu"),
             decision_notice_confirmed=decision_notice_confirmed,
+            facilities=urban_facilities,
         )
 
         # 정량 5개 (동기)

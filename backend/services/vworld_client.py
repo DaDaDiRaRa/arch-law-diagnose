@@ -9,6 +9,7 @@ API 키: VWORLD_API_KEY (.env)
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 
@@ -389,6 +390,74 @@ class VWorldClient:
             "geometry": f.get("geometry"),
             "properties": f.get("properties", {}),
         }
+
+    # ─── 도시계획시설 (WFS 실시간 — SHP 대체) ──────────────────────────
+    # WFS typename → 카테고리 코드(UQ151~159, categories.py·SHP와 동일).
+    # SHP 파일 없이 좌표 주변 시설 폴리곤을 실시간 조회. 속성 필드명도 SHP와 동일.
+    _FACILITY_LAYERS = {f"lt_c_upisuq{n}": f"UQ{n}" for n in range(151, 160)}
+
+    async def get_urban_facilities(
+        self, lon: float, lat: float, buffer_m: float = 300.0
+    ) -> list[dict] | None:
+        """좌표 주변 도시계획시설(UQ151~159) 폴리곤 — VWorld WFS 실시간.
+
+        9개 레이어를 병렬 조회. geometry(WGS84) + 속성(dgm_nm·dgm_ar·wtnnc_sn 등) 반환.
+        Returns:
+          성공: [{"_uq": "UQ151", "geometry": {GeoJSON}, "dgm_nm":..., ...}]  (빈 리스트 = 시설 없음)
+          실패(키 없음 / 전 레이어 오류): None  → 호출부에서 SHP 폴백.
+        """
+        if not self._key:
+            return None
+        d = buffer_m / 111_000.0
+        # WFS 1.1.0 + EPSG:4326 축 순서: minLat,minLon,maxLat,maxLon
+        bbox = f"{lat - d},{lon - d},{lat + d},{lon + d}"
+        results = await asyncio.gather(
+            *(self._fetch_facility_layer(tn, uq, bbox)
+              for tn, uq in self._FACILITY_LAYERS.items()),
+            return_exceptions=True,
+        )
+        facilities: list[dict] = []
+        ok = 0
+        for (tn, _), res in zip(self._FACILITY_LAYERS.items(), results):
+            if isinstance(res, BaseException):
+                logger.warning("VWorld 시설 레이어 조회 실패 (%s): %s", tn, res)
+                continue
+            ok += 1
+            facilities.extend(res)
+        if ok == 0:
+            logger.warning("VWorld 도시계획시설 전 레이어 조회 실패 — SHP 폴백")
+            return None
+        logger.info("VWorld 도시계획시설 %d건 조회 (성공 레이어 %d/9)", len(facilities), ok)
+        return facilities
+
+    async def _fetch_facility_layer(
+        self, typename: str, uq: str, bbox: str, max_features: int = 200
+    ) -> list[dict]:
+        """단일 시설 레이어 WFS GetFeature → 시설 레코드 리스트.
+
+        정상(피처 0건 포함)은 list 반환. 오류(ServiceException·HTTP)는 예외 → 호출부 skip.
+        """
+        params = {
+            "SERVICE": "WFS",
+            "REQUEST": "GetFeature",
+            "TYPENAME": typename,
+            "VERSION": "1.1.0",
+            "SRSNAME": "EPSG:4326",
+            "OUTPUT": "application/json",
+            "BBOX": bbox,
+            "KEY": self._key,
+            "MAXFEATURES": str(max_features),
+        }
+        r = await request_with_retry(
+            self._http, "GET", WFS_URL, params=params, headers=self._wfs_headers
+        )
+        r.raise_for_status()
+        body = r.json()  # ServiceException(XML)이면 JSONDecodeError → 해당 레이어 skip
+        out: list[dict] = []
+        for f in body.get("features", []) or []:
+            props = f.get("properties", {}) or {}
+            out.append({"_uq": uq, "geometry": f.get("geometry"), **props})
+        return out
 
 
 def _safe_int(v) -> int | None:
