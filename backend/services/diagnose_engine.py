@@ -623,7 +623,10 @@ class DiagnoseEngine:
             "철도보호지구": r_railway,
         }
 
-        overall, _confidence_min = _weighted_score(results)
+        # aggregate_confidence: 채점에 기여한 항목 중 최저 confidence(1~5).
+        # "산정한 종합 점수를 얼마나 믿을 수 있는가"의 지표 — 노출만 하고
+        # 신호(RED/YELLOW/GREEN) 판정에는 사용하지 않는다(게이팅은 별도 결정).
+        overall, aggregate_confidence = _weighted_score(results)
 
         risks = [
             {"category": k, "reason": v["notes"]}
@@ -743,8 +746,45 @@ class DiagnoseEngine:
                 "msg": district_unit["note"],
             })
 
+        # ─── 침묵 과대평가 방지 경고 (신호·점수는 그대로, 표시만 추가) ──────────
+        # 가로구역별 최고높이(§60): 지정 데이터셋 미보유(seed 0건) → 값이 없으면
+        # §60 자동판정이 수행되지 않음. 높이 "통과"가 §60까지 검증한 것으로
+        # 오인되지 않도록 고지(정보성).
+        if not r_height.get("street_block_max_height_m"):
+            dq_issues.append({
+                "level": "info",
+                "code": "STREET_BLOCK_UNVERIFIED",
+                "msg": (
+                    "가로구역별 최고높이(건축법 §60) 지정 여부 미확인 — 해당 데이터셋 미보유"
+                    "(자치구 고시 PDF에만 존재). 지정 구역이면 높이 한도가 더 낮을 수 있어 "
+                    "자치구 고시 확인 권장. 지정값을 직접 입력하면 자동 비교됩니다."
+                ),
+            })
+
+        # 도시계획시설 면적보정: 저촉이 감지됐는데 지적 폴리곤 미확보로 시설부지
+        # 면적을 차감하지 못한 경우 → 건폐율·용적률이 낙관적으로 산정됐을 수 있음.
+        # (사용자 수동 입력(source="manual")이나 폴리곤 기반 자동 보정이 수행된
+        #  경우는 제외 — 정말로 보정 시도조차 못 한 경우만 경고.)
+        _uf_conflicts = r_urban_facility.get("conflicts") or []
+        if (
+            _uf_conflicts
+            and not site_correction["applied"]
+            and site_correction.get("source") is None
+            and site_correction.get("overlap_info") is None
+        ):
+            dq_issues.append({
+                "level": "warn",
+                "code": "FACILITY_AREA_UNCORRECTED",
+                "msg": (
+                    "도시계획시설 저촉이 감지됐으나 지적 폴리곤 미확보로 대지면적 자동 보정"
+                    "(시설부지 차감)을 못 했습니다 — 저촉 면적만큼 건폐율·용적률이 낙관적으로 "
+                    "산정됐을 수 있습니다. 시설부지 제외 면적을 수동 입력하면 정확히 반영됩니다."
+                ),
+            })
+
         data_quality = {
             "issues": dq_issues,
+            "aggregate_confidence": aggregate_confidence,
             "ordinance_used": ordinance_used,
             "llm_used": self._llm.available,
             "luris_used": bool(self._luris and self._luris._key),

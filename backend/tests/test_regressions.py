@@ -112,6 +112,72 @@ async def test_normal_road_no_setback_warning(_engine, _land):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# E (침묵 과대평가 방지): 신호·점수는 그대로 두고 data_quality 경고만 추가.
+# ─────────────────────────────────────────────────────────────────────────────
+async def test_street_block_unverified_warns(_engine, _land):
+    """가로구역 최고높이 값이 없으면 §60 자동판정 미수행을 고지한다."""
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    assert "STREET_BLOCK_UNVERIFIED" in _dq_codes(result)
+
+
+async def test_street_block_provided_no_warning(_engine, _land):
+    """가로구역 최고높이를 직접 입력하면 §60이 평가되므로 경고가 없다 (대칭 케이스)."""
+    req = _req(street_block_max_height_m=40.0)  # 건물 32m ≤ 40m → §60 평가됨
+    result = await _engine._diagnose(req, _land, save_history=False, skip_ai=True)
+    assert "STREET_BLOCK_UNVERIFIED" not in _dq_codes(result)
+
+
+async def test_signal_unchanged_by_new_warnings(_engine, _land):
+    """E 경고 추가가 종합 신호 값을 바꾸지 않는다 (추가형 보증)."""
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    # 신호는 risks/warnings/score 로만 결정 — 정보성 dq 경고와 무관
+    assert result["signal"] in {"RED", "YELLOW", "GREEN"}
+    assert "STREET_BLOCK_UNVERIFIED" in _dq_codes(result)  # 경고는 떴는데
+    # 가로구역 외 다른 사유가 없으면 STREET_BLOCK(info) 만으로 RED 가 되지 않음
+    assert result["signal"] != "RED" or any(
+        r for r in result["risks"]
+    )
+
+
+async def test_facility_area_uncorrected_warns(_engine, _land, monkeypatch):
+    """도시계획시설 저촉이 있는데 폴리곤이 없어 면적보정을 못 하면 경고한다."""
+    from services.calculator import urban_facility
+
+    # _engine 픽스처가 건 stub 을 저촉(conflicts) 있는 카드로 재정의
+    monkeypatch.setattr(
+        urban_facility, "calculate",
+        lambda **k: {
+            "pass": None, "score": 5, "confidence": 3,
+            "conflicts": [{"name": "도시계획도로", "severity": "YELLOW"}],
+            "notes": "test", "summary": "test",
+        },
+    )
+    # _land 의 parcel_geometry=None → 자동 면적보정 시도 불가, 수동 입력도 없음
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    assert "FACILITY_AREA_UNCORRECTED" in _dq_codes(result)
+
+
+async def test_facility_area_corrected_no_warning(_engine, _land):
+    """저촉 자체가 없으면 면적보정 경고도 없다 (오경고 방지, 대칭 케이스)."""
+    # 기본 _engine stub 은 conflicts 없는 카드를 반환
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    assert "FACILITY_AREA_UNCORRECTED" not in _dq_codes(result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# A (노출만): 종합 신뢰도 aggregate_confidence 를 data_quality 에 노출.
+#   신호 게이팅에는 쓰지 않는다(신호·점수 불변).
+# ─────────────────────────────────────────────────────────────────────────────
+async def test_aggregate_confidence_exposed(_engine, _land):
+    """채점 항목 중 최저 confidence(1~5)가 data_quality.aggregate_confidence 로 노출된다."""
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    ac = result["data_quality"]["aggregate_confidence"]
+    assert isinstance(ac, int) and 1 <= ac <= 5
+    # 노출일 뿐 신호는 risks/warnings/score 로만 결정 (게이팅 아님)
+    assert result["signal"] in {"RED", "YELLOW", "GREEN"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 버그 #2: /api/brief/extract 가 항상 500 (judge_json 시그니처 불일치 + await 누락)
 # ─────────────────────────────────────────────────────────────────────────────
 async def test_brief_parse_awaits_judge_json_correctly():

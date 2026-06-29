@@ -15,14 +15,15 @@ const LEVEL_STYLE = {
 
 export default function DataQualityBanner({ dataQuality }) {
   if (!dataQuality) return null
-  const { issues = [], ordinance_used, llm_used, luris_used, zone_use_source, land_cache_stale, land_cache_age_days } = dataQuality
+  const { issues = [], ordinance_used, llm_used, luris_used, zone_use_source, land_cache_stale, land_cache_age_days, aggregate_confidence } = dataQuality
 
   if (issues.length === 0) {
     return (
       <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 flex items-center gap-2">
         <span className="text-green-600 text-sm">✅</span>
         <span className="text-xs text-green-700 font-medium">데이터 품질 양호</span>
-        <span className="ml-auto text-[var(--font-size-2xs)] text-green-600 flex gap-3">
+        <span className="ml-auto text-[var(--font-size-2xs)] text-green-600 flex items-center gap-3">
+          <ConfidenceBadge value={aggregate_confidence} />
           <span>VWorld ✓</span>
           {ordinance_used && <span>조례 ✓</span>}
           {llm_used && <span>AI ✓</span>}
@@ -50,6 +51,7 @@ export default function DataQualityBanner({ dataQuality }) {
           zone_use_source={zone_use_source}
           land_cache_stale={land_cache_stale}
           land_cache_age_days={land_cache_age_days}
+          aggregate_confidence={aggregate_confidence}
         />
       </div>
       {issues.map((issue, i) => {
@@ -64,7 +66,26 @@ export default function DataQualityBanner({ dataQuality }) {
   )
 }
 
-function DataSourcePills({ ordinance_used, llm_used, luris_used, zone_use_source, land_cache_stale, land_cache_age_days }) {
+// 종합 신뢰도 배지 — 채점된 항목 중 최저 confidence(1~5). 점수 신뢰도 지표이며
+// 신호(RED/YELLOW/GREEN) 판정과는 별개. (백엔드 data_quality.aggregate_confidence)
+function ConfidenceBadge({ value }) {
+  if (value == null) return null
+  const cls = value >= 4
+    ? 'bg-green-100 text-green-700'
+    : value === 3
+      ? 'bg-yellow-100 text-yellow-700'
+      : 'bg-orange-100 text-orange-700'
+  return (
+    <span
+      className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${cls}`}
+      title="채점된 항목 중 최저 신뢰도 (1~5). 산정한 종합 점수를 얼마나 믿을 수 있는지를 나타내며, 신호 판정과는 별개입니다."
+    >
+      신뢰도 {value}/5
+    </span>
+  )
+}
+
+function DataSourcePills({ ordinance_used, llm_used, luris_used, zone_use_source, land_cache_stale, land_cache_age_days, aggregate_confidence }) {
   const pills = []
 
   if (zone_use_source === 'user') {
@@ -94,6 +115,7 @@ function DataSourcePills({ ordinance_used, llm_used, luris_used, zone_use_source
 
   return (
     <div className="flex flex-wrap gap-1">
+      <ConfidenceBadge value={aggregate_confidence} />
       {pills.map((p, i) => (
         <span key={i} className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${p.cls}`}>
           {p.label}
