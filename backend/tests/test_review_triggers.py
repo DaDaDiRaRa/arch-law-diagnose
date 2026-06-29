@@ -102,6 +102,77 @@ def test_urban_planning_district():
     assert r["severity"] == "REQUIRED"
 
 
+# ── 교육환경평가 ─────────────────────────────────────────────────────────────
+def test_education_degrade_none_returns_maybe():
+    """nearby_schools=None → API 미조회 degrade → MAYBE."""
+    r = rt._eval_education(_req(), {}, nearby_schools=None)
+    assert r["severity"] == "MAYBE"
+
+
+def test_education_no_schools_returns_none():
+    """nearby_schools=[] → 200m 내 학교 없음 → NONE."""
+    r = rt._eval_education(_req(), {}, nearby_schools=[])
+    assert r["severity"] == "NONE"
+
+
+def test_education_absolute_zone():
+    """학교가 50m 이내 → 절대보호구역 → REQUIRED."""
+    schools = [{"name": "영등포초등학교", "distance_m": 30, "address": ""}]
+    r = rt._eval_education(_req(building_use="업무시설"), {}, nearby_schools=schools)
+    assert r["severity"] == "REQUIRED"
+    assert "절대보호구역" in r["triggered_reasons"][0]
+
+
+def test_education_relative_zone_restricted_use():
+    """학교가 50~200m + 숙박 용도 → 상대보호구역 + 제한용도 → REQUIRED."""
+    schools = [{"name": "영등포중학교", "distance_m": 120, "address": ""}]
+    r = rt._eval_education(_req(building_use="숙박시설"), {}, nearby_schools=schools)
+    assert r["severity"] == "REQUIRED"
+    assert "상대보호구역" in r["triggered_reasons"][0]
+
+
+def test_education_relative_zone_non_restricted_use():
+    """학교가 50~200m + 업무시설 → 상대보호구역이지만 제한용도 아님 → MAYBE."""
+    schools = [{"name": "영등포고등학교", "distance_m": 150, "address": ""}]
+    r = rt._eval_education(_req(building_use="업무시설"), {}, nearby_schools=schools)
+    assert r["severity"] == "MAYBE"
+
+
+# ── 문화재 현상변경 ──────────────────────────────────────────────────────────
+def test_heritage_degrade_text_signal():
+    """nearby_heritages=None + 지역지구 단서 있음 → degrade → REQUIRED."""
+    r = rt._eval_cultural_heritage(_req(), {"zone_district": "역사문화환경보존지역"})
+    assert r["severity"] == "REQUIRED"
+
+
+def test_heritage_degrade_no_signal():
+    """nearby_heritages=None + 단서 없음 → degrade → MAYBE."""
+    r = rt._eval_cultural_heritage(_req(), {}, nearby_heritages=None)
+    assert r["severity"] == "MAYBE"
+
+
+def test_heritage_api_found():
+    """nearby_heritages 있음 → API 확인 → REQUIRED."""
+    heritages = [{"name": "영등포 사적지", "heritage_type": "11", "distance_m": 280}]
+    r = rt._eval_cultural_heritage(_req(), {}, nearby_heritages=heritages)
+    assert r["severity"] == "REQUIRED"
+    assert "500m" in r["triggered_reasons"][0]
+
+
+def test_heritage_api_empty_no_signal():
+    """nearby_heritages=[] + 단서 없음 → NONE."""
+    r = rt._eval_cultural_heritage(_req(), {}, nearby_heritages=[])
+    assert r["severity"] == "NONE"
+
+
+def test_heritage_api_empty_with_signal():
+    """nearby_heritages=[] but 지역지구 단서 있음 → REQUIRED (텍스트 단서 우선)."""
+    r = rt._eval_cultural_heritage(
+        _req(), {"zone_district": "역사문화환경보존지역"}, nearby_heritages=[]
+    )
+    assert r["severity"] == "REQUIRED"
+
+
 # ── 진입점 ───────────────────────────────────────────────────────────────────
 def test_evaluate_reviews_shape():
     out = evaluate_reviews(_req(floors_above=16, total_floor_area=6000), {})
@@ -113,3 +184,13 @@ def test_evaluate_reviews_shape():
 def test_evaluate_reviews_no_land():
     out = evaluate_reviews(_req())
     assert len(out["items"]) == 11
+
+
+def test_evaluate_reviews_nearby_params_forwarded():
+    """evaluate_reviews에 nearby 파라미터 전달 시 교육환경 결과에 반영."""
+    out_none = evaluate_reviews(_req(), {}, nearby_schools=None)
+    out_empty = evaluate_reviews(_req(), {}, nearby_schools=[])
+    edu_none = next(x for x in out_none["items"] if x["name"] == "교육환경평가")
+    edu_empty = next(x for x in out_empty["items"] if x["name"] == "교육환경평가")
+    assert edu_none["severity"] == "MAYBE"
+    assert edu_empty["severity"] == "NONE"

@@ -47,7 +47,9 @@ from services.land_use_resolver import LandUseResolver, _parse_sido as _extract_
 from services.llm_client import LLMClient
 from services.luris_client import LurisClient
 from services.ordinance_resolver import OrdinanceResolver
+from services.heritage_client import HeritageClient
 from services.review_triggers import evaluate_reviews
+from services.school_client import SchoolClient
 from services.urban_facility import compute_facility_overlap
 
 logger = logging.getLogger(__name__)
@@ -95,6 +97,8 @@ class DiagnoseEngine:
         ordinance_resolver: OrdinanceResolver | None = None,
         luris: LurisClient | None = None,
         eum: "EumClient | None" = None,
+        school_client: SchoolClient | None = None,
+        heritage_client: HeritageClient | None = None,
     ) -> None:
         self._resolver = land_resolver
         self._cache = cache
@@ -102,6 +106,8 @@ class DiagnoseEngine:
         self._ordinance = ordinance_resolver
         self._luris = luris
         self._eum = eum
+        self._school = school_client
+        self._heritage = heritage_client
 
     async def run(self, req: dict) -> dict:
         """전체 진단 — 토지 조회 + 6개 카테고리 + 이력 저장."""
@@ -616,8 +622,23 @@ class DiagnoseEngine:
         else:
             signal = "GREEN"
 
-        # B4: 8개 심의 자동 트리거
-        applicable_reviews = evaluate_reviews(req, land)
+        # B4: 교육환경·문화재 근접 데이터 선조회 (좌표가 있을 때만)
+        nearby_schools: list[dict] | None = None
+        nearby_heritages: list[dict] | None = None
+        if land.get("lat") is not None and land.get("lon") is not None:
+            _lon = float(land["lon"])
+            _lat = float(land["lat"])
+            if self._school:
+                nearby_schools = await self._school.find_nearby_schools(_lon, _lat)
+            if self._heritage:
+                nearby_heritages = await self._heritage.find_nearby_heritages(_lon, _lat)
+
+        # B4: 심의 자동 트리거
+        applicable_reviews = evaluate_reviews(
+            req, land,
+            nearby_schools=nearby_schools,
+            nearby_heritages=nearby_heritages,
+        )
 
         # ─── 데이터 품질 요약 ──────────────────────────────────────────────
         dq_issues: list[dict] = []

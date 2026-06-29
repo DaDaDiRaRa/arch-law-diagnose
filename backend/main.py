@@ -14,6 +14,8 @@ from pydantic import BaseModel, Field
 from services.address_api_client import AddressApiClient
 from services.cache_manager import CacheManager
 from services.diagnose_engine import DiagnoseEngine
+from services.heritage_client import HeritageClient
+from services.school_client import SchoolClient
 from services.diagnose_exporter import to_markdown as diagnose_to_markdown
 from services.diagnose_exporter import to_xlsx as diagnose_to_xlsx
 from services.feasibility_engine import run_feasibility
@@ -81,9 +83,14 @@ async def lifespan(app: FastAPI):
     # cache 주입 → 행위제한 교차검증 캐시(eum_act_restriction_cache) 활용
     eum_client = EumClient(cache=cache_manager)
 
+    school_client = SchoolClient()
+    heritage_client = HeritageClient()
+
     engine = DiagnoseEngine(
         land_resolver, cache_manager, llm_client,
         ordinance_resolver, luris_client, eum=eum_client,
+        school_client=school_client,
+        heritage_client=heritage_client,
     )
     query_engine = QueryEngine(llm_client)
 

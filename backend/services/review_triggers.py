@@ -209,52 +209,176 @@ def _eval_disaster_impact(req: dict, land: dict) -> dict:
     }
 
 
+# 교육환경법 §7 — 상대보호구역 내 제한 용도 키워드
+_EDU_RESTRICTED_USES = ("숙박", "유흥", "노래연습장", "단란주점", "PC방", "위락")
+
 # ───────────────────────────────────────────────────────────────────────
 # 5. 교육환경평가 — 교육환경법 §6
 # ───────────────────────────────────────────────────────────────────────
-def _eval_education(req: dict, land: dict) -> dict:
-    # 교육환경보호구역(절대 50m·상대 200m) 해당 여부는 학교와의 거리(좌표) 기반 판정이 필요.
-    # 현재 좌표 데이터 미보유 → MAYBE 고정, 사용자 직접 확인 안내.
+def _eval_education(
+    req: dict, land: dict, nearby_schools: list[dict] | None = None
+) -> dict:
+    """교육환경보호구역 판정.
+
+    nearby_schools:
+      None  — API 미조회(키 없음·실패) → MAYBE 유지 (기존 동작)
+      []    — 200m 내 학교 없음 → NONE
+      [...] — 학교 있음, 거리 기반 판정
+    """
     use = req.get("building_use") or ""
-    restricted_hint = any(
-        kw in use for kw in ("숙박", "유흥", "노래연습장", "단란주점", "PC방", "위락")
+    restricted_use = any(kw in use for kw in _EDU_RESTRICTED_USES)
+
+    law_ref = "교육환경 보호에 관한 법률 §6, §7"
+    law_ref_url = "https://www.law.go.kr/법령/교육환경보호에관한법률/제6조"
+
+    if nearby_schools is None:
+        # API 미조회 → 기존 MAYBE 동작
+        return {
+            "name": "교육환경평가",
+            "severity": "MAYBE",
+            "triggered_reasons": (
+                [f"보호구역 내 제한 가능 용도 포함 — {use} (§7 행위 제한 목록 확인 필요)"]
+                if restricted_use else []
+            ),
+            "law_ref": law_ref,
+            "law_ref_url": law_ref_url,
+            "note": (
+                "교육환경보호구역(절대보호구역 50m·상대보호구역 200m) 이내 여부는 학교 경계와의 거리로 결정됨."
+                " 토지이음 또는 관할 교육지원청에서 해당 필지의 보호구역 포함 여부를 직접 확인 필요."
+                " 숙박·유흥·위락 등 §7 제한 시설은 상대보호구역 내 설치 불가."
+            ),
+        }
+
+    if not nearby_schools:
+        # 200m 내 학교 없음 — 보호구역 외부 확정
+        return {
+            "name": "교육환경평가",
+            "severity": "NONE",
+            "triggered_reasons": [],
+            "law_ref": law_ref,
+            "law_ref_url": law_ref_url,
+            "note": "반경 200m 내 교육환경보호구역 대상 학교 없음 (Kakao Places 조회 확인).",
+        }
+
+    # 학교 있음 — 절대/상대 구분
+    abs_zone = [s for s in nearby_schools if s["distance_m"] <= 50]
+    nearest = min(nearby_schools, key=lambda s: s["distance_m"])
+    school_list = ", ".join(
+        f"{s['name']}({s['distance_m']}m)" for s in nearby_schools[:3]
+    )
+
+    if abs_zone:
+        abs_list = ", ".join(
+            f"{s['name']}({s['distance_m']}m)" for s in abs_zone
+        )
+        return {
+            "name": "교육환경평가",
+            "severity": "REQUIRED",
+            "triggered_reasons": [
+                f"절대보호구역(50m 이내) — {abs_list}"
+            ],
+            "law_ref": law_ref,
+            "law_ref_url": law_ref_url,
+            "note": (
+                "절대보호구역(학교출입문 50m 이내): 교육환경법 §6 금지행위 전면 불가."
+                " 관할 교육지원청 사전 협의 필수."
+            ),
+        }
+
+    # 상대보호구역 (50m 초과 ~ 200m 이내)
+    severity = "REQUIRED" if restricted_use else "MAYBE"
+    reasons = [f"상대보호구역(200m 이내) — {school_list}"]
+    if restricted_use:
+        reasons.append(f"§7 제한 용도 포함 — {use}")
+    note = (
+        f"상대보호구역(200m 이내, 최근접 학교 {nearest['name']} {nearest['distance_m']}m)."
+        + (" 숙박·유흥·위락 등 §7 제한 시설 설치 불가 — 교육지원청 확인 필요."
+           if restricted_use else
+           " §7 제한 용도(숙박·유흥·위락 등) 해당 시 설치 불가 — 교육지원청 확인 필요.")
     )
     return {
         "name": "교육환경평가",
-        "severity": "MAYBE",  # 학교 거리 좌표 데이터 없이 확정 불가
-        "triggered_reasons": (
-            [f"보호구역 내 제한 가능 용도 포함 — {use} (§7 행위 제한 목록 확인 필요)"]
-            if restricted_hint else []
-        ),
-        "law_ref": "교육환경 보호에 관한 법률 §6, §7",
-        "law_ref_url": "https://www.law.go.kr/법령/교육환경보호에관한법률/제6조",
-        "note": (
-            "교육환경보호구역(절대보호구역 50m·상대보호구역 200m) 이내 여부는 학교 경계와의 거리로 결정됨."
-            " 토지이음 또는 관할 교육지원청에서 해당 필지의 보호구역 포함 여부를 직접 확인 필요."
-            " 숙박·유흥·위락 등 §7 제한 시설은 상대보호구역 내 설치 불가."
-        ),
+        "severity": severity,
+        "triggered_reasons": reasons,
+        "law_ref": law_ref,
+        "law_ref_url": law_ref_url,
+        "note": note,
     }
 
 
 # ───────────────────────────────────────────────────────────────────────
 # 6. 문화재 현상변경 — 문화재보호법 §13
 # ───────────────────────────────────────────────────────────────────────
-def _eval_cultural_heritage(req: dict, land: dict) -> dict:
-    # 좌표 기반 검색 필요 — 별도 데이터(국가유산 보호구역 SHP) 없으므로 단순 안내
+def _eval_cultural_heritage(
+    req: dict, land: dict, nearby_heritages: list[dict] | None = None
+) -> dict:
+    """역사문화환경 보존지역 판정.
+
+    nearby_heritages:
+      None  — API 미조회(키 없음·실패) → 지역지구명 텍스트 단서 기반 기존 동작
+      []    — API 성공, 500m 내 지정문화재 없음 → 텍스트 단서만으로 최종 판정
+      [...] — 지정문화재 있음 → REQUIRED
+    """
     district = (land.get("zone_district") or "") + " " + (req.get("zone_district") or "")
     has_signal = any(kw in district for kw in ("문화재", "역사문화", "보존지역"))
+
+    law_ref = "국가유산기본법, 문화재보호법 §13, 시행령 §21-2"
+    law_ref_url = "https://www.law.go.kr/법령/문화재보호법/제13조"
+    base_note = (
+        "지정문화재 외곽 100~500m(역사문화환경 보존지역) 내 건축 시 시·도지사 사전 허가 대상. "
+        "국가유산청 또는 시·도 문화재과에서 지정구역 확인 필요."
+    )
+
+    if nearby_heritages:
+        # API 확인: 500m 내 지정문화재 존재 → REQUIRED
+        nearest = min(nearby_heritages, key=lambda h: h["distance_m"])
+        heritage_list = ", ".join(
+            f"{h['name']}({h['distance_m']}m)" for h in nearby_heritages[:3]
+        )
+        return {
+            "name": "문화재 현상변경 허가",
+            "severity": "REQUIRED",
+            "triggered_reasons": [
+                f"역사문화환경 보존지역(500m 이내) — {heritage_list}"
+            ],
+            "law_ref": law_ref,
+            "law_ref_url": law_ref_url,
+            "note": (
+                f"지정문화재 {nearest['name']}까지 {nearest['distance_m']}m."
+                " 역사문화환경 보존지역 내 건축 행위기준 고시 확인 후 시·도지사 허가 신청 필요."
+            ),
+        }
+
+    if nearby_heritages is not None and not nearby_heritages:
+        # API 성공, 500m 내 없음 — 텍스트 단서만 남음
+        if has_signal:
+            return {
+                "name": "문화재 현상변경 허가",
+                "severity": "REQUIRED",
+                "triggered_reasons": [f"지역지구에 문화재 관련 단서 — {district.strip()}"],
+                "law_ref": law_ref,
+                "law_ref_url": law_ref_url,
+                "note": base_note,
+            }
+        return {
+            "name": "문화재 현상변경 허가",
+            "severity": "NONE",
+            "triggered_reasons": [],
+            "law_ref": law_ref,
+            "law_ref_url": law_ref_url,
+            "note": "반경 500m 내 지정문화재 없음 (국가유산청 API 확인).",
+        }
+
+    # nearby_heritages is None → degrade: 기존 텍스트 단서 판정
     return {
         "name": "문화재 현상변경 허가",
         "severity": "REQUIRED" if has_signal else "MAYBE",
         "triggered_reasons": (
             [f"지역지구에 문화재 관련 단서 — {district.strip()}"] if has_signal else []
         ),
-        "law_ref": "국가유산기본법, 문화재보호법 §13, 시행령 §21-2",
-        "law_ref_url": "https://www.law.go.kr/법령/문화재보호법/제13조",
-        "note": (
-            "지정문화재 외곽 100~500m(역사문화환경 보존지역) 내 건축 시 시·도지사 사전 허가 대상. "
-            "국가유산청 또는 시·도 문화재과에서 지정구역 확인 필요."
-        ),
+        "law_ref": law_ref,
+        "law_ref_url": law_ref_url,
+        "note": base_note,
     }
 
 
@@ -450,8 +574,19 @@ def _eval_crime_prevention(req: dict, land: dict) -> dict:
 # ───────────────────────────────────────────────────────────────────────
 # 진입점
 # ───────────────────────────────────────────────────────────────────────
-def evaluate_reviews(req: dict, land: dict | None = None) -> dict[str, Any]:
+def evaluate_reviews(
+    req: dict,
+    land: dict | None = None,
+    *,
+    nearby_schools: list[dict] | None = None,
+    nearby_heritages: list[dict] | None = None,
+) -> dict[str, Any]:
     """심의·영향평가 일괄 평가 (11개 항목).
+
+    nearby_schools / nearby_heritages:
+      None  → 해당 API 미조회 (degrade, 기존 동작)
+      []    → 조회 성공, 결과 없음
+      [...] → 조회 성공, 결과 있음
 
     Returns:
       {
@@ -466,8 +601,8 @@ def evaluate_reviews(req: dict, land: dict | None = None) -> dict[str, Any]:
         _eval_traffic_impact(req, land),
         _eval_landscape(req, land),
         _eval_disaster_impact(req, land),
-        _eval_education(req, land),
-        _eval_cultural_heritage(req, land),
+        _eval_education(req, land, nearby_schools),
+        _eval_cultural_heritage(req, land, nearby_heritages),
         _eval_environmental(req, land),
         _eval_urban_planning(req, land),
         _eval_underground_safety(req, land),
