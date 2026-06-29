@@ -1,0 +1,39 @@
+{
+  "id": "office_general_commercial_01",
+  "label": "오피스텔+근생 (일반상업지역, 수도권 택지개발지구)",
+  "source": "실 인허가 건축개요서에서 추출. 식별정보(사업명·주소·발주처·블록번호) 전부 제외, 숫자·용도지역만 보존.",
+  "note": "용적률 699.80% vs 법정 700% — 면도날 통과. 엔진이 이 산정값을 그대로 재현하는지 고정한다.",
+  "input": {
+    "building_use": "오피스텔",
+    "zone_use": "일반상업지역",
+    "site_area": 4667.60,
+    "building_area": 3175.89,
+    "total_floor_area": 47629.22,
+    "floor_area_above": 32663.79,
+    "floors_above": 39,
+    "floors_below": 5,
+    "height": 134.7,
+    "landscape_area": 774.86,
+    "provided_parking_spaces": 323
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 70.0,
+    "floor_area_ratio": 700.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "기록만 — 완화·심의는 별도 케이스에서 검증. 공개공지를 입력에 넣으면 용적률 완화로 한도가 700을 넘어 면도날 통과 검증이 흐려지므로 v1에선 제외.",
+    "public_open_space_area_m2": 398.20,
+    "legal_far_pct": 700.0,
+    "planned_far_pct": 699.80,
+    "legal_bcr_pct": 70.0,
+    "planned_bcr_pct": 68.04,
+    "legal_parking_spaces": 270,
+    "reviews": ["건축·경관 통합심의", "교통영향평가", "소방 성능위주설계"]
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 68.04, "limit_pct": 70.0, "pass": true},
+    "용적률": {"actual_pct": 699.80, "limit_pct": 700.0, "pass": true},
+    "signal_not": "RED"
+  }
+}
