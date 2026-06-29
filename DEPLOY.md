@@ -27,19 +27,20 @@
 ### 선택지
 
 | 방식 | 장점 | 단점 |
-|------|------|------|
+| --- | --- | --- |
 | **단일 컨테이너** (채택) | 포트 1개, 설정 단순, CORS 불필요 | 백엔드 재배포 시 프론트도 함께 빌드 |
 | 분리 컨테이너 (API + CDN) | 독립 배포, CDN 캐시 가능 | CORS 설정 필요, Cloud Run 2개 + Load Balancer 비용 |
 | Cloud Run + Firebase Hosting | 프론트 CDN 분리 | 설정 복잡도 증가 |
 
 **단일 컨테이너를 선택한 이유:**
+
 - 사내 전용 앱으로 트래픽이 많지 않음
 - React 빌드 결과물을 FastAPI가 직접 서빙하면 CORS 헤더 불필요
 - Cloud Run 하나만 관리하면 됨
 
 ### 최종 컨테이너 내부 구조
 
-```
+```text
 /app/
 ├── backend/          ← WORKDIR, uvicorn 실행 위치
 │   ├── main.py
@@ -96,7 +97,7 @@ CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080
 
 ### 레이어 캐시 전략
 
-```
+```text
 COPY package*.json → npm ci       # 의존성 레이어 (느림, 자주 안 바뀜)
 COPY frontend/ → npm run build    # 소스 레이어 (소스 변경 시만 재실행)
 ---
@@ -143,6 +144,7 @@ files/
 ```
 
 **핵심 규칙:**
+
 - `.env` 는 절대 포함하지 않는다 → Secret Manager로 주입
 - `node_modules/`, `frontend/dist` 는 빌드 컨텍스트에서 제외해 전송 속도 향상
 - `backend/data/` (SQLite) 는 이미지에 넣지 않는다 — Cloud Run 인스턴스가 종료되면 사라짐
@@ -314,12 +316,12 @@ gcloud storage buckets add-iam-policy-binding gs://kunwon-competition-db \
   --project=arch-diagnose
 
 # 2. 기존 서비스에 볼륨 마운트 + 환경변수 추가 (이미지 재빌드 불필요)
+# 단일 컨테이너 서비스는 --add-volume 한 플래그에 mount-path 포함
 gcloud run services update arch-law-diagnose \
   --region asia-northeast3 \
   --project arch-diagnose \
-  --add-volume=name=gcs-vol,type=cloud-storage,bucket=kunwon-competition-db \
-  --add-volume-mount=volume=gcs-vol,mount-path=/gcs/kunwon-competition-db \
-  --update-env-vars "BRIEF_DIR=/gcs/kunwon-competition-db/_briefs,LAW_GRAPH_CURATION_DIR=/gcs/kunwon-competition-db/law_graph"
+  "--add-volume=name=gcs-vol,type=cloud-storage,bucket=kunwon-competition-db,mount-path=/gcs/kunwon-competition-db" \
+  "--update-env-vars=BRIEF_DIR=/gcs/kunwon-competition-db/_briefs,LAW_GRAPH_CURATION_DIR=/gcs/kunwon-competition-db/law_graph"
 ```
 
 > `--update-env-vars`는 지정한 변수만 추가·갱신한다. 기존 환경변수는 그대로 유지됨.  
@@ -378,7 +380,7 @@ gcloud secrets add-iam-policy-binding ANTHROPIC_API_KEY \
 ### 환경 변수 목록 (이 프로젝트 기준)
 
 | 시크릿명 | 필수 | 용도 |
-|---------|------|------|
+| --- | --- | --- |
 | `ANTHROPIC_API_KEY` | ✅ | Claude AI |
 | `VWORLD_API_KEY` | ✅ | 지적도·좌표 |
 | `KAKAO_API_KEY` | ✅ | 주소 자동완성 |
@@ -401,6 +403,7 @@ gcloud secrets add-iam-policy-binding ANTHROPIC_API_KEY \
 일부 패키지는 postinstall에서 바이너리 다운로드나 초기화를 수행함.
 
 **해결:** 플래그 제거.
+
 ```dockerfile
 # 잘못된 방식
 RUN npm ci --ignore-scripts
@@ -420,6 +423,7 @@ RUN npm ci
 시스템 라이브러리가 필요함.
 
 **해결:** apt로 시스템 라이브러리 선 설치.
+
 ```dockerfile
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libgeos-dev \
@@ -446,6 +450,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 uvicorn이 `sys.path`를 `/app/backend`로 바꾸기 전에 모듈을 찾으려 해서 실패.
 
 **해결:** `WORKDIR`을 실행 위치로 직접 지정. `--app-dir` 불필요.
+
 ```dockerfile
 # 잘못된 방식
 WORKDIR /app
@@ -466,6 +471,7 @@ CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080
 실제 DB는 `backend/data/`에 있어서 제외 규칙이 적용되지 않음.
 
 **해결:** 정확한 경로 명시.
+
 ```gitignore
 # 잘못된 방식
 data/
@@ -488,6 +494,7 @@ Cloud Run URL(`https://arch-law-diagnose-xxxx.run.app`)이 허용 목록에 없�
 
 **해결:** 단일 컨테이너 배포에서는 같은 origin이므로 CORS 자체가 불필요.
 외부 API 클라이언트 대응으로 `["*"]`로 변경.
+
 ```python
 allow_origins=["*"]
 ```
@@ -506,6 +513,7 @@ React Router 경로는 브라우저에서만 처리되는데,
 서버는 실제 파일이 없어서 404를 돌려줌.
 
 **해결:** catch-all 라우트로 모든 미매칭 요청을 `index.html`로 반환.
+
 ```python
 @app.get("/{full_path:path}", include_in_schema=False)
 async def spa_fallback(full_path: str):
@@ -527,7 +535,7 @@ Cloud Run 컨테이너는 요청 처리 후 종료될 수 있고 디스크가 **
 **대안:**
 
 | 현재 용도 | Cloud Run 대응 |
-|---------|--------------|
+| --- | --- |
 | SQLite 캐시 DB | Cloud SQL (PostgreSQL) 또는 Firestore |
 | 파일 업로드 임시 저장 | Cloud Storage (GCS) |
 | 세션 / 상태 공유 | Redis (Memorystore) |
@@ -607,6 +615,7 @@ CPU 집약 작업(shapely 연산 등)이 많으면 낮추는 것 고려.
 - [ ] SPA 경로에서 새로고침 시 404 없는지 확인
 - [ ] API 엔드포인트 동작 확인
 - [ ] Cloud Run 로그에서 에러 없는지 확인
-  ```bash
-  gcloud run services logs read arch-law-diagnose --region asia-northeast3 --limit 50
-  ```
+
+```bash
+gcloud run services logs read arch-law-diagnose --region asia-northeast3 --limit 50
+```
