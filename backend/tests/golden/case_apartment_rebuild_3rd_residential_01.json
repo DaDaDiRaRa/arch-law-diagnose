@@ -1,0 +1,31 @@
+{
+  "id": "apartment_rebuild_3rd_residential_01",
+  "label": "재건축 아파트(857세대) — 제3종일반주거지역",
+  "source": "실 재건축사업 설계개요에서 추출. 식별정보(사업명·주소·조합) 전부 제외, 수치·용도지역만 보존.",
+  "note": "건폐율 24.08/50, 용적률 299.99/300(면도날). 지하2·지상25층. 일반미관지구.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "제3종일반주거지역",
+    "site_area": 40760.00,
+    "building_area": 9815.00,
+    "total_floor_area": 179851.83,
+    "floor_area_above": 122274.15,
+    "floors_above": 25,
+    "floors_below": 2
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 50.0,
+    "floor_area_ratio": 300.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "법정 상한 용적률 300% 이하. 계획 299.99%.",
+    "household_count": 857,
+    "overlays": ["일반미관지구"]
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 24.08, "limit_pct": 50.0, "pass": true},
+    "용적률": {"actual_pct": 299.99, "limit_pct": 300.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

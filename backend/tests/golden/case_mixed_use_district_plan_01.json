@@ -1,0 +1,30 @@
+{
+  "id": "mixed_use_district_plan_01",
+  "label": "주상복합(공동주택+오피스텔+판매) — 지구단위계획(업무복합용지)",
+  "source": "실 택지개발지구 건축개요에서 추출. 식별정보(사업명·주소·발주처) 전부 제외, 수치만 보존.",
+  "note": "건폐율 59.95/60, 용적률 269.57/270(면도날). 한도는 지구단위 적용값. 936세대 지상46층.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "업무복합용지(지구단위계획구역)",
+    "site_area": 50957.30,
+    "building_area": 30549.83,
+    "total_floor_area": 215256.40,
+    "floor_area_above": 137367.93,
+    "floors_above": 46,
+    "floors_below": 2
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 60.0,
+    "floor_area_ratio": 270.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "기준 용도지역 미표기(택지 업무복합용지·제1종 지구단위계획구역). 한도 60%/270%는 지구단위 적용값. zone_use 가 표준명이 아니라 ZONE_UNRECOGNIZED 경고가 뜨지만 산정값(actual_pct)은 면적만으로 정해져 무관.",
+    "residential_far_pct": 242.97,
+    "household_count": 936
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 59.95, "limit_pct": 60.0, "pass": true},
+    "용적률": {"actual_pct": 269.57, "limit_pct": 270.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

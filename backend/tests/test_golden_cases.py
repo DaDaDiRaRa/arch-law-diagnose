@@ -59,7 +59,9 @@ def _build_req(inp: dict, label: str) -> dict:
         "floor_area_above": inp.get("floor_area_above", inp["total_floor_area"]),
         "floors_above": inp["floors_above"],
         "floors_below": inp.get("floors_below", 0),
-        "height": inp["height"],
+        # 높이(m)가 없는 개요서(층수만 기재)는 층수×3.3 근사로 채움 — 높이 카드는
+        # expected 에서 검증하지 않으므로 건폐율·용적률 정합에 영향 없음.
+        "height": inp.get("height") or round(inp["floors_above"] * 3.3, 1),
     }
     # 선택 입력 — 있으면만 전달 (없는 키로 계산기 분기 오염 방지)
     for opt in (
@@ -105,8 +107,10 @@ async def test_golden_case(case_path):
             continue
         card = res[cat]
         if "actual_pct" in exp:
-            assert card["actual_pct"] == exp["actual_pct"], (
-                f"[{case['id']}] {cat} 산정값 {card['actual_pct']} != 기대 {exp['actual_pct']}"
+            # 원문 건축개요서 표기와 ±0.01%p 허용 — 용도별 절사·반올림 경계의
+            # 표기 관례 차이를 흡수(엔진은 면적÷면적을 2자리 반올림).
+            assert abs(card["actual_pct"] - exp["actual_pct"]) < 0.011, (
+                f"[{case['id']}] {cat} 산정값 {card['actual_pct']} != 기대 {exp['actual_pct']} (±0.01 허용)"
             )
         if "limit_pct" in exp:
             assert card["limit_pct"] == exp["limit_pct"], (

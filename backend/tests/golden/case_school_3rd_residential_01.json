@@ -1,0 +1,31 @@
+{
+  "id": "school_3rd_residential_01",
+  "label": "교육연구시설(초등학교 증개축) — 제3종일반주거지역",
+  "source": "실 축조승인 설계개요에서 추출. 식별정보(학교명·주소) 전부 제외, 수치·용도지역만 보존.",
+  "note": "비주거 시설 유형(교육). 건폐율 29.99/50, 용적률 117.83/290(여유 통과). 지하1·지상5층.",
+  "input": {
+    "building_use": "교육연구시설",
+    "zone_use": "제3종일반주거지역",
+    "site_area": 13270.50,
+    "building_area": 3980.36,
+    "total_floor_area": 15963.26,
+    "floor_area_above": 15636.11,
+    "floors_above": 5,
+    "floors_below": 1,
+    "height": 20.50
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 50.0,
+    "floor_area_ratio": 290.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "초등학교 48학급 증개축. 면도날 아님(여유 통과) 케이스 — 한도 대비 활용률 낮은 경우 검증.",
+    "planned_landscape_pct": 15.26
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 29.99, "limit_pct": 50.0, "pass": true},
+    "용적률": {"actual_pct": 117.83, "limit_pct": 290.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "apartment_rebuild_2nd_residential_01",
+  "label": "재건축 아파트(2,173세대) — 제2종일반주거지역",
+  "source": "실 재건축정비사업 설계개요에서 추출. 식별정보(사업명·주소·조합) 전부 제외, 수치·용도지역만 보존.",
+  "note": "건폐율 25.05/50, 용적률 299.87/300(법적상한 면도날). 최고 150m·49층. 교육환경보호구역.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "제2종일반주거지역",
+    "site_area": 90074.60,
+    "building_area": 22566.54,
+    "total_floor_area": 421851.50,
+    "floor_area_above": 270103.70,
+    "floors_above": 49,
+    "floors_below": 2
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 50.0,
+    "floor_area_ratio": 300.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "기준 210/허용 230/상한 246.96/법적상한 300%. 계획 299.87%는 법적상한 적용.",
+    "household_count": 2173,
+    "overlays": ["지구단위계획구역", "교육환경보호구역", "대공방어협조구역"]
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 25.05, "limit_pct": 50.0, "pass": true},
+    "용적률": {"actual_pct": 299.87, "limit_pct": 300.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

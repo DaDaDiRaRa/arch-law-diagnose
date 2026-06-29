@@ -1,0 +1,33 @@
+{
+  "id": "apartment_redevelopment_2nd_residential_01",
+  "label": "공동주택 재개발(1,007세대) — 제2종일반주거지역",
+  "source": "실 정비사업 건축개요서에서 추출. 식별정보(사업명·주소·조합) 전부 제외, 수치·용도지역만 보존.",
+  "note": "저밀 아파트 11개동. 건폐율 20.06%(원문은 용도별 절사로 20.05% 표기), 용적률 229.70% vs 상한 241.97%.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "제2종일반주거지역",
+    "site_area": 42080.90,
+    "building_area": 8440.04,
+    "total_floor_area": 154918.05,
+    "floor_area_above": 96660.31,
+    "floors_above": 29,
+    "floors_below": 3
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 60.0,
+    "floor_area_ratio": 241.97,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "원문 건폐율 합계 20.05%는 용도별 백분율(18.860+1.197=20.057)을 절사한 값. 엔진은 8440.04/42080.90 을 반올림해 20.06%. 둘 다 정확(표기 관례 차이).",
+    "base_far_pct": 210.0,
+    "cap_far_pct": 241.97,
+    "planned_far_pct": 229.701,
+    "household_count": 1007
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 20.05, "limit_pct": 60.0, "pass": true},
+    "용적률": {"actual_pct": 229.70, "limit_pct": 241.97, "pass": true},
+    "signal_not": "RED"
+  }
+}

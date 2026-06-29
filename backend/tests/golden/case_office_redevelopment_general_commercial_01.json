@@ -1,0 +1,32 @@
+{
+  "id": "office_redevelopment_general_commercial_01",
+  "label": "업무시설 도시정비형 재개발 — 일반상업지역(역사도심)",
+  "source": "실 정비계획 설계개요에서 추출. 식별정보(사업명·주소·조합) 전부 제외, 수치·용도지역만 보존.",
+  "note": "단일 업무동. 건폐율 58.21/60, 용적률 799.51/800(면도날), 최고높이 69.50/70.",
+  "input": {
+    "building_use": "업무시설",
+    "zone_use": "일반상업지역",
+    "site_area": 3612.20,
+    "building_area": 2102.75,
+    "total_floor_area": 43659.09,
+    "floor_area_above": 28879.92,
+    "floors_above": 16,
+    "floors_below": 6,
+    "height": 69.50
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 60.0,
+    "floor_area_ratio": 800.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "도시환경정비구역·역사도심지구·중점경관관리구역. 공개공지 14.09%(법정 10%).",
+    "legal_height_m": 70.0,
+    "planned_height_m": 69.50,
+    "public_open_space_area_m2": 508.91
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 58.21, "limit_pct": 60.0, "pass": true},
+    "용적률": {"actual_pct": 799.51, "limit_pct": 800.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

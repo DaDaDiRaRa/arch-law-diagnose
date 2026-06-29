@@ -1,0 +1,29 @@
+{
+  "id": "mixed_use_central_commercial_01",
+  "label": "주상복합(아파트+오피스텔+상가) — 중심상업지역",
+  "source": "실 사업 건축개요에서 추출. 식별정보(사업명·주소·발주처) 전부 제외, 수치·용도지역만 보존.",
+  "note": "건폐율 56.48/80, 용적률 800.50/1300. 중심상업·방화지구·시가지경관지구. 476세대.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "중심상업지역",
+    "site_area": 8280.50,
+    "building_area": 4676.83,
+    "total_floor_area": 88602.46,
+    "floor_area_above": 66285.36,
+    "floors_above": 36,
+    "floors_below": 3
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 80.0,
+    "floor_area_ratio": 1300.0
+  },
+  "context_recorded_not_asserted": {
+    "household_count": 476,
+    "overlays": ["방화지구", "시가지경관지구(중심)"]
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 56.48, "limit_pct": 80.0, "pass": true},
+    "용적률": {"actual_pct": 800.50, "limit_pct": 1300.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

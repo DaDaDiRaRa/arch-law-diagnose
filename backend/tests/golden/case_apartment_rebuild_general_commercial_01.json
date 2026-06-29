@@ -1,0 +1,30 @@
+{
+  "id": "apartment_rebuild_general_commercial_01",
+  "label": "재건축 주상복합(1,048세대) — 일반상업지역",
+  "source": "실 재건축 계획안 설계개요에서 추출. 식별정보(사업명·주소·조합) 전부 제외, 수치·용도지역만 보존.",
+  "note": "건폐율 38.35/60, 용적률 489.99/490(상한 면도날). 지하5·지상49층. 공동주택+업무+판매.",
+  "input": {
+    "building_use": "공동주택",
+    "zone_use": "일반상업지역",
+    "site_area": 16857.00,
+    "building_area": 6464.00,
+    "total_floor_area": 134442.28,
+    "floor_area_above": 82598.44,
+    "floors_above": 49,
+    "floors_below": 5
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 60.0,
+    "floor_area_ratio": 490.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "허용 420/상한 490%. 계획 489.99%(상한 적용). 공동주택 용적률 402.51%. 공개공지 법정 10%.",
+    "household_count": 1048,
+    "overlays": ["중심지미관지구", "주차장설치 제한구역"]
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 38.35, "limit_pct": 60.0, "pass": true},
+    "용적률": {"actual_pct": 489.99, "limit_pct": 490.0, "pass": true},
+    "signal_not": "RED"
+  }
+}
