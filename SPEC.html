@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arch-law-diagnose — 시스템 스펙</title>
+<style>
+  :root {
+    --bg: #f8f9fa;
+    --surface: #ffffff;
+    --surface2: #f1f3f5;
+    --border: #dee2e6;
+    --border-light: #e9ecef;
+    --text: #212529;
+    --text-muted: #6c757d;
+    --text-light: #adb5bd;
+    --primary: #2563eb;
+    --primary-light: #dbeafe;
+    --code-bg: #1e2530;
+    --code-text: #e2e8f0;
+    --green: #16a34a;
+    --green-bg: #dcfce7;
+    --yellow: #ca8a04;
+    --yellow-bg: #fef9c3;
+    --red: #dc2626;
+    --red-bg: #fee2e2;
+    --orange: #ea580c;
+    --orange-bg: #fff7ed;
+    --sidebar-w: 260px;
+    --radius: 8px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+  }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 24px 0 40px;
+  }
+  .sidebar-header {
+    padding: 0 20px 16px;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 12px;
+  }
+  .sidebar-header .app-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -0.3px;
+  }
+  .sidebar-header .app-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .sidebar nav a {
+    display: block;
+    padding: 5px 20px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    text-decoration: none;
+    line-height: 1.5;
+    transition: color .15s, background .15s;
+    border-left: 2px solid transparent;
+  }
+  .sidebar nav a:hover { color: var(--primary); background: var(--primary-light); }
+  .sidebar nav a.active { color: var(--primary); font-weight: 600; border-left-color: var(--primary); background: var(--primary-light); }
+  .sidebar nav .nav-group { margin-top: 8px; }
+  .sidebar nav .nav-group-label {
+    padding: 4px 20px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 48px 56px 80px;
+    max-width: 900px;
+  }
+
+  /* ── Header ── */
+  .doc-header {
+    margin-bottom: 40px;
+    padding-bottom: 28px;
+    border-bottom: 2px solid var(--border);
+  }
+  .doc-header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  .doc-header .subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .doc-header .subtitle span { display: flex; align-items: center; gap: 4px; }
+
+  /* ── Sections ── */
+  .section {
+    margin-bottom: 52px;
+    scroll-margin-top: 24px;
+  }
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .section-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-light);
+    background: var(--surface2);
+    padding: 2px 8px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 24px 0 12px;
+    padding-left: 10px;
+    border-left: 3px solid var(--primary);
+  }
+  h4 {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 16px 0 8px;
+  }
+  p { margin-bottom: 12px; }
+  strong { font-weight: 700; }
+
+  /* ── Blockquote (callout) ── */
+  blockquote {
+    background: var(--primary-light);
+    border-left: 3px solid var(--primary);
+    padding: 12px 16px;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 16px 0;
+    font-size: 13px;
+    color: #1e40af;
+  }
+
+  /* ── Code ── */
+  code {
+    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 12.5px;
+    background: var(--surface2);
+    color: #be185d;
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 16px 20px;
+    border-radius: var(--radius);
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 12.5px;
+    line-height: 1.65;
+    margin: 12px 0;
+    box-shadow: var(--shadow);
+  }
+  pre code {
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-size: inherit;
+    border-radius: 0;
+  }
+  /* Code comments */
+  pre .cm { color: #94a3b8; font-style: italic; }
+  /* Code keywords */
+  pre .kw { color: #7dd3fc; }
+
+  /* ── Tables ── */
+  .table-wrap { overflow-x: auto; margin: 14px 0; border-radius: var(--radius); box-shadow: var(--shadow); }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: var(--surface);
+  }
+  th {
+    background: var(--surface2);
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 9px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8f9ff; }
+  td code { font-size: 11.5px; }
+
+  /* ── Lists ── */
+  ul, ol { padding-left: 22px; margin: 8px 0 12px; }
+  li { margin-bottom: 5px; line-height: 1.65; }
+  li ul, li ol { margin: 4px 0; }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .badge-green  { background: var(--green-bg);  color: var(--green); }
+  .badge-yellow { background: var(--yellow-bg); color: var(--yellow); }
+  .badge-red    { background: var(--red-bg);    color: var(--red); }
+  .badge-blue   { background: var(--primary-light); color: var(--primary); }
+  .badge-orange { background: var(--orange-bg); color: var(--orange); }
+  .badge-gray   { background: var(--surface2);  color: var(--text-muted); }
+  .badge-required { background: #fee2e2; color: #991b1b; }
+  .badge-recommended { background: #fef9c3; color: #92400e; }
+  .badge-optional { background: var(--surface2); color: var(--text-muted); }
+
+  /* ── Highlight boxes ── */
+  .box {
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    margin: 14px 0;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .box-info    { background: var(--primary-light); border: 1px solid #bfdbfe; }
+  .box-warning { background: var(--orange-bg); border: 1px solid #fed7aa; }
+  .box-danger  { background: var(--red-bg);    border: 1px solid #fecaca; }
+  .box-success { background: var(--green-bg);  border: 1px solid #bbf7d0; }
+  .box-label {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+  .box-info .box-label    { color: #1d4ed8; }
+  .box-warning .box-label { color: #c2410c; }
+  .box-danger .box-label  { color: #b91c1c; }
+  .box-success .box-label { color: #15803d; }
+
+  /* ── Signal pills ── */
+  .signal-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+  .signal-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 24px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .signal-green  { background: var(--green-bg);  color: #14532d; border: 1px solid #86efac; }
+  .signal-yellow { background: var(--yellow-bg); color: #713f12; border: 1px solid #fde047; }
+  .signal-red    { background: var(--red-bg);    color: #7f1d1d; border: 1px solid #fca5a5; }
+  .signal-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .signal-green  .signal-dot { background: var(--green); }
+  .signal-yellow .signal-dot { background: #eab308; }
+  .signal-red    .signal-dot { background: var(--red); }
+
+  /* ── Flow diagram ── */
+  .flow {
+    background: var(--code-bg);
+    color: #cbd5e1;
+    padding: 20px 24px;
+    border-radius: var(--radius);
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    margin: 14px 0;
+    overflow-x: auto;
+    box-shadow: var(--shadow-md);
+  }
+  .flow .flow-step { color: #7dd3fc; font-weight: 700; }
+  .flow .flow-sub  { color: #94a3b8; }
+  .flow .flow-note { color: #fbbf24; }
+  .flow .flow-ok   { color: #86efac; }
+  .flow .flow-warn { color: #fca5a5; }
+
+  /* ── Weight bar ── */
+  .weight-row { display: flex; align-items: center; gap: 10px; margin: 5px 0; }
+  .weight-label { width: 130px; font-size: 12.5px; flex-shrink: 0; }
+  .weight-bar-wrap { flex: 1; background: var(--surface2); border-radius: 4px; height: 10px; overflow: hidden; }
+  .weight-bar { height: 100%; border-radius: 4px; background: var(--primary); transition: width .3s; }
+  .weight-val { font-size: 12px; font-weight: 700; color: var(--text-muted); width: 30px; text-align: right; }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border-light); margin: 32px 0; }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    margin-top: 48px;
+    padding: 16px 20px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-light); }
+
+  /* ── Estimate badge in text ── */
+  .est {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffc107;
+    padding: 1px 5px;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
+
+  /* ── Confidence grid ── */
+  .conf-grid { display: grid; grid-template-columns: 40px 1fr; gap: 6px 12px; align-items: center; margin: 12px 0; }
+  .conf-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--surface2);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .conf-num.c5 { background: var(--green-bg); color: var(--green); }
+  .conf-num.c4 { background: #d1fae5; color: #065f46; }
+  .conf-num.c3 { background: var(--yellow-bg); color: var(--yellow); }
+  .conf-num.c2 { background: var(--orange-bg); color: var(--orange); }
+  .conf-num.c1 { background: var(--red-bg); color: var(--red); }
+  .conf-desc { font-size: 12.5px; line-height: 1.5; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { padding: 24px 20px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ══ Sidebar ══ -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="app-name">arch-law-diagnose</div>
+      <div class="app-sub">시스템 스펙 · 2026-06-29</div>
+    </div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-group-label">개요</div>
+        <a href="#s1">1. 시스템 목적</a>
+        <a href="#s2">2. 시스템 아키텍처</a>
+        <a href="#s3">3. 입력 스펙</a>
+        <a href="#s4">4. 핵심 진단 흐름</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">계산 로직</div>
+        <a href="#s5">5. 카테고리별 계산</a>
+        <a href="#s5-1">&nbsp;&nbsp;5-1. 행위제한</a>
+        <a href="#s5-2">&nbsp;&nbsp;5-2. 도시계획시설</a>
+        <a href="#s5-3">&nbsp;&nbsp;5-3. 건폐율</a>
+        <a href="#s5-4">&nbsp;&nbsp;5-4. 용적률</a>
+        <a href="#s5-5">&nbsp;&nbsp;5-5. 높이·일조</a>
+        <a href="#s5-6">&nbsp;&nbsp;5-6. 주차</a>
+        <a href="#s5-7">&nbsp;&nbsp;5-7. 조경</a>
+        <a href="#s5-8">&nbsp;&nbsp;5-8. 설비·소방</a>
+        <a href="#s6">6. 용적률 완화 시스템</a>
+        <a href="#s7">7. 종합 점수·신호 판정</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">기능</div>
+        <a href="#s8">8. 사업성 모드</a>
+        <a href="#s9">9. 자연어 질의</a>
+        <a href="#s10">10. 심의 트리거</a>
+        <a href="#s11">11. 법규 의미 그래프</a>
+      </div>
+      <div class="nav-group">
+        <div class="nav-group-label">인프라</div>
+        <a href="#s12">12. API Degrade 전략</a>
+        <a href="#s13">13. 데이터 캐시</a>
+        <a href="#s14">14. 알려진 한계</a>
+        <a href="#s15">15. 프로젝트 구조</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ══ Main ══ -->
+  <main class="main">
+
+    <div class="doc-header">
+      <h1>arch-law-diagnose — 시스템 스펙</h1>
+      <div class="subtitle">
+        <span>📄 코드에서 역추론한 문서</span>
+        <span>🕐 2026-06-29</span>
+        <span><span class="est">추정</span> 표시 = 불확실한 부분</span>
+      </div>
+    </div>
+
+    <!-- ── §1 ── -->
+    <section class="section" id="s1">
+      <div class="section-header">
+        <span class="section-num">01</span>
+        <h2>시스템 목적</h2>
+      </div>
+      <p>건축사무소 내부 전용. 주소 + 건물 계획 수치를 입력하면 건축 인허가 전에 8개 법규 카테고리를 자동 점검해 <strong>GREEN / YELLOW / RED</strong> 신호와 종합 점수(0~10)를 반환한다.</p>
+
+      <div class="signal-row">
+        <div class="signal-pill signal-green"><div class="signal-dot"></div> GREEN — 전항목 통과 + 점수 ≥ 7.0</div>
+        <div class="signal-pill signal-yellow"><div class="signal-dot"></div> YELLOW — 확인 필요 또는 점수 &lt; 7.0</div>
+        <div class="signal-pill signal-red"><div class="signal-dot"></div> RED — 위반 항목 존재</div>
+      </div>
+
+      <h3>핵심 사용 흐름</h3>
+      <ol>
+        <li><strong>설계 초기</strong> — 대지 적합성·최대 건폐율/용적률 빠른 확인</li>
+        <li><strong>설계 중간</strong> — 계획안이 법정 한도를 초과하는지 즉시 체크</li>
+        <li><strong>공모 참여</strong> — 공모지침(brief) 요구치 vs 법정 한도 갭 분석 (사업성 모드)</li>
+        <li><strong>검토 보고</strong> — PDF·Excel 한 장 요약 출력</li>
+      </ol>
+    </section>
+
+    <!-- ── §2 ── -->
+    <section class="section" id="s2">
+      <div class="section-header">
+        <span class="section-num">02</span>
+        <h2>시스템 아키텍처</h2>
+      </div>
+      <pre>┌──────────────────────────────────────────────────────────────┐
+│                      브라우저 (SPA)                           │
+│   React 18 + Vite + Tailwind                                  │
+│   ├── 주소 검색 / 건물 입력 (InputForm)                       │
+│   ├── 진단 결과 카드 (DiagnoseResult)                         │
+│   ├── What-If 슬라이더 (WhatIfPanel)                          │
+│   ├── 사업성 모드 (FeasibilityMode / BriefList)               │
+│   ├── 법규 의미 그래프 (LawGraphPanel — react-flow)           │
+│   └── 보고서 출력 (LegalReviewReport)                         │
+└────────────────────────┬─────────────────────────────────────┘
+                         │ HTTP (포트 8000 로컬 / 8080 Docker)
+┌────────────────────────▼─────────────────────────────────────┐
+│                  FastAPI 백엔드 (Python 3.12)                 │
+│                                                               │
+│  POST /api/diagnose         → DiagnoseEngine.run()           │
+│  POST /api/diagnose/whatif  → DiagnoseEngine (fast re-calc)  │
+│  POST /api/diagnose/multi   → MultiParcel 합필 진단          │
+│  POST /api/feasibility/run  → FeasibilityEngine              │
+│  GET  /api/law-graph        → LawGraph (networkx)            │
+│  POST /api/query            → QueryEngine (Claude RAG)       │
+│                                                               │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │              DiagnoseEngine (오케스트레이터)           │    │
+│  │  ① 토지 정보 조회 (VWorld / 캐시)                     │    │
+│  │  ② 도시계획시설 저촉 (VWorld WFS 실시간)               │    │
+│  │  ③ 대지면적 보정 (시설 저촉분 제외)                    │    │
+│  │  ④ 조례 조회 (OrdinanceResolver cascade)              │    │
+│  │  ⑤ 특례 적용 (재정비촉진 / 리모델링 / 공공임대)        │    │
+│  │  ⑥ 용적률 완화 계산 (FarRelief — 6종 레버)            │    │
+│  │  ⑦ 8개 계산기 병렬 실행                               │    │
+│  │  ⑧ 심의 트리거 자동 판정                               │    │
+│  │  ⑨ 가중평균 종합점수 → 신호 판정                       │    │
+│  └──────────────────────────────────────────────────────┘    │
+│                                                               │
+│  SQLite (./data/arch_law.db)                                  │
+│  ├── 조례 캐시 (30일 TTL)                                     │
+│  └── 진단 이력 (히스토리)                                     │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+        ┌────────────────┼─────────────────────┐
+        ▼                ▼                     ▼
+  VWorld API        EUM / LURIS            Anthropic Claude
+  (용도지역·         (행위제한·             (설비소방 정성판단
+   WFS 실시간)       법령정보)              + 조례 수치 추출)
+
+  법제처 DRF          Kakao Local           arch-law-graph
+  (조례 본문)         (주소 자동완성)        (조문 원문 RAG,
+                                            graceful degrade)</pre>
+    </section>
+
+    <!-- ── §3 ── -->
+    <section class="section" id="s3">
+      <div class="section-header">
+        <span class="section-num">03</span>
+        <h2>입력 스펙</h2>
+      </div>
+
+      <h3>3-1. 기본 진단 <code>POST /api/diagnose</code></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>타입</th><th>필수</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><code>address</code></td><td>string</td><td><span class="badge badge-required">필수</span></td><td>도로명 또는 지번 주소</td></tr>
+            <tr><td><code>lat / lng</code></td><td>float</td><td><span class="badge badge-optional">선택</span></td><td>좌표 (주소 선택 시 자동 채움)</td></tr>
+            <tr><td><code>pnu</code></td><td>string</td><td><span class="badge badge-optional">선택</span></td><td>법정동 코드+번지 19자리</td></tr>
+            <tr><td><code>zone_use</code></td><td>string</td><td><span class="badge badge-required">필수</span></td><td>용도지역 (예: 제2종일반주거지역)</td></tr>
+            <tr><td><code>site_area</code></td><td>float</td><td><span class="badge badge-required">필수</span></td><td>대지면적 (㎡)</td></tr>
+            <tr><td><code>building_area</code></td><td>float</td><td><span class="badge badge-required">필수</span></td><td>건축면적 (㎡)</td></tr>
+            <tr><td><code>total_floor_area</code></td><td>float</td><td><span class="badge badge-required">필수</span></td><td>연면적 전체 (㎡)</td></tr>
+            <tr><td><code>floor_area_above</code></td><td>float</td><td><span class="badge badge-optional">선택</span></td><td>지상층 연면적 (용적률 산정용; 없으면 total 사용) <span class="est">추정</span></td></tr>
+            <tr><td><code>height</code></td><td>float</td><td><span class="badge badge-required">필수</span></td><td>건물 높이 (m)</td></tr>
+            <tr><td><code>floors_above</code></td><td>int</td><td><span class="badge badge-required">필수</span></td><td>지상 층수</td></tr>
+            <tr><td><code>floors_below</code></td><td>int</td><td><span class="badge badge-optional">선택</span></td><td>지하 층수</td></tr>
+            <tr><td><code>building_use</code></td><td>string</td><td><span class="badge badge-required">필수</span></td><td>건축물 용도 (건축법 19개 분류)</td></tr>
+            <tr><td><code>units</code></td><td>int</td><td><span class="badge badge-optional">선택</span></td><td>세대수 (공동주택)</td></tr>
+            <tr><td><code>provided_parking</code></td><td>int</td><td><span class="badge badge-optional">선택</span></td><td>계획 주차 대수</td></tr>
+            <tr><td><code>north_setback_m</code></td><td>float</td><td><span class="badge badge-optional">선택</span></td><td>정북 이격거리 (m); 없으면 §61 pass=None</td></tr>
+            <tr><td><code>road_width_m</code></td><td>float</td><td><span class="badge badge-optional">선택</span></td><td>접도 너비 (m)</td></tr>
+            <tr><td><code>jurisdiction_code</code></td><td>string</td><td><span class="badge badge-optional">선택</span></td><td>시군구코드 (조례 조회용; PNU 있으면 자동 파생)</td></tr>
+            <tr><td><code>applicant_type</code></td><td>string</td><td><span class="badge badge-optional">선택</span></td><td>공공기관 / 민간 (공공인증 의무 판정용)</td></tr>
+            <tr><td><code>green_grade</code></td><td>string</td><td><span class="badge badge-optional">선택</span></td><td>녹색건축 인증 등급 (완화 적용용)</td></tr>
+            <tr><td><code>zero_energy_grade</code></td><td>int</td><td><span class="badge badge-optional">선택</span></td><td>제로에너지 등급 1~5</td></tr>
+            <tr><td><code>far_limit_manual_override</code></td><td>float</td><td><span class="badge badge-optional">선택</span></td><td>용적률 상한 수동 지정 (심의 결정값 등)</td></tr>
+            <tr><td><code>building_agreement</code></td><td>bool</td><td><span class="badge badge-optional">선택</span></td><td>건축협정 여부 (§110의7 완화 적용)</td></tr>
+            <tr><td><code>skip_fire_safety</code></td><td>bool</td><td><span class="badge badge-optional">선택</span></td><td>AI 설비소방 판단 생략 (빠른 재계산용)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box box-info">
+        <div class="box-label">용도지역 표준화</div>
+        모든 <code>zone_use</code>는 <code>zone_use_normalizer.py</code>의 <code>normalize()</code>를 거쳐 19개 표준명 + 별칭 61개로 매핑. 매칭 실패 시 <code>None</code> → 전 항목 <code>pass=None</code>.
+      </div>
+
+      <h3>3-2. 사업성 모드 추가 필드 <code>POST /api/feasibility/run</code></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>필드</th><th>설명</th></tr></thead>
+          <tbody>
+            <tr><td><code>target_far_pct</code></td><td>공모 요구 용적률 (%)</td></tr>
+            <tr><td><code>target_coverage_pct</code></td><td>공모 요구 건폐율 (%)</td></tr>
+            <tr><td><code>target_height_m</code></td><td>공모 요구 최고높이 (m)</td></tr>
+            <tr><td><code>target_parking</code></td><td>공모 요구 주차 대수</td></tr>
+            <tr><td><code>target_floor_area</code></td><td>공모 요구 연면적 (㎡)</td></tr>
+            <tr><td><code>brief_id</code></td><td><code>data/briefs/</code> 디렉토리의 공모지침 파일명 (자동 채움)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── §4 ── -->
+    <section class="section" id="s4">
+      <div class="section-header">
+        <span class="section-num">04</span>
+        <h2>핵심 진단 흐름</h2>
+      </div>
+      <pre>DiagnoseEngine.run(req)
+│
+├─ 1. LandUseResolver.get()
+│      VWorld WFS → 용도지역·지역지구·도로폭·지적 폴리곤
+│      실패 시: stale 캐시 사용 → data_quality.fallback = true
+│
+├─ 2. VWorld WFS urban_facility 조회 (lt_c_upisuq151~159 레이어)
+│      대지 폴리곤 ∩ 시설 폴리곤 → 저촉 여부 + 저촉면적 산정
+│      실패 시: 로컬 SHP 폴백 (SHP_ROOT 환경변수 경로)
+│
+├─ 3. 대지면적 보정
+│      effective_site_area = site_area - 저촉면적
+│      (도시계획시설 저촉분은 건폐율·용적률 산정 기준면적에서 제외)
+│
+├─ 4. OrdinanceResolver.resolve(jurisdiction_code, zone_use, category)
+│      ┌─ DB 캐시 HIT → 즉시 반환
+│      ├─ MISS → 법제처 API 조회 + LLM 수치 추출 → DB 저장
+│      └─ 실패 → zone_limits.json 시행령 기본값 (fallback)
+│
+├─ 5. 특례 적용 (T3)
+│      재정비촉진구역: FAR 1.2배  [추정]
+│      공공지원민간임대: 추가 완화
+│      리모델링 기준: 별도 한도   [추정]
+│
+├─ 6. FarRelief.compute_relief()
+│      6종 완화 레버 자동 합산 → final_far_limit_pct
+│
+├─ 7. asyncio.gather — 8개 계산기 병렬 실행
+│      ├─ coverage.calculate()
+│      ├─ far.calculate()
+│      ├─ height.calculate()
+│      ├─ parking.calculate()
+│      ├─ landscape.calculate()
+│      ├─ land_use_act.calculate()   ← LURIS + EUM 교차검증
+│      ├─ urban_facility.calculate() ← 2에서 수집한 시설목록 사용
+│      └─ fire_safety.calculate()    ← Claude AI (skip 가능)
+│
+├─ 8. BuildingAgreement 후처리 (§110의7)
+│      building_agreement=True → 건폐율·용적률 상한 ×1.2
+│
+├─ 9. ReviewTriggers.evaluate()
+│      11종 심의 자동 판정
+│
+└─ 10. _weighted_score() → GREEN / YELLOW / RED</pre>
+    </section>
+
+    <!-- ── §5 ── -->
+    <section class="section" id="s5">
+      <div class="section-header">
+        <span class="section-num">05</span>
+        <h2>카테고리별 계산 로직</h2>
+      </div>
+
+      <div id="s5-1">
+        <h3>5-1. 행위제한 <code>land_use_act.py</code></h3>
+        <p><strong>목적</strong>: 해당 용도지역에 계획 건물 용도가 허용되는지 판정.</p>
+        <pre>LURIS iuRlStle API  ──┐
+                      ├→ 교차검증 → 최종 verdict
+EUM  act_info API   ──┘</pre>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>상황</th><th>pass</th><th>confidence</th></tr></thead>
+            <tbody>
+              <tr><td>두 소스 모두 허용</td><td><span class="badge badge-green">True</span></td><td>5</td></tr>
+              <tr><td>두 소스 모두 불허</td><td><span class="badge badge-red">False</span></td><td>5</td></tr>
+              <tr><td>한쪽만 데이터 보유</td><td>해당 소스 verdict</td><td>4</td></tr>
+              <tr><td>verdict 불일치</td><td><span class="badge badge-yellow">None</span></td><td>2</td></tr>
+              <tr><td>양쪽 조회 실패</td><td><span class="badge badge-yellow">None</span></td><td>1</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><code>ucode_mapping.json</code>: 용도지역 코드 ↔ LURIS UCODE 매핑. 조건부 허용(심의 후 가능 등) 처리 포함. <span class="est">추정</span></p>
+      </div>
+
+      <div id="s5-2">
+        <h3>5-2. 도시계획시설 <code>urban_facility.py</code></h3>
+        <p><strong>목적</strong>: 대지가 도시계획시설(도로·공원·학교 등) 결정 구역에 저촉되는지 판정.</p>
+        <p><strong>데이터 소스 우선순위:</strong></p>
+        <ol>
+          <li>VWorld WFS 실시간 (<code>lt_c_upisuq151~159</code>, 9개 레이어) — 주력</li>
+          <li>로컬 SHP 폴백 (<code>SHP_ROOT</code> 환경변수)</li>
+        </ol>
+        <pre>저촉면적 = 대지 폴리곤 ∩ 시설 폴리곤 (shapely.intersection)
+저촉비율 = 저촉면적 / 대지면적
+
+저촉비율 == 0     → GREEN  (pass=True,  score=10)
+0 < 비율 < 임계치 → YELLOW (pass=None,  score=5 )  [추정: 임계치는 config]
+비율 ≥ 임계치     → RED    (pass=False, score=0 )
+좌표 없음         → pass=None, score=null, confidence=1</pre>
+        <p><strong>법적근거</strong>: 국토계획법 §47(매수청구), §64(건축 제한), §65(실시계획 고시 시 효력)</p>
+      </div>
+
+      <div id="s5-3">
+        <h3>5-3. 건폐율 <code>coverage.py</code></h3>
+        <p><strong>산식</strong>: 건폐율(%) = 건축면적 / 대지면적 × 100</p>
+        <h4>한도 결정 cascade</h4>
+        <pre>① 조례 DB 캐시 (OrdinanceResolver)
+② 법제처 API → LLM 수치 추출 → DB 저장
+③ zone_limits.json 시행령 기본값 (최종 fallback)</pre>
+        <p>건축협정 적용 시: 한도 × 1.2 (사후 보정)</p>
+        <h4>점수 산식 <span class="est">추정</span></h4>
+        <pre>건폐율 / 한도 ≤ 0.7  → 10점
+          ≤ 0.9  →  8점
+          ≤ 1.0  →  6점
+          > 1.0  →  0점  (pass=False)</pre>
+        <p><strong>법적근거</strong>: 건축법 §55, 국토계획법 시행령 §84</p>
+      </div>
+
+      <div id="s5-4">
+        <h3>5-4. 용적률 <code>far.py</code></h3>
+        <p><strong>산식</strong>: 용적률(%) = 지상층 연면적 / 대지면적 × 100</p>
+        <p><strong>제외 항목</strong> (용적률 산정에서 제외):</p>
+        <ul>
+          <li>지하층 면적</li>
+          <li>피난안전구역 면적 (초고층)</li>
+          <li>경사지붕 아래 대피공간</li>
+          <li>부속 용도 주차장 (지상·지하 포함) <span class="est">추정</span></li>
+        </ul>
+        <p><strong>한도 결정</strong>: 건폐율과 동일 cascade + FarRelief 완화 추가 적용</p>
+        <h4>점수 산식 <span class="est">추정</span></h4>
+        <pre>용적률 / 한도 ≤ 0.9  → 10점
+          ≤ 1.0  →  6점
+          > 1.0  →  0점  (pass=False)</pre>
+        <p><strong>법적근거</strong>: 건축법 §56, 시행령 §119, 국토계획법 시행령 §85</p>
+      </div>
+
+      <div id="s5-5">
+        <h3>5-5. 높이·일조 <code>height.py</code></h3>
+        <h4>(A) 가로구역별 최고높이 (§60)</h4>
+        <div class="box box-warning">
+          <div class="box-label">데이터 없음</div>
+          <code>street_block_heights.json</code> 현재 비어 있음 → 항상 <code>pass=None</code>. 허가권자(자치구청장) 개별 고시 — 구조화 API 없음. 수동 seed만 가능.
+        </div>
+        <h4>(B) 일조 사선 (§61 + 시행령 §86, 2023.9.12 개정)</h4>
+        <p><strong>적용 대상</strong>: 주거지역(전용·일반·준주거)에서 정북 방향 인접대지</p>
+        <pre>정북방향 이격 요구치:
+  건물 높이 ≤ 10m : 1.5m 이상
+  건물 높이 > 10m : 높이 × 0.5 이상
+
+예) 20m 건물 → 10m 이상 이격 필요</pre>
+        <p><strong>적용 제외 조건</strong> (§86 ②항):</p>
+        <ul>
+          <li>너비 20m 이상 도로에 접한 대지</li>
+          <li>건축협정구역 내 대지</li>
+          <li>정북 인접대지가 비주거지역</li>
+        </ul>
+        <pre>north_setback_m 입력됨 AND 인접지 용도 입력됨
+  → pass/fail 자동 계산 (confidence 4~5)
+그 외
+  → pass=None + 위험도 기반 score (confidence 1~2)</pre>
+      </div>
+
+      <div id="s5-6">
+        <h3>5-6. 주차 <code>parking.py</code></h3>
+        <p><strong>근거</strong>: 주차장법 시행령 별표 1</p>
+        <h4>산정 방식 3종</h4>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>타입</th><th>기준</th><th>적용 용도 예시</th></tr></thead>
+            <tbody>
+              <tr><td><code>area_based</code></td><td>연면적 N㎡당 1대</td><td>근린생활시설, 업무시설</td></tr>
+              <tr><td><code>unit_based</code></td><td>세대당 N대</td><td>공동주택</td></tr>
+              <tr><td><code>count_based</code></td><td>시설 수(홀/타석/정원)당 N대</td><td>골프장, 골프연습장, 관람장, 옥외수영장</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p><strong>특수 처리</strong>: 학생용 기숙사·데이터센터 별도 기준. 주차장법 제외 대상(연면적 50㎡ 이하 등) <span class="est">추정</span></p>
+        <h4>점수 산식 <span class="est">추정</span></h4>
+        <pre>provided ≥ required        → 10점  (pass=True)
+provided ≥ required × 0.9 →  7점  (pass=None, YELLOW)
+provided < required × 0.9 →  0점  (pass=False, RED)</pre>
+      </div>
+
+      <div id="s5-7">
+        <h3>5-7. 조경 <code>landscape.py</code></h3>
+        <p><strong>근거</strong>: 건축법 §42 + 시행령 §27 + 조경기준 고시 (국토부 고시 제2021-1778호)</p>
+        <h4>면제 대상 (시행령 §27 ①)</h4>
+        <ul>
+          <li>녹지지역 건축물</li>
+          <li>면적 5,000㎡ 미만 또는 연면적 1,500㎡ 미만 공장</li>
+          <li>산업단지 내 공장 / 축사 / 가설건축물</li>
+          <li>연면적 1,500㎡ 미만 물류시설</li>
+          <li>자연환경보전·농림·관리지역</li>
+        </ul>
+        <p><strong>의무 조경비율</strong>: 조례 위임 (confidence 3 — 지자체 확인 필요). <strong>옥상조경 인정</strong>: 최대 50% <span class="est">추정</span></p>
+        <h4>식재 기준 (고시 §7)</h4>
+        <pre>용도지역별 교목 최소 수량 (1주/N㎡):
+  상업지역: 1주/10㎡ (교목),  1주/1.0㎡ (관목)
+  공업지역: 1주/3㎡  (교목),  1주/1.0㎡ (관목)
+  주거·녹지: 1주/5㎡ (교목),  1주/1.0㎡ (관목)</pre>
+      </div>
+
+      <div id="s5-8">
+        <h3>5-8. 설비·소방 <code>fire_safety.py</code></h3>
+        <p><strong>특징</strong>: Claude AI 기반 정성 판단. 결정론적 계산 불가 영역.</p>
+        <h4>검토 대상 법규</h4>
+        <ul>
+          <li>건축법 시행령 §34·35: 직통계단·피난계단 수 및 너비</li>
+          <li>건축법 시행령 §46: 방화구획 (1,000㎡ 또는 3,000㎡마다)</li>
+          <li>건축법 시행령 §89·90: 승강기·비상용 승강기 설치 의무</li>
+          <li>소방시설설치 및 관리법 시행령 별표4: 스프링클러·옥내소화전</li>
+          <li>다중이용업소 안전관리법</li>
+        </ul>
+        <h4>AI 판단 출력 구조</h4>
+        <pre><code class="language-python">items = [
+  { rule, requirement, estimated_result, pass, confidence, note },
+  ...
+]</code></pre>
+        <div class="box box-warning">
+          <div class="box-label">Graceful Degrade</div>
+          <code>ANTHROPIC_API_KEY</code> 미설정 시 → <code>pass=None</code>, "수동 검토 필요" 안내
+        </div>
+      </div>
+    </section>
+
+    <!-- ── §6 ── -->
+    <section class="section" id="s6">
+      <div class="section-header">
+        <span class="section-num">06</span>
+        <h2>용적률 완화 시스템 (FarRelief)</h2>
+      </div>
+      <p><strong>근거</strong>: 건축법 시행령 §27의2 + 녹색건축물 조성 지원법 §15 + 에너지절약설계기준(고시 제2025-738호)</p>
+
+      <h3>완화 레버 6종</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>종류</th><th>완화율</th><th>근거</th></tr></thead>
+          <tbody>
+            <tr><td>공개공지</td><td>의무 초과분 비례 (최대 cap)</td><td>건축법 §43</td></tr>
+            <tr><td>녹색건축 최우수</td><td><strong>+6%</strong></td><td>고시 별표9</td></tr>
+            <tr><td>녹색건축 우수</td><td><strong>+3%</strong></td><td>고시 별표9</td></tr>
+            <tr><td>제로에너지(ZEB) 1등급</td><td><strong>+15%</strong></td><td>고시 별표9</td></tr>
+            <tr><td>제로에너지(ZEB) 5등급</td><td><strong>+11%</strong></td><td>고시 별표9</td></tr>
+            <tr><td>시범사업</td><td><strong>+10%</strong></td><td>고시 별표9</td></tr>
+            <tr><td>지능형(Smart)</td><td>—</td><td>별표9 미포함, 미적용</td></tr>
+            <tr><td>장수명주택</td><td>—</td><td>별표9 미포함, 미적용</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>합산 캡 규칙</h3>
+      <pre>인증 완화 합산 ≤ 15%             (cert_cap)
+전체 완화 후 한도 ≤ base × 1.15  (overall_cap_ratio)
+둘 중 작은 값 적용</pre>
+
+      <h3>사후 보정: 건축협정 (§110의7)</h3>
+      <pre>건축협정구역 지정 시: 건폐율·용적률 한도 × 1.2 (20% 범위 내 완화)
+→ FarRelief 계산 후 DiagnoseEngine에서 별도 사후 적용</pre>
+    </section>
+
+    <!-- ── §7 ── -->
+    <section class="section" id="s7">
+      <div class="section-header">
+        <span class="section-num">07</span>
+        <h2>종합 점수 및 신호 판정</h2>
+      </div>
+
+      <h3>가중 평균 점수</h3>
+      <pre>종합점수 = Σ(카테고리 점수 × 가중치) / Σ가중치</pre>
+
+      <h3>카테고리별 가중치</h3>
+      <div style="margin:14px 0; background:var(--surface); border-radius:var(--radius); padding:16px 20px; box-shadow:var(--shadow);">
+        <div class="weight-row"><div class="weight-label">용적률</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:100%"></div></div><div class="weight-val">20</div></div>
+        <div class="weight-row"><div class="weight-label">높이·일조</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:75%"></div></div><div class="weight-val">15</div></div>
+        <div class="weight-row"><div class="weight-label">행위제한</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:70%"></div></div><div class="weight-val">14</div></div>
+        <div class="weight-row"><div class="weight-label">주차</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:70%"></div></div><div class="weight-val">14</div></div>
+        <div class="weight-row"><div class="weight-label">도시계획시설</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:60%"></div></div><div class="weight-val">12</div></div>
+        <div class="weight-row"><div class="weight-label">건폐율</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:60%"></div></div><div class="weight-val">12</div></div>
+        <div class="weight-row"><div class="weight-label">조경</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:35%"></div></div><div class="weight-val">7</div></div>
+        <div class="weight-row"><div class="weight-label">설비·소방</div><div class="weight-bar-wrap"><div class="weight-bar" style="width:30%"></div></div><div class="weight-val">6</div></div>
+        <div style="margin-top:10px; font-size:11px; color:var(--text-light);">공공시설_의무인증 / BF_인증 / 범죄예방 — 가중치 0 (정보 카드만)</div>
+      </div>
+
+      <h3>신호 판정 조건</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>조건</th><th>신호</th></tr></thead>
+          <tbody>
+            <tr><td>어느 카테고리든 <code>pass=False</code></td><td><span class="badge badge-red">🔴 RED — 위반</span></td></tr>
+            <tr><td><code>pass=None</code> 존재 OR 점수 &lt; 7.0</td><td><span class="badge badge-yellow">🟡 YELLOW — 확인 필요</span></td></tr>
+            <tr><td>전항목 <code>pass=True</code> AND 점수 ≥ 7.0</td><td><span class="badge badge-green">🟢 GREEN — 통과</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>개별 카테고리 점수 (0~10)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>점수 범위</th><th>해석</th></tr></thead>
+          <tbody>
+            <tr><td>9~10</td><td>여유 있음</td></tr>
+            <tr><td>7~8</td><td>적정</td></tr>
+            <tr><td>5~6</td><td>한도 근접 (YELLOW 가능)</td></tr>
+            <tr><td>3~4</td><td>요주의</td></tr>
+            <tr><td>0~2</td><td>위반 또는 확인 불가</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Confidence (신뢰도 1~5)</h3>
+      <div class="conf-grid">
+        <div class="conf-num c5">5</div><div class="conf-desc">교차검증 완료 또는 원문 직접 확인</div>
+        <div class="conf-num c4">4</div><div class="conf-desc">단일 소스 검증</div>
+        <div class="conf-num c3">3</div><div class="conf-desc">조례 확인 필요 (시행령 추정값 사용)</div>
+        <div class="conf-num c2">2</div><div class="conf-desc">두 소스 불일치 또는 입력 부족</div>
+        <div class="conf-num c1">1</div><div class="conf-desc">데이터 불충분 — 판정 불가</div>
+      </div>
+    </section>
+
+    <!-- ── §8 ── -->
+    <section class="section" id="s8">
+      <div class="section-header">
+        <span class="section-num">08</span>
+        <h2>사업성 모드 (FeasibilityEngine)</h2>
+      </div>
+      <p>DiagnoseEngine의 래퍼. 법정 최대값과 공모 요구치(target)를 비교해 갭 분석과 대안 제안을 수행.</p>
+
+      <h3>갭 분석 흐름</h3>
+      <pre>① DiagnoseEngine.run() → 법정 최대값 계산
+② target_* vs 법정 최대값 비교 (per 항목)
+③ 갭 상태 분류:
+     충족:    target ≤ 법정 최대
+     초과:    target > 법정 최대  (RED)
+     확인불가: target 없음 or 판정 데이터 부족
+④ 완화 시나리오 3종 자동 생성 (What-If)
+⑤ 심의 부담 점수 계산
+⑥ 참여 추천: "적합" / "협상 가능" / "패스"</pre>
+
+      <h3>자동 시나리오 3종 <span class="est">추정</span></h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>시나리오</th><th>완화 조건</th></tr></thead>
+          <tbody>
+            <tr><td>기본안</td><td>완화 없음</td></tr>
+            <tr><td>친환경 표준</td><td>녹색건축 최우수(+6%) + ZEB 3등급</td></tr>
+            <tr><td>용적률 최대</td><td>녹색건축 최우수(+6%) + ZEB 1등급(+15%)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Brief 연계 (Step 9)</h3>
+      <p><code>data/briefs/</code> 디렉토리 (<code>_briefs/</code> GCS 버킷 GCSFUSE 마운트 가능)에서 <code>_brief.json</code> 읽기.</p>
+      <pre>brief_importer.map_brief() 자동 매핑:
+  주소              → address
+  (괄호) 용도 힌트  → building_use 추정
+  규모              → target_* 자동 채움
+  공공기관 여부     → applicant_type
+  완화레버 기재     → green_grade 등 사전 설정</pre>
+    </section>
+
+    <!-- ── §9 ── -->
+    <section class="section" id="s9">
+      <div class="section-header">
+        <span class="section-num">09</span>
+        <h2>자연어 질의 (QueryEngine)</h2>
+      </div>
+      <div class="box box-info">
+        <div class="box-label">범위 제한</div>
+        진단 결과 JSON에 종속된 어시스턴트. 일반 법령 Q&A 아님. 일반 법령 질의는 arch-law-graph로 링크아웃.
+      </div>
+
+      <h3>동작 흐름</h3>
+      <pre>① 진단 결과의 law_refs 수집 (_collect_law_refs)
+② arch-law-graph /api/lookup 호출 → 조문 원문 확보 (A안)
+   실패 시: 조문 원문 없이 계속 (graceful degrade)
+③ 프롬프트 구성:
+   - 주소·용도지역·현재 시나리오
+   - 진단 결과 JSON (카테고리별 판정 값)
+   - 적용 조문 (진단 엔진 확정) — 블록 주입
+   - 조문 원문 텍스트 (graph RAG, 최대 10건·건당 900자)
+④ Claude API 호출 (temperature=0, prompt caching)
+⑤ 구조화 응답:
+   { answer, citations[], confidence, follow_ups[] }</pre>
+      <p><strong>핵심 제약</strong>: 원문에 있는 내용만 인용 (환각 방지). 조문 원문이 없으면 "원문을 확인할 수 없습니다" 명시.</p>
+    </section>
+
+    <!-- ── §10 ── -->
+    <section class="section" id="s10">
+      <div class="section-header">
+        <span class="section-num">10</span>
+        <h2>심의 트리거 (ReviewTriggers)</h2>
+      </div>
+      <p>11종 자동 판정. 결과는 <code>required</code> / <code>maybe</code> / <code>not_required</code>.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>심의 종류</th><th>트리거 조건</th></tr></thead>
+          <tbody>
+            <tr><td>건축위원회</td><td>특수 구조, 특수 용도, 100m 초과 <span class="est">추정</span></td></tr>
+            <tr><td>교통영향평가</td><td>연면적 기준 (용도별 다름)</td></tr>
+            <tr><td>경관심의</td><td>경관지구 또는 높이 기준 초과</td></tr>
+            <tr><td>재해영향평가</td><td>재해위험지구 또는 규모 기준 <span class="est">추정</span></td></tr>
+            <tr><td>교육환경평가</td><td>학교 경계 50m/200m 이내 <em>(좌표 없으면 maybe 고정)</em></td></tr>
+            <tr><td>문화재심의</td><td>문화재 경계 100~500m 이내 <em>(좌표 없으면 maybe 고정)</em></td></tr>
+            <tr><td>환경영향평가</td><td>보전지역·생태자연도 <em>(데이터 미보유 시 maybe)</em></td></tr>
+            <tr><td>도시계획위원회</td><td>지구단위계획구역 내 <span class="est">추정</span></td></tr>
+            <tr><td>지하안전평가</td><td>굴착깊이 10m 이상 또는 연면적 기준 <span class="est">추정</span></td></tr>
+            <tr><td>건축물 안전영향평가</td><td>초고층(50층↑ or 200m↑) OR 연면적 10만㎡ 이상 AND 16층 이상</td></tr>
+            <tr><td>범죄예방 검토</td><td>대상 용도 해당 시</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── §11 ── -->
+    <section class="section" id="s11">
+      <div class="section-header">
+        <span class="section-num">11</span>
+        <h2>법규 의미 그래프 (LawGraph)</h2>
+      </div>
+      <p>NetworkX DiGraph. 진단 엔진과 독립적인 참조용 조문 관계 탐색기.</p>
+      <pre>nodes: 138개 (seed 49 + auto 수확 89)  [추정]
+  - origin="seed": 수동 검증된 시드
+  - origin="auto": 법제처 API 자동 수확 (신뢰도 낮음)
+edges: 조문 간 인용·위임 관계
+
+API:
+  GET /api/law-graph              → 전체 그래프 JSON
+  GET /api/law-graph/node/{id}    → 노드 상세
+  GET /api/law-graph/neighbors/{id} → 이웃 노드</pre>
+      <p><strong>프론트 렌더</strong>: react-flow 캔버스 (lazy import) + 카테고리→그래프 점프 + arch-law-graph 링크아웃</p>
+    </section>
+
+    <!-- ── §12 ── -->
+    <section class="section" id="s12">
+      <div class="section-header">
+        <span class="section-num">12</span>
+        <h2>외부 API 의존성 및 Graceful Degrade 전략</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>API</th><th>필수 여부</th><th>실패 시 동작</th></tr></thead>
+          <tbody>
+            <tr><td>VWorld</td><td><span class="badge badge-required">준필수</span></td><td>stale 캐시 사용. 캐시도 없으면 <code>pass=None</code></td></tr>
+            <tr><td>EUM (토지이음)</td><td><span class="badge badge-recommended">권장</span></td><td>LURIS 단독으로 행위제한 판정</td></tr>
+            <tr><td>LURIS</td><td><span class="badge badge-recommended">권장</span></td><td>EUM 단독으로 판정</td></tr>
+            <tr><td>법제처 DRF</td><td><span class="badge badge-recommended">권장</span></td><td>zone_limits.json 시행령 기본값 사용</td></tr>
+            <tr><td>Anthropic Claude</td><td><span class="badge badge-required">준필수</span></td><td>설비소방 <code>pass=None</code>, 질의 불가</td></tr>
+            <tr><td>arch-law-graph</td><td><span class="badge badge-optional">선택</span></td><td>조문 원문 없이 질의 (0단계로 degrade)</td></tr>
+            <tr><td>Kakao Local</td><td><span class="badge badge-recommended">권장</span></td><td>주소 자동완성 비활성</td></tr>
+            <tr><td>LURIS (data.go.kr)</td><td><span class="badge badge-optional">선택</span></td><td>EUM으로 대체</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>재시도 정책</strong> (<code>http_retry.py</code>): 전송 오류·5xx → 지수 백오프 2회 재시도. 4xx·정상 응답은 즉시 처리.</p>
+    </section>
+
+    <!-- ── §13 ── -->
+    <section class="section" id="s13">
+      <div class="section-header">
+        <span class="section-num">13</span>
+        <h2>데이터 캐시 (CacheManager)</h2>
+      </div>
+      <p><strong>저장소</strong>: <code>./data/arch_law.db</code> (SQLite)</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>테이블</th><th>TTL</th><th>내용</th></tr></thead>
+          <tbody>
+            <tr><td><code>land_info_cache</code></td><td>30일</td><td>토지 정보 (용도지역·지적 폴리곤 등)</td></tr>
+            <tr><td><code>ordinance_zone_limits</code></td><td>30일</td><td>조례 수치 (건폐율·용적률 상한)</td></tr>
+            <tr><td><code>diagnose_history</code></td><td>영구</td><td>진단 이력</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Stale 캐시 fallback</strong>: VWorld 재조회 실패 시 <code>data_quality.stale_cache = true</code> 플래그와 함께 캐시 데이터 사용.</p>
+      <h3>초기화</h3>
+      <pre><code class="language-bash">python -m scripts.seed_municipal_ordinances --commit
+# 서울 도시계획조례 §54·§55 기본값 idempotent 적재</code></pre>
+    </section>
+
+    <!-- ── §14 ── -->
+    <section class="section" id="s14">
+      <div class="section-header">
+        <span class="section-num">14</span>
+        <h2>알려진 한계 및 미구현 항목</h2>
+      </div>
+
+      <h3>데이터 한계</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>항목</th><th>상태</th><th>영향</th></tr></thead>
+          <tbody>
+            <tr><td>가로구역 최고높이 (§60)</td><td><code>street_block_heights.json</code> 비어 있음</td><td><span class="badge badge-yellow">항상 pass=None</span></td></tr>
+            <tr><td>교육환경평가 (학교 좌표)</td><td>학교알리미 API 미연동</td><td><span class="badge badge-yellow">항상 maybe</span></td></tr>
+            <tr><td>문화재 경계 좌표</td><td>국가유산청 GIS API 미연동</td><td><span class="badge badge-yellow">항상 maybe</span></td></tr>
+            <tr><td>토지이음 <code>iuLawInfo</code></td><td>서버 측 404</td><td>LawInfoPanel 비활성</td></tr>
+            <tr><td>토지이음 <code>sDevList</code></td><td>서버 측 404</td><td>DevTrendPanel 비활성</td></tr>
+            <tr><td>도로폭 자동 조회</td><td>VWorld 레이어에 폭 속성 없음</td><td>사용자 수동 입력</td></tr>
+            <tr><td>도시계획시설 SHP 일부</td><td>철도·시도별 일부 누락</td><td>WFS 실패 시 시설 미감지</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>계산 한계</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>항목</th><th>상세</th></tr></thead>
+          <tbody>
+            <tr><td>조경 의무비율</td><td>조례 위임 → confidence 3 고정</td></tr>
+            <tr><td>방화구획 자동 계산</td><td>AI 정성 판단으로 처리 (결정론적 미구현)</td></tr>
+            <tr><td>일조 사선 상세 계산</td><td>정북 이격거리 입력 필요; 미입력 시 <code>pass=None</code></td></tr>
+            <tr><td>지구단위계획 수치</td><td>개별 계획마다 다름 → 자동 조회 불가</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>설계 결정 (의도적 제한)</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>결정</th><th>이유</th></tr></thead>
+          <tbody>
+            <tr><td>AI 단독 판정 금지</td><td>결정론적 룰 처리 가능 항목은 코드로</td></tr>
+            <tr><td>지구명·조례값 하드코딩 금지</td><td>전국 적용 원칙</td></tr>
+            <tr><td>미구현 항목 → <code>pass=None</code></td><td>오판정보다 "확인 필요" 응답이 안전</td></tr>
+            <tr><td>사내 케이스 DB 제거</td><td>더미 데이터라 실용성 없어 제거 (git 복원 가능)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── §15 ── -->
+    <section class="section" id="s15">
+      <div class="section-header">
+        <span class="section-num">15</span>
+        <h2>프로젝트 구조 요약</h2>
+      </div>
+      <pre>backend/
+├── main.py                       FastAPI 진입점·라우터
+├── config/
+│   ├── zone_limits.json          용도지역별 법정 상한 (시행령)
+│   ├── far_relief_rules.json     완화 규칙 파라미터
+│   ├── parking_standards.json    주차 기준표
+│   ├── landscape_standards.json  조경 기준표
+│   ├── law_scoring_weights.json  종합점수 가중치
+│   ├── ordinance_seed.json       서울 조례 시드
+│   ├── street_block_heights.json 가로구역 최고높이 (현재 비어 있음)
+│   ├── law_graph_seed.json       법규 그래프 수동 시드 (49노드)
+│   └── law_graph_auto.json       법규 그래프 자동 수확
+├── services/
+│   ├── diagnose_engine.py        ★ 진단 오케스트레이터
+│   ├── feasibility_engine.py     사업성 검토 엔진
+│   ├── far_relief.py             용적률 완화 계산
+│   ├── ordinance_resolver.py     조례 cascade 조회
+│   ├── ordinance_extractor.py    법령 본문 → 수치 추출 (LLM)
+│   ├── land_use_resolver.py      VWorld 토지 정보 조회 + 캐시
+│   ├── multi_parcel.py           합필 진단
+│   ├── review_triggers.py        심의 11종 자동 판정
+│   ├── building_agreement.py     건축협정 완화 보정
+│   ├── query_engine.py           자연어 질의 (Claude + RAG)
+│   ├── graph_client.py           arch-law-graph 조문 원문 조회
+│   ├── law_graph.py              법규 의미 그래프 (networkx)
+│   ├── cache_manager.py          SQLite 캐시
+│   ├── llm_client.py             Claude API 래퍼
+│   ├── http_retry.py             외부 API 재시도/백오프
+│   ├── vworld_client.py          VWorld WFS 지적 + 지오코딩
+│   ├── eum_client.py             토지이음 7개 API
+│   ├── luris_client.py           LURIS 행위제한 2개 API
+│   └── zone_use_normalizer.py    용도지역 표준명 정규화
+└── services/calculator/
+    ├── coverage.py               건폐율
+    ├── far.py                    용적률
+    ├── height.py                 높이·일조
+    ├── parking.py                주차
+    ├── landscape.py              조경
+    ├── land_use_act.py           행위제한
+    ├── urban_facility.py         도시계획시설
+    ├── fire_safety.py            설비·소방 (AI)
+    ├── public_certification.py   공공시설 의무인증
+    ├── bf_certification.py       BF 인증
+    ├── crime_prevention.py       범죄예방 기준
+    ├── multi_use.py              다중이용건축물 분류
+    ├── railway_protection.py     철도보호지구
+    └── zone_overlap.py           지구·구역 중첩
+
+frontend/src/
+├── components/
+│   ├── InputForm/                주소·건물 입력 폼
+│   ├── DiagnoseResult/           8개 카테고리 결과 카드
+│   ├── WhatIfPanel/              완화 레버 슬라이더 + 비교 매트릭스
+│   ├── FeasibilityMode/          사업성 검토 UI 일체
+│   ├── LawGraphPanel/            법규 그래프 탐색기
+│   ├── LawChangeAlert/           조례 변경 알림 배너
+│   ├── DataQualityBanner/        데이터 출처·fallback 경고
+│   └── LegalReviewReport/        인쇄용 종합 검토 보고서
+├── stores/
+│   ├── diagnoseStore.js          진단 모드 전역 상태
+│   └── feasibilityStore.js       사업성 모드 전역 상태
+└── utils/
+    ├── api.js                    fetch 래퍼 (cache: 'no-store')
+    └── graphLink.js              arch-law-graph 링크 생성 유틸</pre>
+    </section>
+
+    <div class="disclaimer">
+      ⚠️ 자동 진단 결과는 <strong>참고용</strong>. 실제 인허가 판단 및 책임은 시니어 건축사·설계자에게 있다.
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Active nav highlighting on scroll
+  const sections = document.querySelectorAll('.section[id]');
+  const navLinks = document.querySelectorAll('.sidebar nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => a.classList.remove('active'));
+        const id = e.target.id;
+        const active = document.querySelector(`.sidebar nav a[href="#${id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -75% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
