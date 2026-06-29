@@ -9,7 +9,11 @@ import httpx
 import pytest
 import respx
 
-from services.urban_facility import check_facility_conflict, compute_facility_overlap
+from services.urban_facility import (
+    check_facility_conflict,
+    compute_facility_overlap,
+    detect_district_unit,
+)
 from services.vworld_client import VWorldClient
 
 
@@ -71,6 +75,53 @@ def test_overlap_no_facilities_is_green():
     assert res["checked"] is True
     assert res["overlap_area_m2"] == 0.0
     assert res["severity"] == "GREEN"
+
+
+# ─── detect_district_unit (지구단위계획구역 좌표 판정) ────────────────────────
+
+def _district_plan(name="운현궁주변 지구단위계획구역",
+                   ring=((127.0, 37.5), (127.01, 37.5), (127.01, 37.51),
+                         (127.0, 37.51), (127.0, 37.5))):
+    return {
+        "_uq": "UQ161",
+        "geometry": {"type": "Polygon", "coordinates": [[list(p) for p in ring]]},
+        "dgm_nm": name,
+    }
+
+
+def test_district_unit_inside():
+    res = detect_district_unit([_district_plan()], lat=37.505, lng=127.005)
+    assert res["checked"] is True
+    assert res["inside"] is True
+    assert res["names"] == ["운현궁주변 지구단위계획구역"]
+    assert "지구단위계획구역" in res["note"]
+
+
+def test_district_unit_outside():
+    res = detect_district_unit([_district_plan()], lat=38.0, lng=128.0)
+    assert res["checked"] is True
+    assert res["inside"] is False
+    assert res["names"] == []
+
+
+def test_district_unit_empty_checked_true():
+    """VWorld 정상·구역 0건 → checked True, inside False."""
+    res = detect_district_unit([], lat=37.5, lng=127.0)
+    assert res["checked"] is True
+    assert res["inside"] is False
+
+
+def test_district_unit_degrade_when_none():
+    """조회 실패(None) → checked False (graceful degrade)."""
+    res = detect_district_unit(None, lat=37.5, lng=127.0)
+    assert res["checked"] is False
+    assert res["inside"] is False
+
+
+def test_district_unit_no_coords():
+    res = detect_district_unit([_district_plan()], lat=None, lng=None)
+    assert res["checked"] is False
+    assert res["inside"] is False
 
 
 # ─── vworld_client.get_urban_facilities (WFS respx) ──────────────────────────

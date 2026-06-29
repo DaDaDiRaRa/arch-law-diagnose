@@ -430,6 +430,35 @@ class VWorldClient:
         logger.info("VWorld 도시계획시설 %d건 조회 (성공 레이어 %d/9)", len(facilities), ok)
         return facilities
 
+    # ─── 지구단위계획구역 (WFS 실시간) ─────────────────────────────────
+    # lt_c_upisuq161: 도시계획시설(UQ151~159)과 형제 레이어. 속성 필드명 동일
+    # (dgm_nm=구역명, wtnnc_sn=결정고시, ntfc_sn=고시번호, dgm_ar=면적).
+    # 저촉이 아니라 "이 대지에 지구단위계획이 적용됨" 정보성 판정에 사용.
+    _DISTRICT_UNIT_LAYER = "lt_c_upisuq161"
+
+    async def get_district_unit_plans(
+        self, lon: float, lat: float, buffer_m: float = 50.0
+    ) -> list[dict] | None:
+        """좌표 주변 지구단위계획구역 폴리곤 — VWorld WFS 실시간.
+
+        Returns:
+          성공: [{"_uq": "UQ161", "geometry": {GeoJSON}, "dgm_nm":..., ...}]
+                (빈 리스트 = 해당 구역 없음)
+          실패(키 없음 / 레이어 오류): None  → 호출부에서 graceful degrade.
+        """
+        if not self._key:
+            return None
+        d = buffer_m / 111_000.0
+        # WFS 1.1.0 + EPSG:4326 축 순서: minLat,minLon,maxLat,maxLon
+        bbox = f"{lat - d},{lon - d},{lat + d},{lon + d}"
+        try:
+            return await self._fetch_facility_layer(
+                self._DISTRICT_UNIT_LAYER, "UQ161", bbox
+            )
+        except Exception as e:
+            logger.warning("VWorld 지구단위계획구역 조회 실패: %s", e)
+            return None
+
     async def _fetch_facility_layer(
         self, typename: str, uq: str, bbox: str, max_features: int = 200
     ) -> list[dict]:

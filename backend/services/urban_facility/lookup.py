@@ -199,6 +199,49 @@ def check_facility_conflict(
     return out
 
 
+def detect_district_unit(
+    plans: list[dict] | None,
+    *,
+    lat: float | None,
+    lng: float | None,
+) -> dict[str, Any]:
+    """좌표가 지구단위계획구역 폴리곤 내부인지 판정 (정보성).
+
+    Args:
+        plans: VWorld lt_c_upisuq161 피처 리스트 (None=조회 실패/미수행).
+        lat, lng: 대지 좌표(WGS84).
+
+    Returns:
+      {
+        checked: bool,          # 좌표·데이터가 있어 실제 판정했는지
+        inside: bool,           # 지구단위계획구역 내부 여부
+        names: [str],           # 해당 구역명(dgm_nm) 목록
+        note: str,
+      }
+    """
+    out: dict[str, Any] = {"checked": False, "inside": False, "names": [], "note": ""}
+    if plans is None or lat is None or lng is None:
+        return out
+    out["checked"] = True
+    hits = _facilities_at_point(plans, lng, lat)
+    if not hits:
+        out["note"] = "지구단위계획구역 해당 없음"
+        return out
+    names = []
+    for rec in hits:
+        nm = rec.get("dgm_nm") or rec.get("alias") or "지구단위계획구역"
+        if nm not in names:
+            names.append(nm)
+    out["inside"] = True
+    out["names"] = names
+    out["note"] = (
+        f"지구단위계획구역 내 — {', '.join(names)}. "
+        "건폐율·용적률·높이·용도는 지구단위계획 결정조서(시행지침)가 별도로 정하므로 "
+        "본 진단값과 다를 수 있음. 결정조서 확인 및 도시·군관리계획 적합성 검토 필요."
+    )
+    return out
+
+
 def _facilities_at_point(facilities: list[dict], lng: float, lat: float) -> list[dict]:
     """VWorld 시설(WGS84 GeoJSON) 중 점을 포함하는 것 — 점 포함은 좌표계 무관."""
     pt = Point(lng, lat)

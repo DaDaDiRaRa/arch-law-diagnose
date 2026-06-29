@@ -50,7 +50,7 @@ from services.ordinance_resolver import OrdinanceResolver
 from services.heritage_client import HeritageClient
 from services.review_triggers import evaluate_reviews
 from services.school_client import SchoolClient
-from services.urban_facility import compute_facility_overlap
+from services.urban_facility import compute_facility_overlap, detect_district_unit
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +227,28 @@ class DiagnoseEngine:
             except Exception as e:
                 logger.warning("VWorld 도시계획시설 조회 실패 — SHP 폴백: %s", e)
                 urban_facilities = None
+
+        # 지구단위계획구역 — VWorld WFS 실시간 좌표 판정 (정보성).
+        # 내부면 zone_district에 보강 → 기존 도시계획위원회 심의 트리거가 자동 발동.
+        # 실패/미수행은 graceful degrade (조용히 skip).
+        district_unit = {"checked": False, "inside": False, "names": [], "note": ""}
+        if land.get("lat") is not None and land.get("lon") is not None:
+            try:
+                plans = await self._resolver.get_district_unit_plans(
+                    land["lon"], land["lat"]
+                )
+                district_unit = detect_district_unit(
+                    plans, lat=land["lat"], lng=land["lon"]
+                )
+            except Exception as e:
+                logger.warning("VWorld 지구단위계획구역 조회 실패 — skip: %s", e)
+            if district_unit["inside"] and "지구단위" not in (
+                land.get("zone_district") or ""
+            ):
+                _zd = (land.get("zone_district") or "").strip()
+                land["zone_district"] = (
+                    f"{_zd}, 지구단위계획구역" if _zd else "지구단위계획구역"
+                )
 
         manual_excl = req.get("urban_facility_exclude_area")
         # 사용자 입력 우선: 0 포함한 명시값은 그대로 적용 (자동 보정 비활성)
@@ -701,6 +723,13 @@ class DiagnoseEngine:
                 "msg": f"전면도로 폭 {road_width}m 자동 조회됨 (VWorld) — 실제와 다르면 수동 입력으로 override",
             })
 
+        if district_unit.get("inside"):
+            dq_issues.append({
+                "level": "warn",
+                "code": "DISTRICT_UNIT_PLAN",
+                "msg": district_unit["note"],
+            })
+
         data_quality = {
             "issues": dq_issues,
             "ordinance_used": ordinance_used,
@@ -730,6 +759,7 @@ class DiagnoseEngine:
                 "cache_hit": land.get("cache_hit", False),
                 "cache_age_days": land.get("cache_age_days", 0),
                 "cache_stale": land.get("cache_stale", False),
+                "district_unit_plan": district_unit,
             },
             "building_use_detail": req.get("building_use_detail"),
             "public_open_space_area": req.get("public_open_space_area"),

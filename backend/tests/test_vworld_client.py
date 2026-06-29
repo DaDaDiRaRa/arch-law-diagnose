@@ -310,3 +310,72 @@ async def test_get_parcel_polygon_not_found():
         await client.close()
 
     assert result is None
+
+
+# ─── get_district_unit_plans (lt_c_upisuq161, WFS) ────────────────────────────
+
+def _wfs_resp(features: list) -> dict:
+    return {"type": "FeatureCollection", "features": features}
+
+
+@pytest.mark.asyncio
+async def test_get_district_unit_plans_success():
+    geom = {"type": "Polygon", "coordinates": [[[126.97, 37.56], [126.99, 37.56],
+                                                 [126.99, 37.58], [126.97, 37.58],
+                                                 [126.97, 37.56]]]}
+    features = [{"geometry": geom, "properties": {"dgm_nm": "운현궁주변 지구단위계획구역",
+                                                  "wtnnc_sn": "11000UTZ..."}}]
+    async with respx.mock:
+        respx.get("https://api.vworld.kr/req/wfs").mock(
+            return_value=httpx.Response(200, json=_wfs_resp(features))
+        )
+        client = VWorldClient()
+        result = await client.get_district_unit_plans(126.98, 37.57)
+        await client.close()
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0]["_uq"] == "UQ161"
+    assert result[0]["dgm_nm"] == "운현궁주변 지구단위계획구역"
+    assert result[0]["geometry"]["type"] == "Polygon"
+
+
+@pytest.mark.asyncio
+async def test_get_district_unit_plans_empty():
+    """구역 없음 → 빈 리스트 (None 아님)."""
+    async with respx.mock:
+        respx.get("https://api.vworld.kr/req/wfs").mock(
+            return_value=httpx.Response(200, json=_wfs_resp([]))
+        )
+        client = VWorldClient()
+        result = await client.get_district_unit_plans(126.98, 37.57)
+        await client.close()
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_district_unit_plans_no_key(monkeypatch):
+    monkeypatch.delenv("VWORLD_API_KEY", raising=False)
+    async with respx.mock:
+        client = VWorldClient()
+        result = await client.get_district_unit_plans(126.98, 37.57)
+        call_count = respx.calls.call_count
+        await client.close()
+
+    assert result is None
+    assert call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_get_district_unit_plans_layer_error():
+    """ServiceException(XML) → JSONDecodeError → None (graceful degrade)."""
+    async with respx.mock:
+        respx.get("https://api.vworld.kr/req/wfs").mock(
+            return_value=httpx.Response(200, text="<ServiceException>err</ServiceException>")
+        )
+        client = VWorldClient()
+        result = await client.get_district_unit_plans(126.98, 37.57)
+        await client.close()
+
+    assert result is None

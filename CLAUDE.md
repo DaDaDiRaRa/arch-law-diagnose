@@ -136,7 +136,9 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 #### 🔵 선택적 신규 (더 큰 투자, 상세는 "확장 후보" 섹션)
 
-- [ ] NSDI API 연동 (SHP 자동 다운로드) — 🔴 높음
+- [x] ~~NSDI API 연동~~ — 🚫 폐기 (2026-06-29). NSDI(nsdi.go.kr) **서비스 종료**(데이터는 VWorld·data.go.kr로 이관, 신규 www.nsdi.kr은 2026-08 오픈 예정). 필요 데이터는 이미 보유한 키로 해결됨.
+- [x] **지구단위계획구역 자동 감지 완료 (2026-06-29)** — VWorld WFS `lt_c_upisuq161` 좌표 점-내포 판정 → `zone_district` 보강 → 기존 도시계획위원회 심의 트리거 자동 발동 + data_quality 경고 + `land_info.district_unit_plan` 노출. (`vworld_client.get_district_unit_plans`·`urban_facility.detect_district_unit`, 테스트 +9 = 총 262)
+- [ ] **철도보호지구** — VWorld WFS 미제공(교통 카테고리 4종뿐). 운영철도 선형 SHP(KRIC 또는 data.go.kr) 필요 → `RAILWAY_SHP_PATH` 배치 시 `railway/indexer.py` 즉시 동작. ※ 도시계획시설로서의 철도(교통시설 UQ151)는 이미 VWorld로 판정 중.
 - [ ] 운영 인프라 — Cloud Logging·Sentry·BigQuery / 실거래가·SGIS(사업성 보강)
 
 #### ✅ 푸시 직후 운영 검증

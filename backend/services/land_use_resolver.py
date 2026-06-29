@@ -35,6 +35,12 @@ class LandUseResolver:
         """좌표 주변 도시계획시설(VWorld WFS 실시간). 실패 시 None → SHP 폴백."""
         return await self._vworld.get_urban_facilities(lon, lat)
 
+    async def get_district_unit_plans(
+        self, lon: float, lat: float
+    ) -> list[dict] | None:
+        """좌표 주변 지구단위계획구역(VWorld WFS 실시간). 실패 시 None → degrade."""
+        return await self._vworld.get_district_unit_plans(lon, lat)
+
     async def resolve(
         self,
         address: str,

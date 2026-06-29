@@ -8,6 +8,11 @@
 from services.urban_facility.lookup import (
     check_facility_conflict,
     compute_facility_overlap,
+    detect_district_unit,
 )
 
-__all__ = ["check_facility_conflict", "compute_facility_overlap"]
+__all__ = [
+    "check_facility_conflict",
+    "compute_facility_overlap",
+    "detect_district_unit",
+]
