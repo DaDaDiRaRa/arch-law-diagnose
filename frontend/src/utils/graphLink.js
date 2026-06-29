@@ -3,8 +3,13 @@
 // diagnose 는 graph 의 검색 딥링크(?q=)로 적용 조문 원문을 열어준다.
 // graph 미배포/다운 시 링크만 안 뜨면 되도록(degrade) 호출부에서 URL 유무로 분기.
 
-// 배포 주소는 환경변수로. 미설정 시 로컬 graph 기본 포트(8080).
-const GRAPH_BASE = (import.meta.env.VITE_GRAPH_URL || 'http://localhost:8080').replace(/\/+$/, '')
+// 배포 주소는 환경변수(VITE_GRAPH_URL, 빌드타임)로 override. 미설정 시 프로덕션 graph.
+// 자동배포(CI source build)는 build-arg를 안 넘기므로 기본값을 prod 로 둔다.
+// 로컬에서 로컬 graph(8080)로 테스트하려면 VITE_GRAPH_URL 로 덮어쓰기.
+const GRAPH_BASE = (
+  import.meta.env.VITE_GRAPH_URL ||
+  'https://arch-law-graph-30350777436.asia-northeast3.run.app'
+).replace(/\/+$/, '')
 
 // 진단 law_ref 이름 → graph 검색어 정제.
 // 예: "건축법 제55조 (건폐율)" → "건축법 제55조"
