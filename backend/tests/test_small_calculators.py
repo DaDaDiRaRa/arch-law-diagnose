@@ -278,3 +278,42 @@ class TestQueryEngine:
         user_prompt = call_args[0][1]  # 두 번째 positional arg
         assert "영등포구" in user_prompt
         assert "제2종일반주거지역" in user_prompt
+
+    @pytest.mark.asyncio
+    async def test_applied_refs_injected_into_prompt(self):
+        """진단 결과의 law_refs가 '적용 조문' 블록으로 프롬프트에 주입되는지."""
+        llm = _make_llm(return_value={
+            "answer": "답변", "citations": [], "confidence": "medium", "follow_ups": [],
+        })
+        engine = QueryEngine(llm)
+        current_result = {
+            "results": {
+                "건폐율": {"pass": True, "law_refs": [
+                    {"name": "건축법 제55조 (건폐율)", "url": "https://www.law.go.kr/a"},
+                ]},
+            },
+        }
+        await engine.answer("왜 적합인가요?", current_result=current_result)
+        user_prompt = llm.judge_json.call_args[0][1]
+        assert "적용 조문(진단 엔진 확정)" in user_prompt
+        assert "건축법 제55조 (건폐율)" in user_prompt
+
+    @pytest.mark.asyncio
+    async def test_citation_url_from_diagnosis_refs(self):
+        """LLM citation의 빈 URL은 진단 엔진 확정 조문의 정확한 URL로 보강."""
+        llm_response = {
+            "answer": "건축법 제55조에 따라...",
+            "citations": [{"name": "건축법 제55조 (건폐율)", "url": ""}],
+            "confidence": "high",
+            "follow_ups": [],
+        }
+        engine = QueryEngine(_make_llm(return_value=llm_response))
+        current_result = {
+            "results": {
+                "건폐율": {"pass": True, "law_refs": [
+                    {"name": "건축법 제55조 (건폐율)", "url": "https://www.law.go.kr/exact"},
+                ]},
+            },
+        }
+        result = await engine.answer("왜 적합?", current_result=current_result)
+        assert result["citations"][0]["url"] == "https://www.law.go.kr/exact"

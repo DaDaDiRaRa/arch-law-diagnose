@@ -21,6 +21,9 @@ TASK: 사용자의 자연어 질문에 대해 다음을 만족하는 답변을 �
 - 정확한 조문 인용 (예: "건축법 제55조에 따르면 ...")
 - 모호한 경우 가정을 명시
 - 진단 컨텍스트(현재 시나리오 + 최근 진단 결과)가 있으면 그 수치를 우선 참조
+- 컨텍스트에 "적용 조문(진단 엔진 확정)" 목록이 있으면, citations는 그 목록의
+  조문명을 그대로 우선 사용 (진단 엔진이 결정론적으로 산정한 정답 조문임).
+  목록 밖 조문을 추가로 인용할 때만 본인 판단으로 보강.
 - 컨텍스트와 모순되는 가정은 사용 금지
 - 추측 금지 — 근거 없는 부분은 "법조문상 명시 없음, 추가 확인 필요"로
 - 한국어 존댓말, 3~6문장으로 간결하게
@@ -93,7 +96,10 @@ class QueryEngine:
                 "follow_ups": [],
             }
 
-        context = self._build_context(address, zone_use, building_info, current_result)
+        applied_refs = _collect_law_refs(current_result)
+        context = self._build_context(
+            address, zone_use, building_info, current_result, applied_refs
+        )
         user_prompt = _USER_TEMPLATE.format(question=question.strip(), context=context)
 
         data = await self._llm.judge_json(_SYSTEM_PROMPT, user_prompt, max_tokens=2048)
@@ -105,7 +111,8 @@ class QueryEngine:
                 "follow_ups": [],
             }
 
-        # citations URL 보강
+        # citations URL 보강 — 진단 엔진 확정 조문의 정확한 URL을 최우선 사용
+        ref_urls = {r["name"]: r["url"] for r in applied_refs if r.get("url")}
         citations_raw = data.get("citations", []) or []
         citations: list[dict] = []
         for c in citations_raw:
@@ -116,7 +123,7 @@ class QueryEngine:
             if not name:
                 continue
             if not url:
-                url = _law_url(name)
+                url = ref_urls.get(name) or _law_url(name)
             citations.append({"name": name, "url": url})
 
         return {
@@ -132,6 +139,7 @@ class QueryEngine:
         zone_use: str | None,
         building_info: dict | None,
         current_result: dict | None,
+        applied_refs: list[dict] | None = None,
     ) -> str:
         """LLM에 전달할 컨텍스트 블록 구성."""
         parts: list[str] = []
@@ -150,9 +158,38 @@ class QueryEngine:
             if summary:
                 parts.append("- 최근 진단 결과 요약:")
                 parts.append(summary)
+        if applied_refs:
+            parts.append("- 적용 조문(진단 엔진 확정):")
+            for r in applied_refs:
+                parts.append(f"  · {r['name']}")
         if not parts:
             return "(추가 컨텍스트 없음 — 일반론 답변)"
         return "\n".join(parts)
+
+
+def _collect_law_refs(result: dict | None) -> list[dict]:
+    """진단 결과 각 카테고리의 law_refs를 평탄화·중복 제거.
+
+    계산기가 결정론적으로 산정한 정답 조문(name + 정확한 law.go.kr URL)을
+    LLM 컨텍스트와 citation URL 보강에 재사용한다.
+    """
+    if not result or not isinstance(result, dict):
+        return []
+    refs: list[dict] = []
+    seen: set[str] = set()
+    categories = result.get("results", {}) or {}
+    for r in categories.values():
+        if not isinstance(r, dict):
+            continue
+        for ref in r.get("law_refs", []) or []:
+            if not isinstance(ref, dict):
+                continue
+            name = str(ref.get("name", "")).strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            refs.append({"name": name, "url": str(ref.get("url", "")).strip()})
+    return refs
 
 
 def _summarize_result(result: dict) -> str:
