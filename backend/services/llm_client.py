@@ -100,9 +100,11 @@ def _extract_json(text: str) -> dict | None:
         logger.warning("LLM 응답에서 JSON 블록을 찾지 못함 — 원본 (앞 500자): %s", text[:500])
         return None
 
-    # 1차 — strict 파싱
+    # strict=False — 문자열 값 안의 리터럴 제어문자(줄바꿈·탭)를 허용.
+    # 조문 원문 등 멀티라인 텍스트를 모델이 이스케이프 없이 echo해도 파싱되도록.
+    # 1차 — 파싱
     try:
-        return json.loads(candidate)
+        return json.loads(candidate, strict=False)
     except json.JSONDecodeError as e:
         first_err = e
 
@@ -111,7 +113,7 @@ def _extract_json(text: str) -> dict | None:
     repaired = _MISSING_COMMA_ARR_END.sub(r"\1\n]", repaired)
     repaired = _TRAILING_COMMA.sub(r"\1", repaired)
     try:
-        result = json.loads(repaired)
+        result = json.loads(repaired, strict=False)
         logger.info("LLM JSON 자동 복구 성공 (콤마 누락/trailing 보정)")
         return result
     except json.JSONDecodeError as e2:
@@ -122,7 +124,7 @@ def _extract_json(text: str) -> dict | None:
                 if candidate[cut] == "}":
                     sub = candidate[: cut + 1]
                     try:
-                        result = json.loads(sub)
+                        result = json.loads(sub, strict=False)
                         logger.info(
                             "LLM JSON 자동 복구 성공 (응답 truncation — %d자 → %d자로 절단)",
                             len(candidate), len(sub),
