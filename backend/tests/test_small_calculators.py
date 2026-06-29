@@ -212,6 +212,14 @@ def _make_llm(available: bool = True, return_value=None) -> MagicMock:
 
 
 class TestQueryEngine:
+    @pytest.fixture(autouse=True)
+    def _no_graph(self, monkeypatch):
+        """기본: graph 조문 원문 조회 비활성(빈 결과) — 테스트 네트워크 차단."""
+        monkeypatch.setattr(
+            "services.query_engine.fetch_law_bodies",
+            AsyncMock(return_value={}),
+        )
+
     @pytest.mark.asyncio
     async def test_llm_unavailable(self):
         engine = QueryEngine(_make_llm(available=False))
@@ -317,3 +325,43 @@ class TestQueryEngine:
         }
         result = await engine.answer("왜 적합?", current_result=current_result)
         assert result["citations"][0]["url"] == "https://www.law.go.kr/exact"
+
+    @pytest.mark.asyncio
+    async def test_graph_body_grounding_injected(self, monkeypatch):
+        """graph 가 조문 원문을 주면 '조문 원문' 블록으로 프롬프트에 주입."""
+        monkeypatch.setattr(
+            "services.query_engine.fetch_law_bodies",
+            AsyncMock(return_value={
+                "건축법 제56조 (용적률)": {
+                    "id": "건축법/제56조", "law_nm": "건축법",
+                    "title": "건축물의 용적률",
+                    "content": "제56조(건축물의 용적률) ... 「국토의 계획 및 이용에 관한 법률」 제78조에 따른 용적률의 기준에 따른다.",
+                    "source_url": "https://x",
+                },
+            }),
+        )
+        llm = _make_llm(return_value={
+            "answer": "a", "citations": [], "confidence": "medium", "follow_ups": [],
+        })
+        engine = QueryEngine(llm)
+        current_result = {
+            "results": {"용적률": {"law_refs": [
+                {"name": "건축법 제56조 (용적률)", "url": "https://x"},
+            ]}},
+        }
+        await engine.answer("제56조 원문?", current_result=current_result)
+        prompt = llm.judge_json.call_args[0][1]
+        assert "조문 원문" in prompt
+        assert "제78조에 따른 용적률의 기준에 따른다" in prompt
+
+    @pytest.mark.asyncio
+    async def test_graph_down_degrades(self):
+        """graph 미가동(빈 결과)이어도 원문 블록 없이 정상 답변(degrade)."""
+        llm = _make_llm(return_value={
+            "answer": "a", "citations": [], "confidence": "medium", "follow_ups": [],
+        })
+        engine = QueryEngine(llm)
+        result = await engine.answer("질문?", current_result={"results": {}})
+        assert result["answer"] == "a"
+        prompt = llm.judge_json.call_args[0][1]
+        assert "조문 원문" not in prompt

@@ -67,10 +67,13 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 > **0단계 완료 (커밋됨)** — `query_engine.py`가 `_collect_law_refs()`로 진단 결과의 law_refs를 추출 → "적용 조문(진단 엔진 확정)" 블록으로 프롬프트 주입 + citation URL을 진단 엔진의 정확한 URL로 최우선 보강. 테스트 +2(전체 212). **graph 연계 없이 인용 정확도 문제의 핵심을 해결.**
 >
 > **링크아웃 ② 완료 (2026-06-29, 두 레포)** — 진단 카드 law_refs·AI 답변 citation 옆에 "원문↗" 링크 추가 → graph 검색 화면을 `?q=<조문명>`으로 염. **diagnose 레포**: `frontend/src/utils/graphLink.js`(env `VITE_GRAPH_URL`, 기본 localhost:8080, 약칭→정식명·괄호제거 정제) + `DiagnoseResult`·`QueryBox`에 링크. **graph 레포**(`D:\APPS\arch-law-graph`): `web/src/views/SearchView.jsx`에 mount 시 `?q=`/`?node=` 읽는 useEffect 추가(추가형·degrade). 양쪽 빌드 통과. ⚠ **graph 레포는 별도 커밋 필요**.
+>
+> **A안(RAG 그라운딩) 완료 + e2e 검증 (2026-06-29, 두 레포)** — 실사용 검증에서 **본문 환각 확인**(건축법 제56조를 "대통령령→조례 위임"으로 high-confidence 오인용 / graph 원문은 "제78조에 따른 기준")되어 착수. **graph 레포**: `rag_engine.py`에 `lookup()` + `_name_to_node_id()`(조문명→노드id 구성, **search 추정 안 함=틀린 본문 주입 방지**, exact only), `main.py`에 `POST /api/lookup`(배치, 최대 50건). **diagnose 레포**: `services/graph_client.py`(env `GRAPH_API_URL` 기본 localhost:8001, 실패 시 degrade) + `query_engine`이 적용 조문 본문을 받아 "조문 원문" 블록 주입 + 시스템프롬프트에 "원문에 있는 내용만 인용". 부작용 2건도 fix: max_tokens 2048→4096, 본문 내 `"`→`'` 정화(echo 시 JSON 파손 방지) + 주입 상한(10조문·900자). e2e 재검증: 제56조 환각 **사라짐**, 제55조 원문 단서까지 정확. 테스트 +2(전체 214). 한계: graph 미보유 조문(예 철도안전법)은 per-article degrade. ⚠ **graph 레포 별도 커밋 필요**.
+>
+> **graph.json 데이터 품질 메모** — auto 수확 law 노드 다수의 `law_nm`이 표/PDF 파싱 깨짐(│ ┌ 등). article 노드는 깨끗(19,048건). 시드 승격 워크플로 때 정리 대상.
 
-남은 graph 연계 선택지 (0단계로 부족할 때만):
+남은 graph 연계 선택지:
 
-- **A안 (RAG 그라운딩, 보류 → 입증 후)**: graph에 JSON 조회 엔드포인트(현재 `/api/ping`+`/api/chat` SSE 둘뿐) 추가 → query_engine이 적용 조문의 **본문 텍스트**를 graph에서 받아 LLM에 물림. 환각 방지 가치는 여기 있으나 두 레포 작업. **QueryBox를 실제로 써보고 답이 여전히 틀릴 때만** 착수.
 - **B안 (graph.json 복사)**: 매일 바뀌는 22MB 파일 복사·동기화 부담 → 오프라인 데모 절대요건일 때만. 사실상 제외.
 
 ---

@@ -8,9 +8,14 @@ from __future__ import annotations
 import json
 import logging
 
+from services.graph_client import fetch_law_bodies
 from services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
+
+# 조문 원문 그라운딩 컨텍스트 상한 (토큰 폭주·LLM 타임아웃 방지)
+_MAX_BODIES = 10          # 본문 주입 조문 최대 개수
+_MAX_BODY_CHARS = 900     # 조문당 본문 길이 상한(글자)
 
 
 _SYSTEM_PROMPT = """\
@@ -24,12 +29,18 @@ TASK: 사용자의 자연어 질문에 대해 다음을 만족하는 답변을 �
 - 컨텍스트에 "적용 조문(진단 엔진 확정)" 목록이 있으면, citations는 그 목록의
   조문명을 그대로 우선 사용 (진단 엔진이 결정론적으로 산정한 정답 조문임).
   목록 밖 조문을 추가로 인용할 때만 본인 판단으로 보강.
+- 컨텍스트에 "조문 원문" 블록이 있으면, 그 조문의 **내용·문구는 반드시 제공된
+  원문에 근거**해 인용하고 원문에 없는 내용을 지어내지 마세요. 원문이 제공되지
+  않은 조문의 본문을 인용해야 하면 "원문 미확보 — 법제처 확인 필요"로 명시.
 - 컨텍스트와 모순되는 가정은 사용 금지
 - 추측 금지 — 근거 없는 부분은 "법조문상 명시 없음, 추가 확인 필요"로
 - 한국어 존댓말, 3~6문장으로 간결하게
 - 마지막 줄에 근거 조문 목록 (예: "근거: 건축법 제55조, 국토계획법 시행령 별표")
 
+- 조문 원문 인용은 질문과 직접 관련된 1~2개 조문으로 제한 (무관한 조문 장황 나열 금지)
+
 출력은 반드시 JSON 한 덩어리만:
+주의: "answer" 값 안에서는 큰따옴표(") 대신 홑따옴표(') 또는 「」 사용 (JSON 파손 방지)
 {
   "answer": "<본문 답변>",
   "citations": [
@@ -97,8 +108,10 @@ class QueryEngine:
             }
 
         applied_refs = _collect_law_refs(current_result)
+        # graph 에서 적용 조문 본문 확보(있으면 그라운딩, 없으면 degrade)
+        bodies = await fetch_law_bodies([r["name"] for r in applied_refs])
         context = self._build_context(
-            address, zone_use, building_info, current_result, applied_refs
+            address, zone_use, building_info, current_result, applied_refs, bodies
         )
         user_prompt = _USER_TEMPLATE.format(question=question.strip(), context=context)
 
@@ -140,6 +153,7 @@ class QueryEngine:
         building_info: dict | None,
         current_result: dict | None,
         applied_refs: list[dict] | None = None,
+        bodies: dict[str, dict] | None = None,
     ) -> str:
         """LLM에 전달할 컨텍스트 블록 구성."""
         parts: list[str] = []
@@ -162,6 +176,17 @@ class QueryEngine:
             parts.append("- 적용 조문(진단 엔진 확정):")
             for r in applied_refs:
                 parts.append(f"  · {r['name']}")
+        if bodies:
+            parts.append(
+                "- 조문 원문(graph 제공 — 아래 본문에 있는 내용만 그대로 인용):"
+            )
+            for name, b in list(bodies.items())[:_MAX_BODIES]:
+                content = (b.get("content") or "").strip()
+                if len(content) > _MAX_BODY_CHARS:
+                    content = content[:_MAX_BODY_CHARS] + " …(이하 생략)"
+                # 본문 내 ASCII 큰따옴표 → 홑따옴표: LLM이 그대로 echo해도 JSON 미파손
+                content = content.replace('"', "'")
+                parts.append(f"  ▸ {name}\n    {content}")
         if not parts:
             return "(추가 컨텍스트 없음 — 일반론 답변)"
         return "\n".join(parts)
