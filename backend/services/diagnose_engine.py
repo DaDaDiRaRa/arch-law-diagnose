@@ -723,6 +723,19 @@ class DiagnoseEngine:
                 "msg": f"전면도로 폭 {road_width}m 자동 조회됨 (VWorld) — 실제와 다르면 수동 입력으로 override",
             })
 
+        # 전면도로 4m 미만 → 건축선 후퇴(§46)로 유효 대지면적이 줄 수 있음.
+        # 정식 후퇴 계산은 미구현(좁은 도로 대지 드묾) — 조용한 과대평가만 경고로 차단.
+        if road_width is not None and road_width < 4.0:
+            dq_issues.append({
+                "level": "warn",
+                "code": "NARROW_ROAD_SETBACK",
+                "msg": (
+                    f"전면도로 폭 {road_width}m (4m 미만) — 건축선 후퇴(건축법 §46)로 "
+                    "유효 대지면적이 줄어 건폐율·용적률이 낙관적으로 산정됐을 수 있음. "
+                    "후퇴 면적 반영은 미자동화 — 수동 확인 필요."
+                ),
+            })
+
         if district_unit.get("inside"):
             dq_issues.append({
                 "level": "warn",

@@ -93,6 +93,24 @@ async def test_no_street_block_height_still_works(_engine, _land):
     assert "results" in result and result.get("signal") in {"RED", "YELLOW", "GREEN"}
 
 
+def _dq_codes(result):
+    return {i["code"] for i in result["data_quality"]["issues"]}
+
+
+async def test_narrow_road_warns_setback(_engine, _land):
+    """전면도로 4m 미만이면 건축선 후퇴(§46) 미반영 경고를 띄운다."""
+    req = _req(road_width=3.0)
+    result = await _engine._diagnose(req, _land, save_history=False, skip_ai=True)
+    assert "NARROW_ROAD_SETBACK" in _dq_codes(result)
+
+
+async def test_normal_road_no_setback_warning(_engine, _land):
+    """전면도로 4m 이상이면 후퇴 경고가 없다 (오경고 방지, 대칭 케이스)."""
+    req = _req(road_width=12.0)
+    result = await _engine._diagnose(req, _land, save_history=False, skip_ai=True)
+    assert "NARROW_ROAD_SETBACK" not in _dq_codes(result)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 버그 #2: /api/brief/extract 가 항상 500 (judge_json 시그니처 불일치 + await 누락)
 # ─────────────────────────────────────────────────────────────────────────────
