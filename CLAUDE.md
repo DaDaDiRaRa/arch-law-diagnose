@@ -127,7 +127,8 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 - [x] **외부 API 클라이언트 테스트 (완료 2026-06-26)** — `respx` 0.23.1 도입. `test_vworld_client.py` (16건) · `test_eum_client.py` (13건) · `test_luris_client.py` (9건) = 38건 추가. 전체 179건 통과.
 - [x] 소형 계산기 테스트 (완료 2026-06-26) — `test_small_calculators.py` 31건 (public_certification 9·bf_certification 6·multi_use 11·query_engine 5). 전체 210건 통과.
-- [ ] 법규 그래프 검증 워크플로 — 시니어가 자동수확(origin=auto) 엣지 검토 → 맞는 것 시드 승격(auto→seed). 재수확: `python -m services.law_graph_harvest`
+- [x] **법규 그래프 검증 워크플로 (완료 2026-06-29)** — 시니어가 탐색기에서 auto(점선) 엣지를 **승격**(seed로 영구화)/**반려**(제거+재수확 차단). `law_graph_curate.py`(promote_edge/reject_edge/reject_node + `law_graph_rejected.json`) + API `POST /api/law-graph/promote|reject` + `law_graph.invalidate()` + harvest가 seed·반려 엣지 재생성 차단 + 프론트 NodeChip "✓승격/✕반려" 버튼. 테스트 +6(전체 220). 재수확: `python -m services.law_graph_harvest`
+  - ⚠ **영속성 주의**: 승격/반려는 `config/*.json`에 기록 → Cloud Run 파일시스템은 휘발성이라 배포 시 사라짐. 따라서 **로컬에서 큐레이션 → seed.json·rejected.json 커밋 → 배포**가 정식 흐름. (배포본에서 누른 승격은 재시작 시 소실)
 - [ ] 가로구역 최고높이 seed (현재 0건 → §60 자동판정 거의 안 됨) — 단, 고시 PDF 수집 선행
 - [x] markdown lint 일괄 정리 (완료 2026-06-26) — MD034 bare URL 2건 + MD060 테이블 구분선 스타일 통일
 - [ ] (낮음) dev 의존성 `npm audit fix`(vite·babel, 빌드 검증 필요)

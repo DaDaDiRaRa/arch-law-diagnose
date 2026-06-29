@@ -58,6 +58,19 @@ export default function LawGraphPanel({ focus }) {
     if (next) await ensureLoaded()
   }
 
+  // auto 수확 관계 큐레이션 — 승격(seed로) / 반려(제거). 성공 시 그래프 재조회.
+  const curate = async (action, source, target) => {
+    const label = action === 'promote' ? '시드로 승격' : '반려(제거)'
+    if (!window.confirm(`이 자동수확 관계를 ${label}하시겠어요?\n\n${source}\n→ ${target}`)) return
+    try {
+      if (action === 'promote') await api.lawGraphPromote({ source, target })
+      else await api.lawGraphReject({ source, target })
+      setGraph(await api.lawGraph())
+    } catch (e) {
+      alert(`${label} 실패: ${e.message || e}`)
+    }
+  }
+
   // 카테고리 카드의 "관계 보기" → 패널 열고 해당 노드로 점프 + 스크롤 (#3)
   useEffect(() => {
     if (!focus?.id) return
@@ -186,9 +199,9 @@ export default function LawGraphPanel({ focus }) {
           )}
 
           {/* 나가는 관계 */}
-          <RelGroups title="이 항목이 가리키는 관계" groups={outByRel} onPick={setCurrent} />
+          <RelGroups title="이 항목이 가리키는 관계" groups={outByRel} onPick={setCurrent} onCurate={curate} />
           {/* 들어오는 관계 */}
-          <RelGroups title="이 항목을 가리키는 관계" groups={incByRel} onPick={setCurrent} />
+          <RelGroups title="이 항목을 가리키는 관계" groups={incByRel} onPick={setCurrent} onCurate={curate} />
 
           {Object.keys(outByRel).length === 0 && Object.keys(incByRel).length === 0 && (
             <div className="text-[11px] text-gray-400 py-1">연결된 관계가 없습니다.</div>
@@ -212,13 +225,15 @@ function groupByRel(edges, otherId, byId) {
   for (const e of edges) {
     const other = byId[otherId(e)]
     if (!other) continue
-    ;(groups[e.rel] ||= []).push({ note: e.note, origin: e.origin, node: other })
+    ;(groups[e.rel] ||= []).push({
+      note: e.note, origin: e.origin, source: e.source, target: e.target, node: other,
+    })
   }
   return groups
 }
 
 
-function RelGroups({ title, groups, onPick }) {
+function RelGroups({ title, groups, onPick, onCurate }) {
   const rels = Object.keys(groups)
   if (rels.length === 0) return null
   return (
@@ -229,7 +244,16 @@ function RelGroups({ title, groups, onPick }) {
           <div key={rel} className="flex flex-wrap items-center gap-1">
             <RelTag rel={rel} />
             {groups[rel].map((g, i) => (
-              <NodeChip key={i} node={g.node} note={g.note} auto={g.origin === 'auto'} onClick={() => onPick(g.node.id)} />
+              <NodeChip
+                key={i}
+                node={g.node}
+                note={g.note}
+                auto={g.origin === 'auto'}
+                source={g.source}
+                target={g.target}
+                onCurate={onCurate}
+                onClick={() => onPick(g.node.id)}
+              />
             ))}
           </div>
         ))}
@@ -247,19 +271,40 @@ function RelTag({ rel }) {
   )
 }
 
-function NodeChip({ node, note, auto, onClick }) {
+function NodeChip({ node, note, auto, source, target, onCurate, onClick }) {
   const isAuto = auto || node.origin === 'auto'
+  const canCurate = isAuto && onCurate && source && target
   return (
-    <button
-      onClick={onClick}
-      title={note ? (isAuto ? `${note} · 자동수확(미검증)` : note) : (isAuto ? '자동수확(미검증)' : '')}
-      className="text-[10px] px-2 py-0.5 rounded border bg-white hover:border-gray-400 text-gray-700 transition-colors"
-      style={isAuto ? { borderStyle: 'dashed', borderColor: '#cbd5e1' } : { borderColor: '#e5e7eb' }}
-    >
-      {node.kind !== '카테고리' && <KindBadge kind={node.kind} small />}
-      <span className="ml-1">{node.article ? `${node.law} ${node.article}` : node.title}</span>
-      {isAuto && <span className="ml-1 text-[8px] text-gray-400">자동</span>}
-    </button>
+    <span className="inline-flex items-center">
+      <button
+        onClick={onClick}
+        title={note ? (isAuto ? `${note} · 자동수확(미검증)` : note) : (isAuto ? '자동수확(미검증)' : '')}
+        className="text-[10px] px-2 py-0.5 rounded border bg-white hover:border-gray-400 text-gray-700 transition-colors"
+        style={isAuto ? { borderStyle: 'dashed', borderColor: '#cbd5e1' } : { borderColor: '#e5e7eb' }}
+      >
+        {node.kind !== '카테고리' && <KindBadge kind={node.kind} small />}
+        <span className="ml-1">{node.article ? `${node.law} ${node.article}` : node.title}</span>
+        {isAuto && <span className="ml-1 text-[8px] text-gray-400">자동</span>}
+      </button>
+      {canCurate && (
+        <span className="inline-flex items-center ml-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onCurate('promote', source, target) }}
+            title="이 자동수확 관계를 검증된 시드로 승격(영구)"
+            className="text-[9px] px-1 py-0.5 rounded text-green-600 hover:bg-green-50"
+          >
+            ✓승격
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onCurate('reject', source, target) }}
+            title="이 자동수확 관계를 반려(제거 + 재수확 차단)"
+            className="text-[9px] px-1 py-0.5 rounded text-red-500 hover:bg-red-50"
+          >
+            ✕반려
+          </button>
+        </span>
+      )}
+    </span>
   )
 }
 

@@ -65,6 +65,14 @@ export const api = {
   // 법규 의미 그래프 (Step 11)
   lawGraph: () => request('/law-graph'),
   lawGraphNode: (nodeId) => request(`/law-graph/node/${encodeURIComponent(nodeId)}`),
+  // 자동수확(auto) 항목 큐레이션 — 시드 승격 / 반려
+  lawGraphPromote: ({ source, target }) =>
+    request('/law-graph/promote', { method: 'POST', body: JSON.stringify({ source, target }) }),
+  lawGraphReject: ({ source, target, nodeId }) =>
+    request('/law-graph/reject', {
+      method: 'POST',
+      body: JSON.stringify({ source, target, node_id: nodeId }),
+    }),
 
   // 진단 결과 → MD / xlsx 다운로드 — Response를 직접 받아 blob으로 처리
   downloadDiagnoseExport: async (format, payload) => {

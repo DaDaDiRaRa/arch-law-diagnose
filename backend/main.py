@@ -418,6 +418,13 @@ class QueryRequest(BaseModel):
     current_result: dict[str, Any] | None = None
 
 
+class LawGraphCurateRequest(BaseModel):
+    """법규 그래프 auto 항목 승격/반려. 엣지=source+target, 노드=node_id."""
+    source: str | None = None
+    target: str | None = None
+    node_id: str | None = None
+
+
 # ── Phase 4 스키마 ──────────────────────────────────────────────────────────
 
 
@@ -1182,6 +1189,33 @@ async def law_graph_category(node_id: str):
     if sub is None:
         raise HTTPException(404, f"노드 없음: {node_id}")
     return sub
+
+
+@app.post("/api/law-graph/promote")
+async def law_graph_promote(req: LawGraphCurateRequest):
+    """auto 수확 엣지를 검토 후 seed로 승격(영구화, 재수확해도 유지)."""
+    from services import law_graph_curate
+    if not req.source or not req.target:
+        raise HTTPException(400, "엣지 승격은 source·target이 필요합니다")
+    result = law_graph_curate.promote_edge(req.source, req.target)
+    if not result.get("ok"):
+        raise HTTPException(404, result.get("reason", "승격 실패"))
+    return result
+
+
+@app.post("/api/law-graph/reject")
+async def law_graph_reject(req: LawGraphCurateRequest):
+    """auto 수확 항목을 반려(제거 + 재수확 차단). 엣지 또는 노드 단위."""
+    from services import law_graph_curate
+    if req.source and req.target:
+        result = law_graph_curate.reject_edge(req.source, req.target)
+    elif req.node_id:
+        result = law_graph_curate.reject_node(req.node_id)
+    else:
+        raise HTTPException(400, "반려는 (source·target) 또는 node_id가 필요합니다")
+    if not result.get("ok"):
+        raise HTTPException(404, result.get("reason", "반려 실패"))
+    return result
 
 
 # ── Phase 4 엔드포인트 ─────────────────────────────────────────────────────

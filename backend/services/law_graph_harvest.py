@@ -98,9 +98,14 @@ async def harvest(client) -> dict:
 
     client: LawGoKrClient 인스턴스.
     """
+    from services.law_graph_curate import load_rejected_sets
+
     with open(_SEED_PATH, encoding="utf-8") as f:
         seed = json.load(f)
     seed_idx = _seed_index(seed)
+    # 이미 시드에 있는 엣지·반려된 항목은 재수확하지 않음(승격/반려 결과 유지)
+    seed_edges = {(e.get("source"), e.get("target")) for e in seed.get("edges", [])}
+    rejected_nodes, rejected_edges = load_rejected_sets()
 
     # 수확 대상: 시드의 법률/시행령 노드, law별로 묶기
     statutes: dict[str, list[dict]] = {}
@@ -138,8 +143,10 @@ async def harvest(client) -> dict:
             for r in refs:
                 tgt_id = seed_idx.get((_norm(r["law"]), _norm(r["article"])))
                 if tgt_id is None:
-                    # 새 자동 노드
+                    # 새 자동 노드 후보 (반려된 노드면 건너뜀)
                     tgt_id = "auto_" + _norm(f"{r['law']}_{r['article']}")
+                    if tgt_id in rejected_nodes:
+                        continue
                     auto_nodes.setdefault(tgt_id, {
                         "id": tgt_id, "kind": "법률" if "시행령" not in r["law"] else "시행령",
                         "law": r["law"], "article": r["article"], "title": "",
@@ -149,8 +156,8 @@ async def harvest(client) -> dict:
                 if tgt_id == node["id"]:
                     continue
                 ek = (node["id"], tgt_id)
-                if ek in seen_edges:
-                    continue
+                if ek in seen_edges or ek in seed_edges or ek in rejected_edges:
+                    continue  # 중복·이미 승격(seed)·반려된 엣지는 제외
                 seen_edges.add(ek)
                 auto_edges.append({
                     "source": node["id"], "target": tgt_id,

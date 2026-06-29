@@ -91,6 +91,12 @@ def _graph() -> nx.DiGraph:
     return _GRAPH
 
 
+def invalidate() -> None:
+    """그래프 캐시 무효화 — 시드/자동 JSON이 큐레이션으로 바뀐 뒤 호출."""
+    global _GRAPH
+    _GRAPH = None
+
+
 def _node_obj(g: nx.DiGraph, nid: str) -> dict:
     """노드 id → 직렬화 dict(id 포함)."""
     return {"id": nid, **g.nodes[nid]}
