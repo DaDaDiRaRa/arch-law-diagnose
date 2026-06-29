@@ -143,7 +143,7 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 #### 🔵 선택적 신규 (더 큰 투자, 상세는 "확장 후보" 섹션)
 
 - [ ] NSDI API 연동 (SHP 자동 다운로드) — 🔴 높음
-- [ ] 학교알리미·문화재 API → `review_triggers` 교육환경·문화재 MAYBE→확정
+- [x] **학교·문화재 API → 교육환경·문화재 MAYBE 고정 해소 (완료 2026-06-29)** — 좌표 기반 실거리 판정으로 전환. 학교=`school_client.py`(Kakao Places SC4, 반경 200m, 기존 `KAKAO_API_KEY` 재사용·대학 제외) → 절대보호구역(50m)/상대보호구역(200m)+§7제한용도 자동 분류. 문화재=`heritage_client.py`(국가유산 공간정보 WFS `gis-heritage.go.kr/openapi/xmlService/spca.do`, **인증키 불필요**) → 6개 종목(국보·보물·사적·명승·천연기념물·국가민속, 약 2,560건) 시작 시 1회 수확·메모리 캐시, 좌표를 UTM-K(EPSG:5179)로 변환해 반경 500m 실거리 계산. 둘 다 graceful degrade(좌표·API 실패 시 기존 MAYBE/텍스트 단서 유지). 진단 엔진이 `evaluate_reviews` 전 좌표로 선조회해 주입. 테스트 +31(전체 251). ⚠ 한계: 문화재는 점 대표좌표 기반이라 면적 큰 사적의 대표점이 멀면 누락 가능.
 - [ ] 운영 인프라 — Cloud Logging·Sentry·BigQuery / 실거래가·SGIS(사업성 보강)
 
 #### ✅ 푸시 직후 운영 검증
