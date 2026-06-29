@@ -138,7 +138,9 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 - [x] ~~NSDI API 연동~~ — 🚫 폐기 (2026-06-29). NSDI(nsdi.go.kr) **서비스 종료**(데이터는 VWorld·data.go.kr로 이관, 신규 www.nsdi.kr은 2026-08 오픈 예정). 필요 데이터는 이미 보유한 키로 해결됨.
 - [x] **지구단위계획구역 자동 감지 완료 (2026-06-29)** — VWorld WFS `lt_c_upisuq161` 좌표 점-내포 판정 → `zone_district` 보강 → 기존 도시계획위원회 심의 트리거 자동 발동 + data_quality 경고 + `land_info.district_unit_plan` 노출. (`vworld_client.get_district_unit_plans`·`urban_facility.detect_district_unit`, 테스트 +9 = 총 262)
-- [ ] **철도보호지구** — VWorld WFS 미제공(교통 카테고리 4종뿐). 운영철도 선형 SHP(KRIC 또는 data.go.kr) 필요 → `RAILWAY_SHP_PATH` 배치 시 `railway/indexer.py` 즉시 동작. ※ 도시계획시설로서의 철도(교통시설 UQ151)는 이미 VWorld로 판정 중.
+- [ ] **철도보호지구** — 데이터 출처 조사 완료(2026-06-29), 배치는 **보류(복잡, 다음에)**. VWorld WFS 미제공(교통 카테고리 CCTV·노드·링크·도로중심선 4종뿐). 코드(`railway/indexer.py`)는 준비됨 → `RAILWAY_SHP_PATH`에 철도선형 SHP 꽂고 재시작하면 즉시 동작. ※ 도시계획시설로서의 철도(교통시설 UQ151)는 이미 VWorld로 판정 중 — 여기서 빠진 건 "운영 중 철도 30m 보호지구"(철도안전법 §45)뿐.
+  - **출처 비교**: ① **Geofabrik OSM**(`south-korea-latest-free.shp.zip` ~544MB, 무료·로그인X, 내부에 `gis_osm_railways_free_1.shp`, **EPSG:4326** = 코드 기본값과 정확히 일치 → 추출·배치만 하면 끝, 단 라이선스 ODbL·지하철/트램 fclass 섞임) ▶ **즉시성 최선**. ② **KTDB 교통망GIS DB "철도망"**(ktdb.go.kr, 2006~2025 매년, 자료신청·승인 필요 044-211-3259, 포맷 TM-…-AML → SHP 변환 검토) ▶ **권위 최선**. ③ 국토지리정보원 연속수치지형도(data.go.kr 15059721): 철도중심선 있으나 도엽 타일+대용량전송 S/W라 전국 추출 번거로움. ④ (구)NSDI 오픈마켓 철도중심선 SHP=깔끔했으나 NSDI 종료로 사망.
+  - **재개 시**: 정보성 카드(가중치 0)라 법적 권위 비결정적 → Geofabrik으로 먼저 붙이고(추출→`backend/files/railway/railway.shp` 배치, `.gitignore`에 `files/railway/**` 추가=기존 `files/3/**` 컨벤션), 권위 필요하면 KTDB 신청해 교체(`RAILWAY_SHP_CRS`만 변경).
 - [ ] 운영 인프라 — Cloud Logging·Sentry·BigQuery / 실거래가·SGIS(사업성 보강)
 
 #### ✅ 푸시 직후 운영 검증
@@ -225,10 +227,11 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 | Anthropic Claude | `ANTHROPIC_API_KEY` (필수), `ANTHROPIC_MODEL`(선택) | 설비·소방 정성 판단·자연어 질의·조례 본문 수치 추출 |
 | 법제처 DRF | `LAW_API_KEY` | 조례 본문 수집, 조례 변경 감지 |
 | VWorld | `VWORLD_API_KEY` | 좌표 변환·용도지역·지적도·도로폭·지적 폴리곤(WFS) |
-| Kakao Local | `KAKAO_API_KEY` | 주소 자동완성 |
+| Kakao Local | `KAKAO_API_KEY` | 주소 자동완성, 학교 근접 조회(교육환경평가) |
+| 국가유산청 GIS | (키 불필요) | 지정문화재 근접 조회(문화재심의 트리거) — `heritage_client.py` |
 | 토지이음 (EUM) | `EUM_ID`, `EUM_KEY` | 법령정보·행정 고시·개발 인허가·행위제한 교차검증 |
 | 행안부 도로명주소 | `JUSO_API_KEY` | 주소 검색 폴백·정규화 |
-| 공공데이터포털 (선택) | `DATA_GO_KR_API_KEY` | LURIS 행위제한 (토지이음과 교차검증) |
+| 공공데이터포털 / LURIS (선택) | `LURIS_API_KEY` 우선, 없으면 `DATA_GO_KR_API_KEY` 폴백 | LURIS 행위제한 (토지이음과 교차검증) |
 | Slack (선택) | `SLACK_WEBHOOK_URL` | 시니어 검토 요청 webhook |
 
 기타 설정: `DB_PATH`, `CACHE_TTL_DAYS`, `LOG_LEVEL`, `ENABLE_LAW_CHANGE_CRON` 등 → `.env.example` 참조.
@@ -358,9 +361,9 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 | API | 용도 | 진단 영향 | 발급처 | 우선순위 |
 | --- | --- | --- | --- | --- |
-| **국가공간정보포털 (NSDI) API** | 도시계획시설·지구단위·지정문화재 SHP 자동 다운로드 | 시설 저촉 자동 판정 정확도 ↑ | nsdi.go.kr (무료, 회원가입) | 🔴 높음 |
-| **공공데이터포털 학교알리미 API** | 학교 경계 좌표 → 교육환경평가(50/200m) 자동 판정 | `review_triggers` 교육환경 MAYBE → REQUIRED/NONE 확정 | data.go.kr → 학교알리미 | 🟡 중간 |
-| **국가유산청 (문화재) GIS API** | 지정문화재 외곽 100~500m 자동 판정 | `review_triggers` 문화재 MAYBE → 확정 | khs.go.kr → 공간정보 | 🟡 중간 |
+| ~~국가공간정보포털 (NSDI) API~~ | 🚫 폐기 — NSDI 서비스 종료(2026-06-29 확인). 도시계획시설·지구단위는 VWorld WFS로 해결됨 | — | — | 🚫 |
+| ~~공공데이터포털 학교알리미 API~~ | ✅ **완료** — 학교 근접 조회는 Kakao Places(`school_client.py`)로 구현, 교육환경 MAYBE→확정 동작 중 | — | — | ✅ |
+| ~~국가유산청 (문화재) GIS API~~ | ✅ **완료** — `heritage_client.py`(국가유산청 GIS WFS `spca.do`)로 지정문화재 100~500m 자동 판정, 문화재 MAYBE→확정 동작 중 | — | — | ✅ |
 | **환경부 환경공간정보 (EGIS) API** | 보전지역·생태자연도·습지 자동 조회 | 환경영향평가 트리거 정밀화 | egis.me.go.kr | 🟢 낮음 |
 | **국토부 실거래가 API** | 인근 거래 시세 → 사업성 보강 | 사업성 모드에 시세 카드 추가 가능 | rtdown.molit.go.kr | 🟢 낮음 |
 | **통계청 SGIS API** | 인구·세대·상권 통계 → 지역 컨텍스트 | 사업성 모드 인문 분석 (ARCO arch-analysis-mcp 참고) | sgis.kostat.go.kr | 🟢 낮음 |
@@ -430,9 +433,9 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 1. ~~pytest 도입~~ — ✅ 완료 (2026-06-26, 141건 + CI 게이트).
 2. **brief 추가 샘플** (C) — 민간·다부지 각 1건으로 Step 9 매핑 견고화. 작업 5분. (공공 1건은 이미 검증)
-3. **도시계획시설 SHP 영등포구·자주 다루는 자치구 갱신** (B) — 998배 부풀리기 같은 함정 방지.
-4. **NSDI API 연동** (A) — SHP 자동 다운로드로 B의 수동 작업 자동화.
-5. **학교·문화재 API** (A) — `review_triggers` MAYBE 고정 항목 확정 판정.
+3. ~~도시계획시설 SHP 갱신~~ — ✅ 해결 (2026-06-29, VWorld WFS 실시간 전환으로 SHP 수동 갱신 불필요).
+4. ~~NSDI API 연동~~ — 🚫 폐기 (NSDI 서비스 종료).
+5. ~~학교·문화재 API~~ — ✅ 완료 (`school_client.py` Kakao Places·`heritage_client.py` 국가유산청 GIS → `review_triggers` 교육환경·문화재 MAYBE를 좌표 기반 확정 판정).
 
 > ~~사내 케이스 10건~~ — Step 8 제거로 보류(사용자 결정). 향후 정확도 측정이 다시 필요하면 git에서 `case_matcher.py` 복원.
 

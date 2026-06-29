@@ -1,7 +1,7 @@
 # arch-law-diagnose — 시스템 스펙
 
 > 코드에서 역추론한 문서. 불확실한 부분은 **[추정]** 으로 표시.  
-> 최종 업데이트: 2026-06-29
+> 최종 업데이트: 2026-06-29 (학교·문화재 API 연동·지구단위계획구역 자동 감지 반영)
 
 ---
 
@@ -67,8 +67,11 @@
         │
         ▼
   법제처 DRF          Kakao Local           arch-law-graph
-  (조례 본문)         (주소 자동완성)        (조문 원문 RAG,
-                                            graceful degrade)
+  (조례 본문)         (주소 자동완성        (조문 원문 RAG,
+                      + 학교 근접)          graceful degrade)
+        │
+        ▼
+  국가유산청 GIS (spca.do — 지정문화재 근접, 문화재심의 트리거)
 ```
 
 ---
@@ -543,10 +546,10 @@ brief_importer.map_brief() 자동 매핑:
 | 교통영향평가 | 연면적 기준 (용도별 다름) |
 | 경관심의 | 경관지구 또는 높이 기준 초과 |
 | 재해영향평가 | 재해위험지구 또는 규모 기준 [추정] |
-| 교육환경평가 | 학교 경계 50m/200m 이내 (좌표 없으면 `maybe` 고정) |
-| 문화재심의 | 문화재 경계 100~500m 이내 (좌표 없으면 `maybe` 고정) |
+| 교육환경평가 | 학교 경계 50m/200m 이내 (`school_client` Kakao Places 자동 조회; 좌표 없으면 `maybe`) |
+| 문화재심의 | 문화재 경계 100~500m 이내 (`heritage_client` 국가유산청 GIS 자동 조회; 좌표 없으면 `maybe`) |
 | 환경영향평가 | 보전지역·생태자연도 (데이터 미보유 시 `maybe`) |
-| 도시계획위원회 | 지구단위계획구역 내 [추정] |
+| 도시계획위원회 | 지구단위계획구역 내 (VWorld WFS `lt_c_upisuq161` 좌표 자동 감지 → `zone_district` 보강) |
 | 지하안전평가 | 굴착깊이 10m 이상 또는 연면적 기준 [추정] |
 | 건축물 안전영향평가 | 초고층(50층↑ or 200m↑) OR 연면적 10만㎡ 이상 AND 16층 이상 |
 | 범죄예방 검토 | 대상 용도 해당 시 |
@@ -617,12 +620,12 @@ python -m scripts.seed_municipal_ordinances --commit
 | 항목 | 상태 | 영향 |
 |------|------|------|
 | 가로구역 최고높이 (§60) | `street_block_heights.json` 비어 있음 | 항상 `pass=None` |
-| 교육환경평가 (학교 좌표) | 학교알리미 API 미연동 | 항상 `maybe` |
-| 문화재 경계 좌표 | 국가유산청 GIS API 미연동 | 항상 `maybe` |
+| 교육환경평가 (학교 좌표) | ✅ 연동됨 (`school_client.py` — Kakao Places) | 좌표 확보 시 `required`/`not_required` 확정, 미확보 시 `maybe` |
+| 문화재 경계 좌표 | ✅ 연동됨 (`heritage_client.py` — 국가유산청 GIS `spca.do`) | 지정문화재 100~500m 자동 판정, 미확보 시 `maybe` |
 | 토지이음 `iuLawInfo` | 서버 측 404 | LawInfoPanel 비활성 |
 | 토지이음 `sDevList` | 서버 측 404 | DevTrendPanel 비활성 |
 | 도로폭 자동 조회 | VWorld 레이어에 폭 속성 없음 | 사용자 수동 입력 |
-| 도시계획시설 SHP 일부 | 철도·시도별 일부 누락 | WFS 실패 시 시설 미감지 |
+| 철도보호지구 (운영 철도) | 철도 선형 SHP 미배치 (`RAILWAY_SHP_PATH`) | 철도보호지구 검사 생략 (VWorld WFS는 운영 철도 선형 미제공) |
 
 ### 계산 한계
 
@@ -631,7 +634,7 @@ python -m scripts.seed_municipal_ordinances --commit
 | 조경 의무비율 | 조례 위임 → confidence 3 고정 |
 | 방화구획 자동 계산 | AI 정성 판단으로 처리 (결정론적 미구현) |
 | 일조 사선 상세 계산 | 정북 이격거리 입력 필요; 미입력 시 `pass=None` |
-| 지구단위계획 수치 | 개별 계획마다 다름 → 자동 조회 불가 |
+| 지구단위계획 수치 | **구역 감지는 자동**(VWorld WFS `lt_c_upisuq161`)되나, 건폐·용적·높이 등 **결정조서 수치는 개별 계획마다 달라 자동 조회 불가** → 도시계획위원회 심의 트리거 + "결정조서 확인 필요" 안내 |
 
 ### 설계 결정 (의도적 제한)
 
@@ -675,9 +678,11 @@ backend/
 │   ├── cache_manager.py         SQLite 캐시
 │   ├── llm_client.py            Claude API 래퍼
 │   ├── http_retry.py            외부 API 재시도/백오프
-│   ├── vworld_client.py         VWorld WFS 지적 + 지오코딩
+│   ├── vworld_client.py         VWorld WFS 지적·지오코딩·도시계획시설·지구단위(lt_c_upisuq161)
 │   ├── eum_client.py            토지이음 7개 API
 │   ├── luris_client.py          LURIS 행위제한 2개 API
+│   ├── school_client.py         학교 근접 조회 (Kakao Places — 교육환경평가)
+│   ├── heritage_client.py       지정문화재 근접 조회 (국가유산청 GIS spca.do)
 │   └── zone_use_normalizer.py   용도지역 표준명 정규화
 └── services/calculator/
     ├── coverage.py              건폐율

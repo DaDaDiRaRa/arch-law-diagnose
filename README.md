@@ -33,8 +33,8 @@ cd backend
 | 변수 | 필수 | 용도 |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | ✅ | AI 판단 (설비·소방, 자연어 질의, 조례 수치 추출) |
-| `VWORLD_API_KEY` | ✅ | 용도지역 조회, 좌표 변환, 도시계획시설 WFS |
-| `KAKAO_API_KEY` | ✅ | 주소 자동완성 |
+| `VWORLD_API_KEY` | ✅ | 용도지역 조회, 좌표 변환, 도시계획시설·지구단위계획구역 WFS |
+| `KAKAO_API_KEY` | ✅ | 주소 자동완성, 학교 근접 조회(교육환경평가) |
 | `EUM_ID` / `EUM_KEY` | ✅ | 토지이음 — 행위제한·법령정보·개발 인허가 |
 | `LAW_API_KEY` | ✅ | 법제처 — 조례 본문 수집 |
 | `LURIS_API_KEY` | 선택 | LURIS 행위제한 (EUM 교차검증) |
