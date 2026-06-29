@@ -29,7 +29,7 @@
 ### 핵심 진단: graph가 "법을 찾고 소비"하는 데 더 강함
 
 - graph는 **조문 전문 + 판례/해석례 + 13개 지자체 기준 비교 + HWP 조례 원문**까지 보유.
-- diagnose의 `query_engine.py`는 "조문 자동 인용 미완" 상태(본인 명시).
+- diagnose의 `query_engine.py`는 law_refs 주입 + graph RAG 그라운딩(A안)까지 완료.
 - 반대로 **diagnose만 가능한 것**: 대지 특정 판정, 완화 합산 계산, 사업성 모드, 심의 트리거 — graph는 대지 컨텍스트가 없어 영원히 못 함.
 
 ### UX 충돌 위험 (정리 안 하면 "왜 앱이 둘?" 계속 나옴)
@@ -125,7 +125,7 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 
 #### 🟢 지금 코드로 가능 (외부 데이터 불필요)
 
-- [ ] 가로구역 최고높이 seed (현재 0건 → §60 자동판정 거의 안 됨) — 단, 고시 PDF 수집 선행
+- [ ] 가로구역 최고높이 seed (현재 0건 → §60 자동판정 거의 안 됨) — 구조화 API·데이터셋 없음, 자치구 고시 PDF에만 존재. **수동 입력만 가능** (PDF 파싱 자동화는 환각·폐지고시 오인 위험으로 보류. 조사 완료 2026-06-29)
 - [ ] (낮음) dev 의존성 `npm audit fix`(vite·babel, 빌드 검증 필요)
 
 #### 🟡 외부 데이터·사용자 대기 (코드는 준비됨)
@@ -309,7 +309,7 @@ diagnose = 대지 판정 레이어 (계산·컨텍스트)
 | `law_change_tracker.py` ⚠️ | 법규 변경 감지 (수동 호출만) |
 | `cache_manager.py` | SQLite Lazy Cache (조례 30일 TTL + 진단 이력) |
 | `llm_client.py` | Claude API (temp=0, prompt caching) |
-| `query_engine.py` ⚠️ | 자연어 질의 (조문 자동 인용 미완) |
+| `query_engine.py` | 자연어 질의 (law_refs 주입 + graph RAG 그라운딩, `graph_client.py` 연동) |
 | `law_graph.py` | 법규 의미 그래프 (networkx DiGraph, `config/law_graph_seed.json`) — 조문 관계 탐색 |
 | `http_retry.py` | 외부 API 공용 재시도/백오프 (`request_with_retry`) |
 

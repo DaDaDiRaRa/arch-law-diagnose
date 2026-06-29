@@ -23,7 +23,7 @@ _GRAPH_API_URL = os.getenv(
     "GRAPH_API_URL",
     "https://arch-law-graph-30350777436.asia-northeast3.run.app",
 ).rstrip("/")
-# graph 가 Cloud Run 콜드스타트(22MB graph.json + RAG 로딩) 시 느릴 수 있어 여유 둠.
+# graph 가 Cloud Run 콜드스타트(~54MB graph.json + numpy 임베딩 로딩) 시 느릴 수 있어 여유 둠.
 # 기본값은 .env.example 의 GRAPH_API_TIMEOUT 과 일치(10초).
 _TIMEOUT = float(os.getenv("GRAPH_API_TIMEOUT", "10"))
 
