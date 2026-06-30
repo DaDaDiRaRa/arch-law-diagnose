@@ -11,9 +11,9 @@ const SUGGESTIONS = [
 ]
 
 const CONFIDENCE_CFG = {
-  high:   { label: '신뢰도 높음', cls: 'bg-green-100 text-green-700' },
-  medium: { label: '신뢰도 보통', cls: 'bg-yellow-100 text-yellow-700' },
-  low:    { label: '신뢰도 낮음', cls: 'bg-gray-100 text-gray-700' },
+  high:   { label: '신뢰도 높음', color: 'var(--ok)' },
+  medium: { label: '신뢰도 보통', color: 'var(--warn-deep)' },
+  low:    { label: '신뢰도 낮음', color: 'var(--mute)' },
 }
 
 export default function QueryBox() {
@@ -54,9 +54,9 @@ export default function QueryBox() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-        <p className="text-sm font-semibold text-emerald-800">자연어 질의 (AI 컨설팅)</p>
-        <p className="text-xs text-emerald-600 mt-0.5">
+      <div className="p-4" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--ok)',backgroundColor:'var(--canvas-elevated)'}}>
+        <p className="text-sm font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)',letterSpacing:'-0.02em'}}>자연어 질의 (AI 컨설팅)</p>
+        <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>
           현재 진단 컨텍스트(주소·용도지역·시나리오)를 함께 전달하여 조문 근거가 있는 답변을 받습니다.
           {!result && ' 진단을 먼저 실행하면 더 정확한 답변을 받을 수 있습니다.'}
         </p>
@@ -69,16 +69,18 @@ export default function QueryBox() {
           onKeyDown={onKey}
           rows={3}
           placeholder="질문을 입력하세요 (Ctrl+Enter 로 전송)"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+          className="w-full px-3 py-2 text-sm focus:outline-none"
+          style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',color:'var(--ink)',fontFamily:'var(--font-sans)'}}
         />
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1.5">
             {SUGGESTIONS.map((s, i) => (
               <button
                 key={i}
                 onClick={() => submit(s)}
                 disabled={loading}
-                className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 disabled:opacity-40"
+                className="text-xs px-2 py-1 transition-colors disabled:opacity-40"
+                style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)',color:'var(--body)',fontFamily:'var(--font-sans)'}}
               >
                 {s}
               </button>
@@ -87,7 +89,8 @@ export default function QueryBox() {
           <button
             onClick={() => submit()}
             disabled={loading || !question.trim()}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 text-white text-sm font-semibold rounded-lg"
+            className="px-4 py-2 text-sm font-semibold flex-shrink-0"
+            style={{borderRadius:'var(--radius-pill)',backgroundColor:'var(--brand)',color:'#fff',opacity:(loading || !question.trim())?0.4:1,cursor:(loading||!question.trim())?'not-allowed':'pointer',fontFamily:'var(--font-sans)'}}
           >
             {loading ? '답변 작성 중...' : '질문하기'}
           </button>
@@ -95,7 +98,7 @@ export default function QueryBox() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="p-3 text-sm" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--error)',backgroundColor:'var(--canvas-elevated)',color:'var(--error)'}}>
           {error}
         </div>
       )}
@@ -103,12 +106,12 @@ export default function QueryBox() {
       {answer && <AnswerCard answer={answer} />}
 
       {history.length > 1 && (
-        <div className="pt-4 border-t border-gray-200">
-          <p className="text-xs font-semibold text-gray-500 mb-2">이전 질의 ({history.length - 1}건)</p>
+        <div className="pt-4" style={{borderTop:'1px solid var(--hairline)'}}>
+          <p className="text-xs font-semibold mb-2" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',textTransform:'uppercase',letterSpacing:'0.06em'}}>이전 질의 ({history.length - 1}건)</p>
           <div className="space-y-2">
             {history.slice(1).map((h, i) => (
-              <details key={i} className="rounded-lg border border-gray-200 bg-gray-50 p-2">
-                <summary className="text-xs font-medium text-gray-700 cursor-pointer">
+              <details key={i} className="p-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
+                <summary className="text-xs font-medium cursor-pointer" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>
                   Q. {h.q}
                 </summary>
                 <div className="mt-2">
@@ -126,46 +129,35 @@ export default function QueryBox() {
 function AnswerCard({ answer, compact }) {
   const cfg = CONFIDENCE_CFG[answer.confidence] || CONFIDENCE_CFG.medium
   return (
-    <div className={`rounded-xl border-2 border-emerald-200 bg-white ${compact ? 'p-3' : 'p-5'}`}>
+    <div className={compact ? 'p-3' : 'p-5'} style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--ok)',backgroundColor:'var(--canvas-elevated)'}}>
       <div className="flex items-start justify-between mb-2">
-        <span className="text-xs font-medium text-emerald-700">💬 AI 답변</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.cls}`}>
+        <span className="text-xs font-medium" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',textTransform:'uppercase',letterSpacing:'0.06em'}}>AI 답변</span>
+        <span className="text-[10px] px-1.5 py-0.5 font-medium" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',color:cfg.color,fontFamily:'var(--font-mono)'}}>
           {cfg.label}
         </span>
       </div>
 
-      <p className={`text-gray-800 whitespace-pre-wrap leading-relaxed ${compact ? 'text-xs' : 'text-sm'}`}>
+      <p className={`whitespace-pre-wrap leading-relaxed ${compact ? 'text-xs' : 'text-sm'}`} style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>
         {answer.answer}
       </p>
 
       {answer.citations?.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 mb-1.5">📖 근거 조문</p>
+        <div className="mt-3 pt-3" style={{borderTop:'1px solid var(--hairline-soft)'}}>
+          <p className="text-xs font-semibold mb-1.5" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',textTransform:'uppercase',letterSpacing:'0.06em'}}>근거 조문</p>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {answer.citations.map((c, i) => {
               const graphUrl = graphSearchUrl(c.name)
               return (
                 <span key={i} className="inline-flex items-center gap-1">
                   {c.url ? (
-                    <a
-                      href={c.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
-                    >
+                    <a href={c.url} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{color:'var(--link)'}}>
                       {c.name}
                     </a>
                   ) : (
-                    <span className="text-xs text-gray-600">{c.name}</span>
+                    <span className="text-xs" style={{color:'var(--body)'}}>{c.name}</span>
                   )}
                   {graphUrl && (
-                    <a
-                      href={graphUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[var(--font-size-2xs)] text-gray-400 hover:text-emerald-600 hover:underline"
-                      title="법령 그래프에서 조문 원문·인용관계·지자체 비교 보기"
-                    >
+                    <a href={graphUrl} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{fontSize:'10px',color:'var(--faint)'}} title="법령 그래프에서 조문 원문·인용관계·지자체 비교 보기">
                       원문↗
                     </a>
                   )}
@@ -177,9 +169,9 @@ function AnswerCard({ answer, compact }) {
       )}
 
       {answer.follow_ups?.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-500 mb-1">추가 검토 권장</p>
-          <ul className="text-xs text-gray-600 list-disc list-inside space-y-0.5">
+        <div className="mt-3 pt-3" style={{borderTop:'1px solid var(--hairline-soft)'}}>
+          <p className="text-xs font-semibold mb-1" style={{color:'var(--mute)',fontFamily:'var(--font-mono)'}}>추가 검토 권장</p>
+          <ul className="text-xs list-disc list-inside space-y-0.5" style={{color:'var(--body)'}}>
             {answer.follow_ups.map((f, i) => <li key={i}>{f}</li>)}
           </ul>
         </div>

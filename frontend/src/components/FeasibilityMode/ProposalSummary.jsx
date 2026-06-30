@@ -27,10 +27,10 @@ export default function ProposalSummary({ proposal }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-gray-800 mb-1">
+      <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--body)' }}>
         이 대지에 지을 수 있는 범위
       </h3>
-      <p className="text-[11px] text-gray-500 mb-3">
+      <p className="text-[11px] mb-3" style={{ color: 'var(--mute)' }}>
         공모 요구치 입력과 무관하게, 법규상 가능한 최대치와 권장값을 먼저 보여줍니다.
       </p>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -51,7 +51,7 @@ export default function ProposalSummary({ proposal }) {
               ? `완화 적용 시 최대 ${fmt(max_far_pct_relief, 1)}%`
               : '완화 여지 없음 / 미확인'
           }
-          accent={hasFarRelief ? 'var(--color-success)' : undefined}
+          accent={hasFarRelief ? 'var(--ok)' : undefined}
         />
         <Card
           title="가능 연면적"
@@ -63,7 +63,7 @@ export default function ProposalSummary({ proposal }) {
           }
           accent={
             max_floor_area_relief_sqm != null && max_floor_area_relief_sqm > (max_floor_area_sqm || 0)
-              ? 'var(--color-success)'
+              ? 'var(--ok)'
               : undefined
           }
         />
@@ -83,17 +83,27 @@ export default function ProposalSummary({ proposal }) {
 
 function Card({ title, main, sub, accent }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white">
-      <div className="text-[10px] uppercase text-gray-500 font-medium mb-1">
+    <div
+      className="border p-3"
+      style={{
+        borderColor: 'var(--hairline)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--canvas-elevated)',
+      }}
+    >
+      <div
+        className="text-[10px] uppercase font-medium mb-1"
+        style={{ color: 'var(--mute)', fontFamily: 'var(--font-mono)' }}
+      >
         {title}
       </div>
       <div
         className="text-lg font-bold"
-        style={{ color: accent || 'var(--color-text-body)' }}
+        style={{ color: accent || 'var(--ink)' }}
       >
         {main}
       </div>
-      <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{sub}</div>
+      <div className="text-[10px] mt-0.5 leading-tight" style={{ color: 'var(--mute)' }}>{sub}</div>
     </div>
   )
 }

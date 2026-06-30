@@ -51,25 +51,29 @@ export default function AddressSearch({ onSelect }) {
           value={query}
           onChange={handleChange}
           placeholder="도로명 또는 지번 주소 검색 (예: 영등포구 당산로 123)"
-          className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-4 py-3 pr-10 text-sm focus:outline-none"
+          style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',color:'var(--ink)',fontFamily:'var(--font-sans)'}}
         />
         {loading && (
-          <span className="absolute right-3 top-3.5 text-gray-400 text-xs animate-spin">⟳</span>
+          <div className="absolute right-3 top-3.5" style={{width:14,height:14,border:'2px solid var(--hairline)',borderTopColor:'var(--brand)',borderRadius:'50%',animation:'spin 0.8s linear infinite'}} />
         )}
       </div>
 
       {open && results.length > 0 && (
-        <ul className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+        <ul className="absolute z-20 w-full mt-1 max-h-64 overflow-y-auto" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas-elevated)',boxShadow:'var(--shadow-md)'}}>
           {results.map((item, i) => (
             <li
               key={i}
               onClick={() => handleSelect(item)}
-              className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+              className="px-4 py-3 cursor-pointer transition-colors"
+              style={{borderBottom:'1px solid var(--hairline-soft)'}}
+              onMouseEnter={e=>e.currentTarget.style.backgroundColor='var(--canvas)'}
+              onMouseLeave={e=>e.currentTarget.style.backgroundColor='transparent'}
             >
-              <p className="text-sm font-medium text-gray-900">{item.road_addr}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{item.jibun_addr}</p>
+              <p className="text-sm font-medium" style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>{item.road_addr}</p>
+              <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>{item.jibun_addr}</p>
               {item.pnu && (
-                <p className="text-xs text-gray-400 font-mono">PNU: {item.pnu}</p>
+                <p className="text-xs" style={{color:'var(--faint)',fontFamily:'var(--font-mono)'}}>PNU: {item.pnu}</p>
               )}
             </li>
           ))}
@@ -77,7 +81,7 @@ export default function AddressSearch({ onSelect }) {
       )}
 
       {open && results.length === 0 && query.length >= 2 && !loading && (
-        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow p-3 text-sm text-gray-500">
+        <div className="absolute z-20 w-full mt-1 p-3 text-sm" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas-elevated)',color:'var(--mute)',boxShadow:'var(--shadow-sm)'}}>
           검색 결과가 없습니다.
         </div>
       )}

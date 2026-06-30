@@ -85,17 +85,20 @@ export default function FeasibilityWhatIf() {
   })
 
   return (
-    <section className="border-2 rounded-xl p-5" style={{ borderColor: 'var(--color-accent)' }}>
+    <section
+      className="border-2 p-5"
+      style={{ borderColor: 'var(--brand)', borderRadius: 'var(--radius)' }}
+    >
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-bold text-gray-900">대안 비교 (What-If)</h3>
+        <h3 className="text-sm font-bold" style={{ color: 'var(--ink)' }}>대안 비교 (What-If)</h3>
         {whatifLoading && (
-          <span className="text-[11px] text-gray-400 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--color-accent)' }} />
+          <span className="text-[11px] flex items-center gap-1" style={{ color: 'var(--faint)' }}>
+            <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--brand)' }} />
             계산 중…
           </span>
         )}
       </div>
-      <p className="text-[11px] text-gray-500 mb-4">
+      <p className="text-[11px] mb-4" style={{ color: 'var(--mute)' }}>
         완화 옵션·용도를 바꾸면 가능 범위가 즉시 다시 계산됩니다. 마음에 드는 조합은 저장해 나란히 비교하세요.
       </p>
 
@@ -120,14 +123,15 @@ export default function FeasibilityWhatIf() {
           options={ENERGY_GRADES}
         />
         <div>
-          <label className="block text-[11px] text-gray-600 mb-1">공개공지 (㎡)</label>
+          <label className="block text-[11px] mb-1" style={{ color: 'var(--body)' }}>공개공지 (㎡)</label>
           <input
             type="number"
             step="0.01"
             value={L.target_open_space_sqm}
             onChange={(e) => setLever({ target_open_space_sqm: e.target.value })}
             placeholder="㎡"
-            className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+            className="w-full text-xs border rounded px-2 py-1.5"
+            style={{ borderColor: 'var(--hairline)' }}
           />
         </div>
         <div className="col-span-2 md:col-span-3 flex flex-wrap gap-x-5 gap-y-2 pt-1">
@@ -138,31 +142,50 @@ export default function FeasibilityWhatIf() {
       </div>
 
       {whatifError && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded mb-3">
+        <div
+          className="text-xs px-3 py-2 rounded mb-3"
+          style={{
+            color: 'var(--error)',
+            background: 'var(--canvas-elevated)',
+            borderLeft: '3px solid var(--error)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
           {whatifError}
         </div>
       )}
 
       {/* 현재 안 요약 + 저장 */}
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
+      <div
+        className="border p-3 mb-4"
+        style={{
+          background: 'var(--canvas-inset)',
+          borderColor: 'var(--hairline)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-semibold text-gray-700">
+          <span className="text-[11px] font-semibold" style={{ color: 'var(--body)' }}>
             현재 안 {verdict ? `· ${verdict}` : ''}
           </span>
           <button
             onClick={() => saveAlternative()}
             disabled={!p}
             className="text-[11px] font-semibold text-white rounded px-3 py-1 disabled:opacity-40"
-            style={{ backgroundColor: 'var(--color-accent)' }}
+            style={{ backgroundColor: 'var(--brand)' }}
           >
             + 이 안 저장
           </button>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
           {ROWS.map((r) => (
-            <div key={r.key} className="text-center bg-white border border-gray-200 rounded py-2">
-              <div className="text-[10px] text-gray-500">{r.label}</div>
-              <div className="text-sm font-bold text-gray-800">
+            <div
+              key={r.key}
+              className="text-center border rounded py-2"
+              style={{ background: 'var(--canvas-elevated)', borderColor: 'var(--hairline)' }}
+            >
+              <div className="text-[10px]" style={{ color: 'var(--mute)' }}>{r.label}</div>
+              <div className="text-sm font-bold" style={{ color: 'var(--ink)' }}>
                 {fmt(r.get(p), r.d)}{r.get(p) != null ? r.unit : ''}
               </div>
             </div>
@@ -171,7 +194,18 @@ export default function FeasibilityWhatIf() {
         {p?.applied_relief_items?.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
             {p.applied_relief_items.map((it, i) => (
-              <span key={i} className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(22,163,74,0.1)', color: 'var(--color-success)' }}>
+              <span
+                key={i}
+                className="text-[10px] px-2 py-0.5"
+                style={{
+                  backgroundColor: 'rgba(22,163,74,0.1)',
+                  color: 'var(--ok)',
+                  borderRadius: 'var(--radius-pill)',
+                  border: '1px solid var(--hairline)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '10px',
+                }}
+              >
                 {it.label || it.kind}
               </span>
             ))}
@@ -183,12 +217,13 @@ export default function FeasibilityWhatIf() {
       {alternatives.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-semibold text-gray-700">
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--body)' }}>
               저장된 대안 비교 ({alternatives.length})
             </span>
             <button
               onClick={clearAlternatives}
-              className="text-[10px] text-gray-400 hover:text-gray-600"
+              className="text-[10px]"
+              style={{ color: 'var(--faint)' }}
             >
               전체 삭제
             </button>
@@ -197,17 +232,30 @@ export default function FeasibilityWhatIf() {
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr>
-                  <th className="text-left font-medium text-gray-500 px-2 py-1.5 border-b border-gray-200">항목</th>
+                  <th
+                    className="text-left font-medium px-2 py-1.5"
+                    style={{ color: 'var(--mute)', borderBottom: '1px solid var(--hairline)' }}
+                  >
+                    항목
+                  </th>
                   {columns.map((c) => (
-                    <th key={c.id} className="px-2 py-1.5 border-b border-gray-200 text-center min-w-[88px]">
+                    <th
+                      key={c.id}
+                      className="px-2 py-1.5 text-center min-w-[88px]"
+                      style={{ borderBottom: '1px solid var(--hairline)' }}
+                    >
                       <div className="flex items-center justify-center gap-1">
-                        <span className={c.saved ? 'font-semibold text-gray-700' : 'font-bold'} style={c.saved ? {} : { color: 'var(--color-accent)' }}>
+                        <span
+                          className={c.saved ? 'font-semibold' : 'font-bold'}
+                          style={c.saved ? { color: 'var(--body)' } : { color: 'var(--brand)' }}
+                        >
                           {c.label}
                         </span>
                         {c.saved && (
                           <button
                             onClick={() => removeAlternative(c.id)}
-                            className="text-gray-300 hover:text-red-500 leading-none"
+                            className="leading-none"
+                            style={{ color: 'var(--hairline)' }}
                             title="삭제"
                           >×</button>
                         )}
@@ -219,15 +267,24 @@ export default function FeasibilityWhatIf() {
               <tbody>
                 {ROWS.map((r) => (
                   <tr key={r.key}>
-                    <td className="px-2 py-1.5 text-gray-600 border-b border-gray-100">{r.label}</td>
+                    <td
+                      className="px-2 py-1.5"
+                      style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                    >
+                      {r.label}
+                    </td>
                     {columns.map((c) => {
                       const val = r.get(c.proposal)
                       const isBest = val != null && val === bestByRow[r.key] && columns.length > 1
                       return (
                         <td
                           key={c.id}
-                          className="px-2 py-1.5 text-center border-b border-gray-100"
-                          style={isBest ? { color: 'var(--color-success)', fontWeight: 700 } : { color: 'var(--color-text-body)' }}
+                          className="px-2 py-1.5 text-center"
+                          style={
+                            isBest
+                              ? { color: 'var(--ok)', fontWeight: 700, borderBottom: '1px solid var(--hairline-soft)' }
+                              : { color: 'var(--ink)', borderBottom: '1px solid var(--hairline-soft)' }
+                          }
                         >
                           {fmt(val, r.d)}{val != null ? r.unit : ''}
                         </td>
@@ -236,9 +293,18 @@ export default function FeasibilityWhatIf() {
                   </tr>
                 ))}
                 <tr>
-                  <td className="px-2 py-1.5 text-gray-600 border-b border-gray-100">심의 필수</td>
+                  <td
+                    className="px-2 py-1.5"
+                    style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                  >
+                    심의 필수
+                  </td>
                   {columns.map((c) => (
-                    <td key={c.id} className="px-2 py-1.5 text-center border-b border-gray-100 text-gray-700">
+                    <td
+                      key={c.id}
+                      className="px-2 py-1.5 text-center"
+                      style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                    >
                       {c.review_count != null ? `${c.review_count}건` : '—'}
                     </td>
                   ))}
@@ -246,7 +312,7 @@ export default function FeasibilityWhatIf() {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-gray-400 mt-2">
+          <p className="text-[10px] mt-2" style={{ color: 'var(--faint)' }}>
             초록색 = 항목별 가장 유리한 값 (용적률·건폐율·연면적은 클수록, 주차는 적을수록).
           </p>
         </div>
@@ -258,11 +324,12 @@ export default function FeasibilityWhatIf() {
 function LeverSelect({ label, value, onChange, options }) {
   return (
     <div>
-      <label className="block text-[11px] text-gray-600 mb-1">{label}</label>
+      <label className="block text-[11px] mb-1" style={{ color: 'var(--body)' }}>{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+        className="w-full text-xs border rounded px-2 py-1.5"
+        style={{ borderColor: 'var(--hairline)' }}
       >
         {options.map((o) => (
           <option key={o.v} value={o.v}>{o.label}</option>
@@ -281,9 +348,9 @@ function LeverToggle({ label, hint, checked, onChange }) {
         onChange={(e) => onChange(e.target.checked)}
         className="rounded"
       />
-      <span className="text-xs text-gray-700">
+      <span className="text-xs" style={{ color: 'var(--body)' }}>
         {label}
-        {hint && <span className="text-[10px] text-gray-400 ml-1">({hint})</span>}
+        {hint && <span className="text-[10px] ml-1" style={{ color: 'var(--faint)' }}>({hint})</span>}
       </span>
     </label>
   )

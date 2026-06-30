@@ -34,10 +34,8 @@ const CATEGORY_LABELS = {
   '설비_소방': '설비·소방',
 }
 
-const SIGNAL_LABEL = { GREEN: '✅ 적합', YELLOW: '🟡 주의', RED: '🔴 위험' }
-const SIGNAL_CLS = {
-  GREEN: 'text-green-700', YELLOW: 'text-yellow-700', RED: 'text-red-700',
-}
+const SIGNAL_LABEL = { GREEN: '적합', YELLOW: '주의', RED: '위험' }
+const SIGNAL_COLOR = { GREEN: 'var(--ok)', YELLOW: 'var(--warn-deep)', RED: 'var(--error)' }
 
 export default function WhatIfPanel() {
   const result = useDiagnoseStore((s) => s.result)
@@ -175,59 +173,56 @@ export default function WhatIfPanel() {
   }, [result])
 
   return (
-    <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-4">
+    <div className="p-4" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--brand)',backgroundColor:'var(--canvas)'}}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-purple-900">🔮 What-if 시나리오</span>
-          {loading && <span className="text-xs text-purple-600">재계산 중…</span>}
+          <span className="text-sm font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)',letterSpacing:'-0.02em'}}>What-if 시나리오</span>
+          {loading && <span className="text-xs" style={{color:'var(--mute)'}}>재계산 중…</span>}
         </div>
         {hasChanges && (
           <button
             onClick={reset}
-            className="text-xs px-2 py-1 rounded bg-white border border-purple-300 text-purple-700 hover:bg-purple-100"
+            className="text-xs px-2 py-1 transition-colors"
+            style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',border:'1px solid var(--hairline)',color:'var(--body)',fontFamily:'var(--font-sans)'}}
           >
             ↺ 원본 복원
           </button>
         )}
       </div>
-      <p className="text-xs text-purple-700 mb-3">
+      <p className="text-xs mb-3" style={{color:'var(--mute)'}}>
         값을 조정하면 위 진단 결과가 즉시 갱신됩니다. 설비·소방 카드는 원본 결과 재사용 (AI 비용 절약).
       </p>
 
       {/* 원본 vs 변경 비교 매트릭스 — 변화 있을 때만 노출 */}
       {comparison && (
-        <div className="mb-3 rounded-lg border border-purple-300 bg-white p-3 space-y-2">
-          <p className="text-xs font-semibold text-purple-900">📊 원본 ↔ 변경 비교</p>
+        <div className="mb-3 p-3 space-y-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas-elevated)'}}>
+          <p className="text-xs font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>원본 ↔ 변경 비교</p>
 
           {/* 종합 점수·신호 */}
           <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="bg-purple-50 rounded p-2">
-              <p className="text-[10px] text-gray-500 mb-0.5">종합 점수</p>
+            <div className="p-2" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas)'}}>
+              <p className="text-[10px] mb-0.5" style={{color:'var(--mute)'}}>종합 점수</p>
               <div className="flex items-center gap-1.5">
-                <span className="text-gray-500">
-                  {comparison.origScore?.toFixed(1) ?? '–'}
-                </span>
-                <span className="text-gray-400">→</span>
-                <span className="font-bold text-gray-900">
-                  {comparison.currScore?.toFixed(1) ?? '–'}
-                </span>
+                <span style={{color:'var(--mute)'}}>{comparison.origScore?.toFixed(1) ?? '–'}</span>
+                <span style={{color:'var(--faint)'}}>→</span>
+                <span className="font-bold" style={{color:'var(--ink)'}}>{comparison.currScore?.toFixed(1) ?? '–'}</span>
                 {comparison.overallDelta != null && Math.abs(comparison.overallDelta) >= 0.05 && (
-                  <span className={comparison.overallDelta > 0 ? 'text-green-600' : 'text-red-600'}>
+                  <span style={{color:comparison.overallDelta > 0 ? 'var(--ok)' : 'var(--error)'}}>
                     ({comparison.overallDelta > 0 ? '▲' : '▼'} {Math.abs(comparison.overallDelta).toFixed(1)})
                   </span>
                 )}
               </div>
             </div>
-            <div className="bg-purple-50 rounded p-2">
-              <p className="text-[10px] text-gray-500 mb-0.5">종합 신호</p>
+            <div className="p-2" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas)'}}>
+              <p className="text-[10px] mb-0.5" style={{color:'var(--mute)'}}>종합 신호</p>
               <div className="flex items-center gap-1.5">
-                <span className={`text-[11px] ${SIGNAL_CLS[comparison.origSignal] || 'text-gray-500'}`}>
+                <span className="text-[11px]" style={{color:SIGNAL_COLOR[comparison.origSignal]||'var(--mute)'}}>
                   {SIGNAL_LABEL[comparison.origSignal] || comparison.origSignal}
                 </span>
                 {comparison.signalChanged && (
                   <>
-                    <span className="text-gray-400">→</span>
-                    <span className={`text-[11px] font-bold ${SIGNAL_CLS[comparison.currSignal] || 'text-gray-500'}`}>
+                    <span style={{color:'var(--faint)'}}>→</span>
+                    <span className="text-[11px] font-bold" style={{color:SIGNAL_COLOR[comparison.currSignal]||'var(--mute)'}}>
                       {SIGNAL_LABEL[comparison.currSignal] || comparison.currSignal}
                     </span>
                   </>
@@ -238,22 +233,22 @@ export default function WhatIfPanel() {
 
           {/* 카테고리별 변화 */}
           {comparison.rows.length > 0 ? (
-            <div className="space-y-1 pt-1 border-t border-purple-100">
+            <div className="space-y-1 pt-1" style={{borderTop:'1px solid var(--hairline-soft)'}}>
               {comparison.rows.map((r) => {
                 const passChanged = r.origPass !== r.currPass
                 const passMark = (p) => p === true ? '✓' : p === false ? '✗' : '?'
-                const passCls = (p) => p === true ? 'text-green-600' : p === false ? 'text-red-600' : 'text-yellow-600'
+                const passColor = (p) => p === true ? 'var(--ok)' : p === false ? 'var(--error)' : 'var(--warn-deep)'
                 return (
                   <div key={r.key} className="flex items-center justify-between text-xs">
-                    <span className="text-gray-700">{r.label}</span>
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <span className={passCls(r.origPass)}>{passMark(r.origPass)}</span>
-                      <span className="text-gray-500">{r.origScore?.toFixed(1) ?? '–'}</span>
-                      <span className="text-gray-400">→</span>
-                      {passChanged && <span className={passCls(r.currPass)}>{passMark(r.currPass)}</span>}
-                      <span className="font-bold text-gray-900">{r.currScore?.toFixed(1) ?? '–'}</span>
+                    <span style={{color:'var(--body)'}}>{r.label}</span>
+                    <div className="flex items-center gap-1.5" style={{fontFamily:'var(--font-mono)'}}>
+                      <span style={{color:passColor(r.origPass)}}>{passMark(r.origPass)}</span>
+                      <span style={{color:'var(--mute)'}}>{r.origScore?.toFixed(1) ?? '–'}</span>
+                      <span style={{color:'var(--faint)'}}>→</span>
+                      {passChanged && <span style={{color:passColor(r.currPass)}}>{passMark(r.currPass)}</span>}
+                      <span className="font-bold" style={{color:'var(--ink)'}}>{r.currScore?.toFixed(1) ?? '–'}</span>
                       {r.delta != null && Math.abs(r.delta) >= 0.05 && (
-                        <span className={r.delta > 0 ? 'text-green-600' : 'text-red-600'}>
+                        <span style={{color:r.delta > 0 ? 'var(--ok)' : 'var(--error)'}}>
                           ({r.delta > 0 ? '▲' : '▼'} {Math.abs(r.delta).toFixed(1)})
                         </span>
                       )}
@@ -263,7 +258,7 @@ export default function WhatIfPanel() {
               })}
             </div>
           ) : (
-            <p className="text-[10px] text-gray-500 italic pt-1 border-t border-purple-100">
+            <p className="text-[10px] italic pt-1" style={{color:'var(--mute)',borderTop:'1px solid var(--hairline-soft)'}}>
               변경된 카테고리 점수 없음 (입력 변화가 결과에 영향 없음)
             </p>
           )}
@@ -285,15 +280,15 @@ export default function WhatIfPanel() {
           const diff = cur - base
           const diffPct = base > 0 ? ((cur - base) / base) * 100 : 0
           return (
-            <div key={s.key} className="bg-white rounded-lg p-3 border border-purple-100">
+            <div key={s.key} className="p-3" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',border:'1px solid var(--hairline)'}}>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-medium text-gray-700">{s.label}</label>
+                <label className="text-xs font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>{s.label}</label>
                 <div className="text-xs flex items-center gap-2">
-                  <span className="font-mono text-gray-900">
+                  <span style={{fontFamily:'var(--font-mono)',color:'var(--ink)'}}>
                     {s.integer ? Math.round(cur) : cur.toFixed(1)} {s.unit}
                   </span>
                   {Math.abs(diff) > 0.01 && (
-                    <span className={diff > 0 ? 'text-orange-600' : 'text-blue-600'}>
+                    <span style={{color:diff > 0 ? 'var(--warn-deep)' : 'var(--info)',fontFamily:'var(--font-mono)'}}>
                       ({diff > 0 ? '+' : ''}{s.integer ? Math.round(diff) : diff.toFixed(1)}, {diffPct > 0 ? '+' : ''}{diffPct.toFixed(0)}%)
                     </span>
                   )}
@@ -306,11 +301,11 @@ export default function WhatIfPanel() {
                 step={s.integer ? 1 : s.step}
                 value={cur}
                 onChange={(e) => handleSlider(s.key, Number(e.target.value))}
-                className="w-full accent-purple-600"
+                className="w-full accent-[var(--brand)]"
               />
-              <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+              <div className="flex justify-between text-[10px] mt-0.5" style={{color:'var(--faint)',fontFamily:'var(--font-mono)'}}>
                 <span>{s.integer ? min : min.toFixed(1)}</span>
-                <span className="text-gray-500">기준: {s.integer ? base : base.toFixed(1)}</span>
+                <span style={{color:'var(--mute)'}}>기준: {s.integer ? base : base.toFixed(1)}</span>
                 <span>{s.integer ? max : max.toFixed(1)}</span>
               </div>
             </div>
@@ -319,7 +314,7 @@ export default function WhatIfPanel() {
       </div>
 
       {error && (
-        <div className="mt-3 p-2 rounded bg-red-50 border border-red-200 text-xs text-red-700">
+        <div className="mt-3 p-2 text-xs" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',borderLeft:'3px solid var(--error)',border:'1px solid var(--hairline)',color:'var(--error)'}}>
           {error}
         </div>
       )}

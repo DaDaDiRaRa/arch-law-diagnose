@@ -1,13 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../utils/api'
 
-/**
- * 법규/조례 변경 + 행정 고시 통합 알림.
- *
- * 두 가지 출처:
- *   1) 법제처 조례 본문 해시 변경 (능동 스캔) — 항상 조회
- *   2) 토지이음 행정 고시 (Phase 2) — areaCd 전달 시 자동 조회
- */
 export default function LawChangeAlert({ areaCd }) {
   const [changes, setChanges] = useState({ loading: true, items: [], error: null })
   const [notices, setNotices] = useState({ loading: false, items: [], total: 0, period: null, warning: null, error: null })
@@ -52,7 +45,6 @@ export default function LawChangeAlert({ areaCd }) {
     }
   }
 
-  // 로딩 중 (양쪽 다)
   if (changes.loading && notices.loading) return null
 
   const hasChanges = changes.items.length > 0
@@ -60,14 +52,13 @@ export default function LawChangeAlert({ areaCd }) {
   const recentChanges = expandedChanges ? changes.items : changes.items.slice(0, 3)
   const recentNotices = expandedNotices ? notices.items : notices.items.slice(0, 5)
 
-  // 아무것도 없으면 합쳐서 작은 안내
   if (!hasChanges && !hasNotices && !changes.error && !notices.error) {
     return (
-      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 flex items-center justify-between">
-        <span className="text-xs text-gray-500">
-          ✅ 최근 법규/조례 변경 감지 없음
+      <div className="p-3 flex items-center justify-between" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
+        <span className="text-xs" style={{color:'var(--mute)'}}>
+          최근 법규/조례 변경 감지 없음
           {areaCd && notices.period && (
-            <span className="text-gray-400 ml-1">
+            <span className="ml-1" style={{color:'var(--faint)'}}>
               · 행정 고시 0건 (최근 {notices.period.days}일)
             </span>
           )}
@@ -75,7 +66,8 @@ export default function LawChangeAlert({ areaCd }) {
         <button
           onClick={seedDemo}
           disabled={seedLoading}
-          className="text-[var(--font-size-2xs)] text-gray-400 hover:text-gray-600 underline disabled:opacity-40"
+          className="text-[10px] underline disabled:opacity-40"
+          style={{color:'var(--faint)'}}
         >
           {seedLoading ? '...' : '데모 데이터 삽입'}
         </button>
@@ -85,39 +77,31 @@ export default function LawChangeAlert({ areaCd }) {
 
   return (
     <div className="space-y-2">
-      {/* 1) 법제처 조례 본문 변경 (orange) */}
+      {/* 1) 법제처 조례 본문 변경 (warn) */}
       {(hasChanges || changes.error) && (
-        <div className={`rounded-xl border-2 p-4 ${changes.error ? 'border-gray-200 bg-gray-50' : 'border-orange-300 bg-orange-50'}`}>
+        <div className="p-4" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:`3px solid ${changes.error ? 'var(--hairline)' : 'var(--warn)'}`,backgroundColor:'var(--canvas-elevated)'}}>
           {changes.error ? (
-            <p className="text-xs text-gray-500">법규 변경 조회 실패: {changes.error}</p>
+            <p className="text-xs" style={{color:'var(--mute)'}}>법규 변경 조회 실패: {changes.error}</p>
           ) : (
             <>
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-orange-800">
-                    ⚠️ 법규/조례 변경 감지 ({changes.items.length}건)
+                  <p className="text-sm font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>
+                    법규/조례 변경 감지 ({changes.items.length}건)
                   </p>
-                  <p className="text-xs text-orange-600 mt-0.5">
+                  <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>
                     진단 결과 신뢰도가 영향받을 수 있습니다. 시니어 확인 권장.
                   </p>
                 </div>
-                <button
-                  onClick={loadChanges}
-                  className="text-xs text-orange-600 hover:text-orange-800 underline"
-                >
+                <button onClick={loadChanges} className="text-xs underline" style={{color:'var(--warn-deep)'}}>
                   새로고침
                 </button>
               </div>
               <div className="mt-3 space-y-1.5">
-                {recentChanges.map((c, i) => (
-                  <ChangeRow key={i} change={c} />
-                ))}
+                {recentChanges.map((c, i) => <ChangeRow key={i} change={c} />)}
               </div>
               {changes.items.length > 3 && (
-                <button
-                  onClick={() => setExpandedChanges((v) => !v)}
-                  className="mt-2 text-xs text-orange-700 hover:underline"
-                >
+                <button onClick={() => setExpandedChanges((v) => !v)} className="mt-2 text-xs underline" style={{color:'var(--warn-deep)'}}>
                   {expandedChanges ? '접기' : `더 보기 (+${changes.items.length - 3}건)`}
                 </button>
               )}
@@ -126,53 +110,38 @@ export default function LawChangeAlert({ areaCd }) {
         </div>
       )}
 
-      {/* 2) 토지이음 행정 고시 (blue) — Phase 2 */}
+      {/* 2) 토지이음 행정 고시 (info) */}
       {areaCd && (hasNotices || notices.error || notices.warning) && (
-        <div className={`rounded-xl border-2 p-4 ${
-          notices.error || notices.warning
-            ? 'border-gray-200 bg-gray-50'
-            : 'border-blue-300 bg-blue-50'
-        }`}>
+        <div className="p-4" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:`3px solid ${notices.error || notices.warning ? 'var(--hairline)' : 'var(--info)'}`,backgroundColor:'var(--canvas-elevated)'}}>
           {notices.error ? (
-            <p className="text-xs text-gray-500">행정 고시 조회 실패: {notices.error}</p>
+            <p className="text-xs" style={{color:'var(--mute)'}}>행정 고시 조회 실패: {notices.error}</p>
           ) : notices.warning ? (
-            <p className="text-xs text-gray-500">
-              📢 행정 고시 — {notices.warning}
-            </p>
+            <p className="text-xs" style={{color:'var(--mute)'}}>행정 고시 — {notices.warning}</p>
           ) : (
             <>
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-blue-800">
-                    📢 행정 고시 ({notices.total}건 · 최근 {notices.period?.days || 90}일)
+                  <p className="text-sm font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>
+                    행정 고시 ({notices.total}건 · 최근 {notices.period?.days || 90}일)
                   </p>
-                  <p className="text-xs text-blue-600 mt-0.5">
-                    토지이음 — 해당 시군구 도시계획결정·지정·변경고시.
-                    진단에 영향 줄 수 있는 항목은 시니어 확인.
+                  <p className="text-xs mt-0.5" style={{color:'var(--mute)'}}>
+                    토지이음 — 해당 시군구 도시계획결정·지정·변경고시. 진단에 영향 줄 수 있는 항목은 시니어 확인.
                   </p>
                 </div>
-                <button
-                  onClick={() => loadNotices(areaCd)}
-                  className="text-xs text-blue-600 hover:text-blue-800 underline"
-                >
+                <button onClick={() => loadNotices(areaCd)} className="text-xs underline" style={{color:'var(--info)'}}>
                   새로고침
                 </button>
               </div>
               <div className="mt-3 space-y-1.5">
-                {recentNotices.map((n, i) => (
-                  <NoticeRow key={i} notice={n} />
-                ))}
+                {recentNotices.map((n, i) => <NoticeRow key={i} notice={n} />)}
               </div>
               {notices.items.length > 5 && (
-                <button
-                  onClick={() => setExpandedNotices((v) => !v)}
-                  className="mt-2 text-xs text-blue-700 hover:underline"
-                >
+                <button onClick={() => setExpandedNotices((v) => !v)} className="mt-2 text-xs underline" style={{color:'var(--info)'}}>
                   {expandedNotices ? '접기' : `더 보기 (+${notices.items.length - 5}건)`}
                 </button>
               )}
               {notices.total > notices.items.length && (
-                <p className="mt-1 text-[var(--font-size-2xs)] text-blue-600">
+                <p className="mt-1 text-[10px]" style={{color:'var(--mute)'}}>
                   ※ 전체 {notices.total}건 중 첫 페이지({notices.items.length}건)만 표시 — 토지이음에서 전체 확인
                 </p>
               )}
@@ -186,20 +155,20 @@ export default function LawChangeAlert({ areaCd }) {
 
 function ChangeRow({ change }) {
   return (
-    <div className="bg-white rounded border border-orange-100 px-2 py-1.5 text-xs">
+    <div className="px-2 py-1.5 text-xs" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
       <div className="flex items-center justify-between flex-wrap gap-1">
-        <span className="font-medium text-gray-700">
+        <span className="font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>
           {change.jurisdiction_code} · {change.law_type}
         </span>
-        <span className="text-gray-500">
+        <span style={{color:'var(--mute)'}}>
           {formatDate(change.current_at)}
           {change.days_since_change != null && (
-            <span className="text-gray-400 ml-1">({change.days_since_change}일 전)</span>
+            <span className="ml-1" style={{color:'var(--faint)'}}>({change.days_since_change}일 전)</span>
           )}
         </span>
       </div>
-      <div className="text-gray-500 mt-0.5 font-mono text-[var(--font-size-2xs)]">
-        {change.previous_hash} → <span className="text-orange-700 font-semibold">{change.current_hash}</span>
+      <div className="mt-0.5 text-[10px]" style={{fontFamily:'var(--font-mono)',color:'var(--mute)'}}>
+        {change.previous_hash} → <span className="font-semibold" style={{color:'var(--warn-deep)'}}>{change.current_hash}</span>
       </div>
     </div>
   )
@@ -208,26 +177,25 @@ function ChangeRow({ change }) {
 function NoticeRow({ notice }) {
   const dateStr = formatYmd(notice.ntc_date)
   return (
-    <div className="bg-white rounded border border-blue-100 px-2.5 py-1.5 text-xs">
+    <div className="px-2.5 py-1.5 text-xs" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
       <div className="flex items-baseline justify-between gap-2 flex-wrap">
         <a
           href={notice.link || '#'}
           target="_blank"
           rel="noreferrer noopener"
-          className="font-medium text-gray-800 hover:text-blue-700 hover:underline flex-1 min-w-0 truncate"
+          className="font-medium hover:underline flex-1 min-w-0 truncate"
+          style={{color:'var(--ink)'}}
           title={notice.title}
         >
           {notice.title || '(제목 없음)'}
         </a>
-        <span className="text-gray-500 flex-shrink-0">{dateStr}</span>
+        <span className="flex-shrink-0" style={{color:'var(--mute)'}}>{dateStr}</span>
       </div>
       {notice.author && (
-        <p className="text-[var(--font-size-2xs)] text-gray-500 mt-0.5">{notice.author}</p>
+        <p className="text-[10px] mt-0.5" style={{color:'var(--mute)'}}>{notice.author}</p>
       )}
       {notice.summary && (
-        <p className="text-[var(--font-size-xs)] text-gray-600 mt-0.5 leading-relaxed line-clamp-2">
-          {notice.summary}
-        </p>
+        <p className="text-xs mt-0.5 leading-relaxed line-clamp-2" style={{color:'var(--body)'}}>{notice.summary}</p>
       )}
     </div>
   )

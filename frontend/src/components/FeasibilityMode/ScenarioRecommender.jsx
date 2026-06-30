@@ -8,12 +8,20 @@ export default function ScenarioRecommender({ categories }) {
   return (
     <div className="space-y-4">
       {withScenarios.map((cat) => (
-        <div key={cat.key} className="border border-gray-200 rounded-lg p-4 bg-white">
+        <div
+          key={cat.key}
+          className="border p-4"
+          style={{
+            borderColor: 'var(--hairline)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--canvas-elevated)',
+          }}
+        >
           <div className="flex items-baseline justify-between mb-2">
-            <h4 className="text-sm font-semibold text-gray-800">
+            <h4 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
               {cat.label} — 완화 시나리오
             </h4>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs" style={{ color: 'var(--mute)' }}>
               공모 요구: {Number(cat.competition_target).toLocaleString()} {cat.unit}
             </span>
           </div>
@@ -25,7 +33,10 @@ export default function ScenarioRecommender({ categories }) {
           </div>
 
           {cat.max_with_relief && (
-            <div className="mt-3 text-[11px] text-gray-500 pt-2 border-t border-gray-200">
+            <div
+              className="mt-3 text-[11px] pt-2"
+              style={{ color: 'var(--mute)', borderTop: '1px solid var(--hairline)' }}
+            >
               모든 완화 합산 최대: {Number(cat.max_with_relief).toLocaleString()} {cat.unit}
             </div>
           )}
@@ -37,7 +48,7 @@ export default function ScenarioRecommender({ categories }) {
 
 function ScenarioRow({ scenario, unit }) {
   const covers = scenario.covers_target
-  const color = covers ? 'var(--color-success)' : 'var(--color-warning)'
+  const color = covers ? 'var(--ok)' : 'var(--warn-deep)'
 
   return (
     <div
@@ -48,11 +59,11 @@ function ScenarioRow({ scenario, unit }) {
       }}
     >
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-medium text-gray-800 truncate">
+        <div className="text-xs font-medium truncate" style={{ color: 'var(--ink)' }}>
           {scenario.label}
         </div>
         {scenario.basis && (
-          <div className="text-[10px] text-gray-500 truncate">{scenario.basis}</div>
+          <div className="text-[10px] truncate" style={{ color: 'var(--mute)' }}>{scenario.basis}</div>
         )}
       </div>
       <div className="text-right">
@@ -60,7 +71,7 @@ function ScenarioRow({ scenario, unit }) {
           {scenario.result_pct != null ? `→ ${scenario.result_pct} ${unit}` : '—'}
         </div>
         {scenario.delta_pct != null && (
-          <div className="text-[10px] text-gray-500">+{scenario.delta_pct} {unit}</div>
+          <div className="text-[10px]" style={{ color: 'var(--mute)' }}>+{scenario.delta_pct} {unit}</div>
         )}
       </div>
       <div className="text-[10px] font-medium" style={{ color }}>

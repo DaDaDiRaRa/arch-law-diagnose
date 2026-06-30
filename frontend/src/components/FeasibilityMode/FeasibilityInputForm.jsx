@@ -47,36 +47,52 @@ export default function FeasibilityInputForm() {
 
       {/* 1. 대지 정보 */}
       <section>
-        <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-          <span className="text-blue-600">①</span> 대지 정보
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+          <span style={{ color: 'var(--info)' }}>①</span> 대지 정보
         </h3>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">주소 *</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>주소 *</label>
             <AddressSearch onSelect={setSelectedAddress} />
             {formData.address && (
-              <div className="mt-1 text-xs text-gray-500">{formData.address}</div>
+              <div className="mt-1 text-xs" style={{ color: 'var(--mute)' }}>{formData.address}</div>
             )}
           </div>
 
           {autoLandLoading && (
-            <div className="text-xs text-blue-600 bg-blue-50 px-3 py-2 rounded">
+            <div
+              className="text-xs px-3 py-2"
+              style={{
+                color: 'var(--info)',
+                background: 'var(--canvas-elevated)',
+                borderLeft: '3px solid var(--info)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--hairline)',
+              }}
+            >
               토지 정보 자동 조회 중...
             </div>
           )}
 
           {autoLandInfo && !autoLandLoading && (
-            <div className="text-xs bg-gray-50 border border-gray-200 px-3 py-2 rounded space-y-0.5">
-              <div className="font-medium text-gray-700">자동 조회 결과 (VWorld)</div>
-              <div className="text-gray-600">
+            <div
+              className="text-xs border px-3 py-2 space-y-0.5"
+              style={{
+                background: 'var(--canvas-inset)',
+                borderColor: 'var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+              }}
+            >
+              <div className="font-medium" style={{ color: 'var(--body)' }}>자동 조회 결과 (VWorld)</div>
+              <div style={{ color: 'var(--body)' }}>
                 · 용도지역: {autoLandInfo.zone_use || '미확인'}
               </div>
               {autoLandInfo.zone_district && (
-                <div className="text-gray-600">· 지역지구: {autoLandInfo.zone_district}</div>
+                <div style={{ color: 'var(--body)' }}>· 지역지구: {autoLandInfo.zone_district}</div>
               )}
               {autoLandInfo.parcel_area && (
-                <div className="text-gray-600">
+                <div style={{ color: 'var(--body)' }}>
                   · 대지면적: {Number(autoLandInfo.parcel_area).toLocaleString()}㎡
                 </div>
               )}
@@ -85,14 +101,15 @@ export default function FeasibilityInputForm() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">
+              <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>
                 용도지역 (수동 입력)
               </label>
               <select
                 name="zone_use_override"
                 value={formData.zone_use_override}
                 onChange={handleChange}
-                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+                className="w-full text-xs border rounded px-2 py-1.5"
+                style={{ borderColor: 'var(--hairline)' }}
               >
                 {ZONE_USES.map((z) => (
                   <option key={z} value={z}>{z || '— 자동 조회값 사용 —'}</option>
@@ -100,7 +117,7 @@ export default function FeasibilityInputForm() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-gray-600 mb-1">
+              <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>
                 대지면적 (자동 조회 실패 시)
               </label>
               <input
@@ -110,7 +127,8 @@ export default function FeasibilityInputForm() {
                 value={formData.site_area_override}
                 onChange={handleChange}
                 placeholder="㎡"
-                className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+                className="w-full text-xs border rounded px-2 py-1.5"
+                style={{ borderColor: 'var(--hairline)' }}
               />
             </div>
           </div>
@@ -118,20 +136,21 @@ export default function FeasibilityInputForm() {
       </section>
 
       {/* 2. 시설 유형 */}
-      <section className="border-t border-gray-200 pt-5">
-        <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-          <span className="text-blue-600">②</span> 시설 유형
+      <section className="pt-5" style={{ borderTop: '1px solid var(--hairline)' }}>
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+          <span style={{ color: 'var(--info)' }}>②</span> 시설 유형
         </h3>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">시설 용도 *</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>시설 용도 *</label>
             <select
               name="facility_use"
               value={formData.facility_use}
               onChange={handleChange}
               required
-              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+              className="w-full text-xs border rounded px-2 py-1.5"
+              style={{ borderColor: 'var(--hairline)' }}
             >
               <option value="">— 선택 —</option>
               {FACILITY_USES.map((u) => (
@@ -140,12 +159,13 @@ export default function FeasibilityInputForm() {
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-600 mb-1">신청 주체</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>신청 주체</label>
             <select
               name="applicant_type"
               value={formData.applicant_type}
               onChange={handleChange}
-              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+              className="w-full text-xs border rounded px-2 py-1.5"
+              style={{ borderColor: 'var(--hairline)' }}
             >
               {APPLICANT_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
@@ -153,25 +173,26 @@ export default function FeasibilityInputForm() {
             </select>
           </div>
           <div className="col-span-2">
-            <label className="block text-xs text-gray-600 mb-1">세부 용도 (선택, 자유 입력)</label>
+            <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>세부 용도 (선택, 자유 입력)</label>
             <input
               type="text"
               name="building_use_detail"
               value={formData.building_use_detail}
               onChange={handleChange}
               placeholder="예: 공공업무시설(구청, 어린이집)"
-              className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+              className="w-full text-xs border rounded px-2 py-1.5"
+              style={{ borderColor: 'var(--hairline)' }}
             />
           </div>
         </div>
       </section>
 
       {/* 3. 공모 요구치 */}
-      <section className="border-t border-gray-200 pt-5">
-        <h3 className="text-sm font-semibold text-gray-800 mb-1 flex items-center gap-2">
-          <span className="text-blue-600">③</span> 공모 요구치
+      <section className="pt-5" style={{ borderTop: '1px solid var(--hairline)' }}>
+        <h3 className="text-sm font-semibold mb-1 flex items-center gap-2" style={{ color: 'var(--ink)' }}>
+          <span style={{ color: 'var(--info)' }}>③</span> 공모 요구치
         </h3>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs mb-3" style={{ color: 'var(--mute)' }}>
           공모지침서에 명시된 값을 입력하세요. 모두 선택 — 비워둔 항목은 갭 분석에서 제외됩니다.
         </p>
 
@@ -194,17 +215,25 @@ export default function FeasibilityInputForm() {
 
       {/* Submit */}
       {error && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded">
+        <div
+          className="text-xs px-3 py-2 rounded"
+          style={{
+            color: 'var(--error)',
+            background: 'var(--canvas-elevated)',
+            borderLeft: '3px solid var(--error)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
           {error}
         </div>
       )}
 
-      <div className="border-t border-gray-200 pt-4 flex justify-end gap-2">
+      <div className="pt-4 flex justify-end gap-2" style={{ borderTop: '1px solid var(--hairline)' }}>
         <button
           type="submit"
           disabled={loading || !formData.address || !formData.facility_use}
-          className="px-4 py-2 text-xs font-semibold text-white rounded shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="px-4 py-2 text-xs font-semibold text-white rounded disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: 'var(--brand)', boxShadow: 'var(--shadow-sm)' }}
         >
           {loading ? '검토 중...' : '사업성 검토 실행'}
         </button>
@@ -216,8 +245,8 @@ export default function FeasibilityInputForm() {
 function NumInput({ name, label, unit, value, onChange, step = '0.01' }) {
   return (
     <div>
-      <label className="block text-xs text-gray-600 mb-1">
-        {label} <span className="text-gray-400">({unit})</span>
+      <label className="block text-xs mb-1" style={{ color: 'var(--body)' }}>
+        {label} <span style={{ color: 'var(--faint)' }}>({unit})</span>
       </label>
       <input
         type="number"
@@ -226,7 +255,8 @@ function NumInput({ name, label, unit, value, onChange, step = '0.01' }) {
         value={value}
         onChange={onChange}
         placeholder={unit}
-        className="w-full text-xs border border-gray-300 rounded px-2 py-1.5"
+        className="w-full text-xs border rounded px-2 py-1.5"
+        style={{ borderColor: 'var(--hairline)' }}
       />
     </div>
   )

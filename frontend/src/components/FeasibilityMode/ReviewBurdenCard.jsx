@@ -10,28 +10,42 @@ export default function ReviewBurdenCard({ reviewBurden }) {
 
   if (count_required === 0 && count_maybe === 0) {
     return (
-      <div className="border border-gray-200 rounded-lg p-4 bg-white">
-        <h4 className="text-sm font-semibold text-gray-800 mb-2">심의·평가 부담</h4>
-        <p className="text-xs text-gray-500">자동 트리거된 추가 심의·평가 없음.</p>
+      <div
+        className="border p-4"
+        style={{
+          borderColor: 'var(--hairline)',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--canvas-elevated)',
+        }}
+      >
+        <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--ink)' }}>심의·평가 부담</h4>
+        <p className="text-xs" style={{ color: 'var(--mute)' }}>자동 트리거된 추가 심의·평가 없음.</p>
       </div>
     )
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white space-y-3">
+    <div
+      className="border p-4 space-y-3"
+      style={{
+        borderColor: 'var(--hairline)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--canvas-elevated)',
+      }}
+    >
       <div className="flex items-baseline justify-between">
-        <h4 className="text-sm font-semibold text-gray-800">심의·평가 부담</h4>
-        <span className="text-[10px] text-gray-500">
+        <h4 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>심의·평가 부담</h4>
+        <span className="text-[10px]" style={{ color: 'var(--mute)' }}>
           일정 추정은 시니어 확인 필요
         </span>
       </div>
 
       {required.length > 0 && (
         <div>
-          <div className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+          <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--body)' }}>
             <span
               className="inline-block w-2 h-2 rounded-full"
-              style={{ backgroundColor: 'var(--color-danger)' }}
+              style={{ backgroundColor: 'var(--error)' }}
             />
             필수 ({count_required})
           </div>
@@ -44,11 +58,14 @@ export default function ReviewBurdenCard({ reviewBurden }) {
       )}
 
       {maybe.length > 0 && (
-        <div className={required.length > 0 ? 'pt-2 border-t border-gray-200' : ''}>
-          <div className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1.5">
+        <div
+          className={required.length > 0 ? 'pt-2' : ''}
+          style={required.length > 0 ? { borderTop: '1px solid var(--hairline)' } : {}}
+        >
+          <div className="text-xs font-medium mb-1.5 flex items-center gap-1.5" style={{ color: 'var(--body)' }}>
             <span
               className="inline-block w-2 h-2 rounded-full"
-              style={{ backgroundColor: 'var(--color-warning)' }}
+              style={{ backgroundColor: 'var(--warn)' }}
             />
             조건부 ({count_maybe})
           </div>
@@ -64,8 +81,7 @@ export default function ReviewBurdenCard({ reviewBurden }) {
 }
 
 function BurdenRow({ item, severity }) {
-  const dotColor =
-    severity === 'required' ? 'var(--color-danger)' : 'var(--color-warning)'
+  const dotColor = severity === 'required' ? 'var(--error)' : 'var(--warn)'
   return (
     <li className="flex items-start gap-2 text-xs">
       <span
@@ -73,12 +89,12 @@ function BurdenRow({ item, severity }) {
         style={{ backgroundColor: dotColor }}
       />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-800">{item.name}</div>
+        <div className="font-medium" style={{ color: 'var(--ink)' }}>{item.name}</div>
         {item.reason && (
-          <div className="text-[11px] text-gray-600 mt-0.5">{item.reason}</div>
+          <div className="text-[11px] mt-0.5" style={{ color: 'var(--body)' }}>{item.reason}</div>
         )}
         {item.law_ref && (
-          <div className="text-[10px] text-gray-400 mt-0.5">{item.law_ref}</div>
+          <div className="text-[10px] mt-0.5" style={{ color: 'var(--mute)' }}>{item.law_ref}</div>
         )}
       </div>
     </li>

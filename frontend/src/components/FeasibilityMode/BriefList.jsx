@@ -66,7 +66,12 @@ export default function BriefList({ onPick, picking = false }) {
           value={category}
           onChange={(e) => changeCategory(e.target.value)}
           disabled={loading}
-          className="text-[11px] border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-700 disabled:opacity-50"
+          className="text-[11px] border rounded px-1.5 py-1 disabled:opacity-50"
+          style={{
+            borderColor: 'var(--hairline)',
+            background: 'var(--canvas-elevated)',
+            color: 'var(--body)',
+          }}
         >
           {CATEGORY_OPTIONS.map(([v, label]) => (
             <option key={v} value={v}>
@@ -79,28 +84,41 @@ export default function BriefList({ onPick, picking = false }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="공모명 검색"
-          className="flex-1 min-w-0 text-[11px] border border-gray-200 rounded px-2 py-1 bg-white text-gray-700"
+          className="flex-1 min-w-0 text-[11px] border rounded px-2 py-1"
+          style={{
+            borderColor: 'var(--hairline)',
+            background: 'var(--canvas-elevated)',
+            color: 'var(--body)',
+          }}
         />
       </div>
 
-      {loading && <div className="text-[11px] text-gray-500 py-1">목록 불러오는 중…</div>}
+      {loading && <div className="text-[11px] py-1" style={{ color: 'var(--mute)' }}>목록 불러오는 중…</div>}
       {error && (
-        <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-1.5 rounded mb-2">
+        <div
+          className="text-[11px] px-2 py-1.5 rounded mb-2"
+          style={{
+            color: 'var(--error)',
+            background: 'var(--canvas-elevated)',
+            borderLeft: '3px solid var(--error)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
           {error}
         </div>
       )}
 
       {!loading && briefs && briefs.length === 0 && !error && category && (
-        <div className="text-[11px] text-gray-500 py-1">이 카테고리에 해당하는 공모가 없습니다.</div>
+        <div className="text-[11px] py-1" style={{ color: 'var(--mute)' }}>이 카테고리에 해당하는 공모가 없습니다.</div>
       )}
       {!loading && briefs && briefs.length === 0 && !error && !category && (
-        <div className="text-[11px] text-gray-500 py-1">
+        <div className="text-[11px] py-1" style={{ color: 'var(--mute)' }}>
           불러올 공모지침이 없습니다. (서버의 BRIEF_DIR에 brief json 필요 —
           competition_comparison 버킷의 _briefs/ 폴더 연결)
         </div>
       )}
       {!loading && briefs && briefs.length > 0 && shown.length === 0 && (
-        <div className="text-[11px] text-gray-500 py-1">"{search}"에 맞는 공모가 없습니다.</div>
+        <div className="text-[11px] py-1" style={{ color: 'var(--mute)' }}>"{search}"에 맞는 공모가 없습니다.</div>
       )}
 
       {shown.length > 0 && (
@@ -111,12 +129,27 @@ export default function BriefList({ onPick, picking = false }) {
               type="button"
               onClick={() => onPick(b.file_id)}
               disabled={picking}
-              className="w-full text-left border border-gray-200 rounded px-3 py-2 bg-white hover:border-gray-400 transition-colors disabled:opacity-50"
+              className="w-full text-left border rounded px-3 py-2 transition-colors disabled:opacity-50"
+              style={{
+                borderColor: 'var(--hairline)',
+                background: 'var(--canvas-elevated)',
+              }}
             >
-              <div className="text-xs font-medium text-gray-800 truncate">{b.competition_name}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5 flex gap-2">
+              <div className="text-xs font-medium truncate" style={{ color: 'var(--ink)' }}>{b.competition_name}</div>
+              <div className="text-[10px] mt-0.5 flex gap-2" style={{ color: 'var(--mute)' }}>
                 {b.facility_type && (
-                  <span className="px-1.5 py-0.5 rounded bg-gray-100">{b.facility_type}</span>
+                  <span
+                    className="px-1.5 py-0.5"
+                    style={{
+                      background: 'var(--canvas-inset)',
+                      border: '1px solid var(--hairline)',
+                      borderRadius: 'var(--radius-sm)',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '10px',
+                    }}
+                  >
+                    {b.facility_type}
+                  </span>
                 )}
                 <span>부지 {b.site_count}개</span>
                 {b.analyzed_at && <span>· {b.analyzed_at.slice(0, 10)}</span>}

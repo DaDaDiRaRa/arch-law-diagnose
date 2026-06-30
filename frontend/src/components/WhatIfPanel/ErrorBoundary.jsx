@@ -1,9 +1,5 @@
 import { Component } from 'react'
 
-/**
- * What-if 패널 전용 Error Boundary.
- * 슬라이더/재진단 로직에서 예외 발생해도 위 진단 결과 카드는 살아남도록 격리.
- */
 export default class WhatIfErrorBoundary extends Component {
   constructor(props) {
     super(props)
@@ -21,16 +17,17 @@ export default class WhatIfErrorBoundary extends Component {
   render() {
     if (this.state.error) {
       return (
-        <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
-          <p className="text-sm font-semibold text-red-700 mb-1">
-            🔮 What-if 패널 오류
+        <div className="mt-6 p-4" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--error)',backgroundColor:'var(--canvas-elevated)'}}>
+          <p className="text-sm font-semibold mb-1" style={{color:'var(--error)',fontFamily:'var(--font-sans)'}}>
+            What-if 패널 오류
           </p>
-          <p className="text-xs text-red-600">
+          <p className="text-xs" style={{color:'var(--error)'}}>
             {this.state.error.message || '슬라이더 패널 렌더링 실패'}
           </p>
           <button
             onClick={() => this.setState({ error: null })}
-            className="mt-2 text-xs px-2 py-1 rounded bg-white border border-red-300 text-red-700"
+            className="mt-2 text-xs px-2 py-1"
+            style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas)',border:'1px solid var(--hairline)',color:'var(--body)',fontFamily:'var(--font-sans)'}}
           >
             다시 시도
           </button>

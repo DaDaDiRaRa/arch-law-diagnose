@@ -7,10 +7,10 @@
  *   unknown / no_target → gray (회색)
  */
 const STATUS_COLOR = {
-  ok: 'var(--color-success)',
-  over: 'var(--color-danger)',
-  unknown: 'var(--color-text-faint)',
-  no_target: 'var(--color-text-faint)',
+  ok: 'var(--ok)',
+  over: 'var(--error)',
+  unknown: 'var(--faint)',
+  no_target: 'var(--faint)',
 }
 
 const STATUS_BG = {
@@ -30,7 +30,14 @@ const STATUS_LABEL = {
 export default function GapChart({ categories }) {
   if (!categories || categories.length === 0) {
     return (
-      <div className="text-xs text-gray-500 bg-gray-50 px-4 py-3 rounded">
+      <div
+        className="text-xs px-4 py-3"
+        style={{
+          color: 'var(--mute)',
+          background: 'var(--canvas-inset)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
         갭 분석할 카테고리가 없습니다.
       </div>
     )
@@ -59,21 +66,25 @@ function CategoryBar({ cat }) {
 
   return (
     <div
-      className="border rounded-lg p-4"
+      className="border p-4"
       style={{
         backgroundColor: STATUS_BG[status],
         borderColor: STATUS_COLOR[status],
+        borderRadius: 'var(--radius-sm)',
       }}
     >
       <div className="flex items-baseline justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-800">{cat.label}</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>{cat.label}</span>
           <span
-            className="text-[10px] font-medium px-2 py-0.5 rounded"
+            className="text-[10px] font-medium px-2 py-0.5"
             style={{
               color: STATUS_COLOR[status],
-              backgroundColor: 'white',
+              background: 'var(--canvas-elevated)',
               border: `1px solid ${STATUS_COLOR[status]}`,
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '10px',
             }}
           >
             {STATUS_LABEL[status]}
@@ -94,7 +105,7 @@ function CategoryBar({ cat }) {
           value={target}
           unit={cat.unit}
           width={targetW}
-          color="var(--color-text-body)"
+          color="var(--ink)"
           show={!!target}
         />
         <Bar
@@ -102,7 +113,7 @@ function CategoryBar({ cat }) {
           value={limit}
           unit={cat.unit}
           width={limitW}
-          color="var(--color-info)"
+          color="var(--info)"
           show={limit != null}
         />
         {maxRelief != null && maxRelief !== limit && (
@@ -111,14 +122,17 @@ function CategoryBar({ cat }) {
             value={maxRelief}
             unit={cat.unit}
             width={reliefW}
-            color="var(--color-success)"
+            color="var(--ok)"
             show={true}
           />
         )}
       </div>
 
       {cat.source && (
-        <div className="mt-2 text-[10px] text-gray-500 pt-2 border-t border-gray-200">
+        <div
+          className="mt-2 text-[10px] pt-2"
+          style={{ color: 'var(--mute)', borderTop: '1px solid var(--hairline)' }}
+        >
           출처: {cat.source}
         </div>
       )}
@@ -131,12 +145,15 @@ function Bar({ label, value, unit, width, color, show }) {
   return (
     <div>
       <div className="flex justify-between items-center text-[11px] mb-0.5">
-        <span className="text-gray-600">{label}</span>
-        <span className="font-medium text-gray-800">
+        <span style={{ color: 'var(--body)' }}>{label}</span>
+        <span className="font-medium" style={{ color: 'var(--ink)' }}>
           {value != null ? `${Number(value).toLocaleString()} ${unit}` : '—'}
         </span>
       </div>
-      <div className="h-2 bg-white rounded overflow-hidden border border-gray-200">
+      <div
+        className="h-2 rounded overflow-hidden"
+        style={{ background: 'var(--canvas-elevated)', border: '1px solid var(--hairline)' }}
+      >
         <div
           className="h-full transition-all"
           style={{

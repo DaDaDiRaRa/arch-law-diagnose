@@ -1,16 +1,7 @@
-const LEVEL_STYLE = {
-  error: {
-    row: 'bg-red-50 border-red-300 text-red-800',
-    icon: '🔴',
-  },
-  warn: {
-    row: 'bg-yellow-50 border-yellow-300 text-yellow-800',
-    icon: '⚠️',
-  },
-  info: {
-    row: 'bg-blue-50 border-blue-200 text-blue-700',
-    icon: 'ℹ️',
-  },
+const LEVEL_CONFIG = {
+  error: { color: 'var(--error)', dotColor: 'var(--error)' },
+  warn:  { color: 'var(--warn-deep)', dotColor: 'var(--warn)' },
+  info:  { color: 'var(--info)', dotColor: 'var(--info)' },
 }
 
 export default function DataQualityBanner({ dataQuality }) {
@@ -19,30 +10,28 @@ export default function DataQualityBanner({ dataQuality }) {
 
   if (issues.length === 0) {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 flex items-center gap-2">
-        <span className="text-green-600 text-sm">✅</span>
-        <span className="text-xs text-green-700 font-medium">데이터 품질 양호</span>
-        <span className="ml-auto text-[var(--font-size-2xs)] text-green-600 flex items-center gap-3">
+      <div className="px-4 py-2.5 flex items-center gap-2" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--ok)',backgroundColor:'var(--canvas-elevated)'}}>
+        <div style={{width:8,height:8,borderRadius:'50%',backgroundColor:'var(--ok)',flexShrink:0}} />
+        <span className="text-xs font-medium" style={{color:'var(--ok)',fontFamily:'var(--font-sans)'}}>데이터 품질 양호</span>
+        <span className="ml-auto flex items-center gap-3" style={{color:'var(--mute)'}}>
           <ConfidenceBadge value={aggregate_confidence} />
-          <span>VWorld ✓</span>
-          {ordinance_used && <span>조례 ✓</span>}
-          {llm_used && <span>AI ✓</span>}
-          {luris_used && <span>LURIS ✓</span>}
+          <span className="text-[10px]" style={{fontFamily:'var(--font-mono)'}}>VWorld ✓</span>
+          {ordinance_used && <span className="text-[10px]" style={{fontFamily:'var(--font-mono)'}}>조례 ✓</span>}
+          {llm_used && <span className="text-[10px]" style={{fontFamily:'var(--font-mono)'}}>AI ✓</span>}
+          {luris_used && <span className="text-[10px]" style={{fontFamily:'var(--font-mono)'}}>LURIS ✓</span>}
         </span>
       </div>
     )
   }
 
   const hasError = issues.some(i => i.level === 'error')
-  const wrapCls = hasError
-    ? 'rounded-xl border-2 border-red-300 bg-red-50'
-    : 'rounded-xl border border-yellow-300 bg-yellow-50'
+  const borderColor = hasError ? 'var(--error)' : 'var(--warn)'
 
   return (
-    <div className={`${wrapCls} p-3 space-y-1.5`}>
+    <div className="p-3 space-y-1.5" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:`3px solid ${borderColor}`,backgroundColor:'var(--canvas-elevated)'}}>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs font-semibold text-gray-700">
-          {hasError ? '🔴 데이터 품질 문제' : '⚠️ 데이터 품질 주의'}
+        <p className="text-xs font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)'}}>
+          {hasError ? '데이터 품질 문제' : '데이터 품질 주의'}
         </p>
         <DataSourcePills
           ordinance_used={ordinance_used}
@@ -55,10 +44,11 @@ export default function DataQualityBanner({ dataQuality }) {
         />
       </div>
       {issues.map((issue, i) => {
-        const sty = LEVEL_STYLE[issue.level] || LEVEL_STYLE.warn
+        const cfg = LEVEL_CONFIG[issue.level] || LEVEL_CONFIG.warn
         return (
-          <div key={i} className={`text-xs rounded px-2.5 py-1.5 border ${sty.row}`}>
-            {sty.icon} {issue.msg}
+          <div key={i} className="text-xs px-2.5 py-1.5 flex items-start gap-1.5" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:`2px solid ${cfg.color}`,backgroundColor:'var(--canvas)'}}>
+            <div style={{width:6,height:6,borderRadius:'50%',backgroundColor:cfg.dotColor,flexShrink:0,marginTop:3}} />
+            <span style={{color:'var(--body)'}}>{issue.msg}</span>
           </div>
         )
       })}
@@ -66,18 +56,13 @@ export default function DataQualityBanner({ dataQuality }) {
   )
 }
 
-// 종합 신뢰도 배지 — 채점된 항목 중 최저 confidence(1~5). 점수 신뢰도 지표이며
-// 신호(RED/YELLOW/GREEN) 판정과는 별개. (백엔드 data_quality.aggregate_confidence)
 function ConfidenceBadge({ value }) {
   if (value == null) return null
-  const cls = value >= 4
-    ? 'bg-green-100 text-green-700'
-    : value === 3
-      ? 'bg-yellow-100 text-yellow-700'
-      : 'bg-orange-100 text-orange-700'
+  const color = value >= 4 ? 'var(--ok)' : value === 3 ? 'var(--warn-deep)' : 'var(--error)'
   return (
     <span
-      className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${cls}`}
+      className="text-[10px] px-1.5 py-0.5 font-medium"
+      style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',color,fontFamily:'var(--font-mono)',cursor:'default'}}
       title="채점된 항목 중 최저 신뢰도 (1~5). 산정한 종합 점수를 얼마나 믿을 수 있는지를 나타내며, 신호 판정과는 별개입니다."
     >
       신뢰도 {value}/5
@@ -89,35 +74,26 @@ function DataSourcePills({ ordinance_used, llm_used, luris_used, zone_use_source
   const pills = []
 
   if (zone_use_source === 'user') {
-    pills.push({ label: '용도지역 수동', cls: 'bg-blue-100 text-blue-700' })
+    pills.push({ label: '용도지역 수동', color: 'var(--info)' })
   } else if (zone_use_source === 'vworld') {
-    pills.push({ label: 'VWorld ✓', cls: 'bg-green-100 text-green-700' })
+    pills.push({ label: 'VWorld ✓', color: 'var(--ok)' })
   } else {
-    pills.push({ label: 'VWorld ✗', cls: 'bg-red-100 text-red-700' })
+    pills.push({ label: 'VWorld ✗', color: 'var(--error)' })
   }
 
   if (land_cache_stale) {
-    pills.push({ label: `캐시 ${land_cache_age_days}일 전`, cls: 'bg-orange-100 text-orange-700' })
+    pills.push({ label: `캐시 ${land_cache_age_days}일 전`, color: 'var(--warn-deep)' })
   }
 
-  pills.push({
-    label: ordinance_used ? '조례 ✓' : '조례 ✗(시행령)',
-    cls: ordinance_used ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700',
-  })
-  pills.push({
-    label: llm_used ? 'AI ✓' : 'AI ✗',
-    cls: llm_used ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600',
-  })
-  pills.push({
-    label: luris_used ? 'LURIS ✓' : 'LURIS ✗',
-    cls: luris_used ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600',
-  })
+  pills.push({ label: ordinance_used ? '조례 ✓' : '조례 ✗(시행령)', color: ordinance_used ? 'var(--ok)' : 'var(--warn-deep)' })
+  pills.push({ label: llm_used ? 'AI ✓' : 'AI ✗', color: llm_used ? 'var(--ok)' : 'var(--mute)' })
+  pills.push({ label: luris_used ? 'LURIS ✓' : 'LURIS ✗', color: luris_used ? 'var(--ok)' : 'var(--mute)' })
 
   return (
     <div className="flex flex-wrap gap-1">
       <ConfidenceBadge value={aggregate_confidence} />
       {pills.map((p, i) => (
-        <span key={i} className={`text-[var(--font-size-2xs)] px-1.5 py-0.5 rounded font-medium ${p.cls}`}>
+        <span key={i} className="text-[10px] px-1.5 py-0.5 font-medium" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',color:p.color,fontFamily:'var(--font-mono)'}}>
           {p.label}
         </span>
       ))}

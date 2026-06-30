@@ -14,7 +14,7 @@ const FIELD_LABELS = {
 
 export default function BriefUploader({ onExtracted }) {
   const fileRef = useRef(null)
-  const [status, setStatus] = useState('idle') // idle | loading | done | error
+  const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
   const [fileName, setFileName] = useState(null)
@@ -49,7 +49,6 @@ export default function BriefUploader({ onExtracted }) {
       setError(err.message)
       setStatus('error')
     } finally {
-      // 동일 파일 재업로드 허용
       if (fileRef.current) fileRef.current.value = ''
     }
   }
@@ -67,15 +66,11 @@ export default function BriefUploader({ onExtracted }) {
   )
 
   return (
-    <div className="border border-dashed border-blue-300 rounded-lg p-3 bg-blue-50 space-y-2">
+    <div className="p-3 space-y-2" style={{borderRadius:'var(--radius-sm)',border:'2px dashed var(--hairline)',backgroundColor:'var(--canvas)'}}>
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-blue-700">발주처 지침서 PDF 업로드</p>
+        <p className="text-xs font-semibold" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>발주처 지침서 PDF 업로드</p>
         {status === 'done' && (
-          <button
-            type="button"
-            onClick={handleReset}
-            className="text-[var(--font-size-2xs)] text-gray-400 hover:text-gray-600 underline"
-          >
+          <button type="button" onClick={handleReset} className="text-[10px] underline" style={{color:'var(--faint)'}}>
             초기화
           </button>
         )}
@@ -84,77 +79,64 @@ export default function BriefUploader({ onExtracted }) {
       {status === 'idle' || status === 'error' ? (
         <div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <span className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+            <span className="px-3 py-1.5 text-xs transition-colors" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--brand)',color:'#fff',fontFamily:'var(--font-sans)'}}>
               파일 선택
             </span>
-            <span className="text-xs text-gray-500">건폐율·용적률·높이 등 자동 추출</span>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pdf"
-              className="hidden"
-              onChange={handleFile}
-            />
+            <span className="text-xs" style={{color:'var(--mute)'}}>건폐율·용적률·높이 등 자동 추출</span>
+            <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleFile} />
           </label>
-          {error && (
-            <p className="mt-1 text-xs text-red-600">{error}</p>
-          )}
+          {error && <p className="mt-1 text-xs" style={{color:'var(--error)'}}>{error}</p>}
         </div>
       ) : status === 'loading' ? (
-        <div className="flex items-center gap-2 text-xs text-blue-600">
-          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-          </svg>
+        <div className="flex items-center gap-2 text-xs" style={{color:'var(--mute)'}}>
+          <div style={{width:14,height:14,border:'2px solid var(--hairline)',borderTopColor:'var(--brand)',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}} />
           <span>{fileName} 분석 중...</span>
         </div>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[var(--font-size-2xs)] text-green-700 font-medium">✅ {fileName} 추출 완료 — 아래 조건이 진단에 반영됩니다</p>
+          <p className="text-[10px] font-medium" style={{color:'var(--ok)'}}>
+            {fileName} 추출 완료 — 아래 조건이 진단에 반영됩니다
+          </p>
 
-          {/* 수치 조건 */}
           {hasNumericResult && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
               {Object.entries(FIELD_LABELS).map(([key, label]) => {
                 const val = result[key]
                 if (val === null || val === undefined || Array.isArray(val)) return null
                 return (
-                  <div key={key} className="flex justify-between text-[var(--font-size-2xs)]">
-                    <span className="text-gray-500">{label}</span>
-                    <span className="font-semibold text-blue-800">{val}</span>
+                  <div key={key} className="flex justify-between text-[10px]">
+                    <span style={{color:'var(--mute)'}}>{label}</span>
+                    <span className="font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-mono)'}}>{val}</span>
                   </div>
                 )
               })}
             </div>
           )}
 
-          {/* 용도 목록 */}
           {result.required_uses?.length > 0 && (
-            <p className="text-[var(--font-size-2xs)] text-gray-700">
-              <span className="font-medium">의무 용도:</span> {result.required_uses.join(', ')}
+            <p className="text-[10px]" style={{color:'var(--body)'}}>
+              <span className="font-medium" style={{color:'var(--ink)'}}>의무 용도:</span> {result.required_uses.join(', ')}
             </p>
           )}
           {result.prohibited_uses?.length > 0 && (
-            <p className="text-[var(--font-size-2xs)] text-gray-700">
-              <span className="font-medium">금지 용도:</span> {result.prohibited_uses.join(', ')}
+            <p className="text-[10px]" style={{color:'var(--body)'}}>
+              <span className="font-medium" style={{color:'var(--ink)'}}>금지 용도:</span> {result.prohibited_uses.join(', ')}
             </p>
           )}
 
-          {/* 기타 조건 */}
           {result.special_conditions?.length > 0 && (
-            <div className="text-[var(--font-size-2xs)] text-gray-700">
-              <span className="font-medium">기타 조건:</span>
+            <div className="text-[10px]" style={{color:'var(--body)'}}>
+              <span className="font-medium" style={{color:'var(--ink)'}}>기타 조건:</span>
               <ul className="list-disc list-inside">
                 {result.special_conditions.map((c, i) => <li key={i}>{c}</li>)}
               </ul>
             </div>
           )}
 
-          {/* 추출 근거 */}
           {result.source_excerpt && (
-            <details className="text-[var(--font-size-2xs)] text-gray-500">
-              <summary className="cursor-pointer hover:text-gray-700">추출 근거 원문</summary>
-              <p className="mt-1 whitespace-pre-wrap bg-white border border-gray-200 rounded p-1.5">
+            <details className="text-[10px]" style={{color:'var(--mute)'}}>
+              <summary className="cursor-pointer hover:underline">추출 근거 원문</summary>
+              <p className="mt-1 whitespace-pre-wrap p-1.5" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas-elevated)',color:'var(--body)',fontFamily:'var(--font-mono)'}}>
                 {result.source_excerpt}
               </p>
             </details>

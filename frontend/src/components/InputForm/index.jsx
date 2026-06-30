@@ -228,29 +228,29 @@ export default function InputForm({ isDrawer = false }) {
 
           {/* 대지주소 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {isMulti ? '1번 필지 주소' : '대지 주소'} <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium mb-1" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>
+              {isMulti ? '1번 필지 주소' : '대지 주소'} <span style={{color:'var(--error)'}}>*</span>
             </label>
             <AddressSearch onSelect={handleAddressSelect} />
             {formData.address && (
-              <p className="mt-1 text-xs text-blue-600 font-medium">{formData.address}</p>
+              <p className="mt-1 text-xs font-medium" style={{color:'var(--link)'}}>{formData.address}</p>
             )}
             {formData.pnu && (
-              <p className="mt-0.5 text-xs text-gray-400 font-mono">PNU: {formData.pnu}</p>
+              <p className="mt-0.5 text-xs" style={{color:'var(--faint)',fontFamily:'var(--font-mono)'}}>PNU: {formData.pnu}</p>
             )}
             <AutoLandInfoBanner loading={autoLandLoading} info={autoLandInfo} />
           </div>
 
           {/* 추가 필지 */}
           {additionalParcels.map((p, idx) => (
-            <div key={idx} className="border border-blue-200 bg-blue-50/40 rounded-lg p-3 space-y-2">
+            <div key={idx} className="p-3 space-y-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--info)',backgroundColor:'var(--canvas)'}}>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">{idx + 2}번 필지 <span className="text-red-500">*</span></span>
-                <button type="button" onClick={() => removeParcel(idx)} className="text-xs text-red-600 hover:underline">제거</button>
+                <span className="text-sm font-semibold" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>{idx + 2}번 필지 <span style={{color:'var(--error)'}}>*</span></span>
+                <button type="button" onClick={() => removeParcel(idx)} className="text-xs hover:underline" style={{color:'var(--error)'}}>제거</button>
               </div>
               <AddressSearch onSelect={(addr) => setParcelAddress(idx, addr)} />
-              {p.address && <p className="text-xs text-blue-600 font-medium">{p.address}</p>}
-              {p.pnu && <p className="text-xs text-gray-400 font-mono">PNU: {p.pnu}</p>}
+              {p.address && <p className="text-xs font-medium" style={{color:'var(--link)'}}>{p.address}</p>}
+              {p.pnu && <p className="text-xs" style={{color:'var(--faint)',fontFamily:'var(--font-mono)'}}>PNU: {p.pnu}</p>}
               <div className="grid grid-cols-2 gap-2">
                 <Field label={`${idx + 2}번 필지 면적 (㎡)`} required>
                   <input type="number" value={p.site_area} onChange={(e) => updateParcel(idx, { site_area: e.target.value })} min="1" step="0.01" className={inputCls} placeholder="300" required />
@@ -266,16 +266,16 @@ export default function InputForm({ isDrawer = false }) {
           ))}
 
           <div className="flex items-center justify-between">
-            <button type="button" onClick={addParcel} disabled={!formData.address} className="text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-300 font-medium">
+            <button type="button" onClick={addParcel} disabled={!formData.address} className="text-sm font-medium disabled:opacity-30" style={{color:'var(--link)',fontFamily:'var(--font-sans)'}}>
               + 필지 추가 {isMulti && `(${additionalParcels.length + 1}개 합산)`}
             </button>
             {isMulti && totalSiteArea > 0 && (
-              <span className="text-xs text-gray-600">합산: <span className="font-semibold text-gray-900">{totalSiteArea.toLocaleString()}㎡</span></span>
+              <span className="text-xs" style={{color:'var(--body)'}}>합산: <span className="font-semibold" style={{color:'var(--ink)'}}>{totalSiteArea.toLocaleString()}㎡</span></span>
             )}
           </div>
           {isMulti && (
-            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded p-2">
-              ℹ️ <b>합필</b> — 국토계획법 §84 자동 처리
+            <p className="text-xs p-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--info)',backgroundColor:'var(--canvas-elevated)',color:'var(--body)'}}>
+              <b style={{color:'var(--ink)'}}>합필</b> — 국토계획법 §84 자동 처리
             </p>
           )}
 
@@ -419,8 +419,8 @@ export default function InputForm({ isDrawer = false }) {
           <SectionLabel>선택 옵션</SectionLabel>
 
           {/* 용적률 추가 제외 */}
-          <details className="rounded border border-gray-200 bg-gray-50 px-3 py-2">
-            <summary className="text-xs text-gray-700 cursor-pointer select-none font-medium">용적률 추가 제외</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>용적률 추가 제외</summary>
             <div className="space-y-2 mt-2">
               <Field label="피난안전구역 (㎡)" hint="30층↑">
                 <input type="number" name="floor_area_refuge" value={formData.floor_area_refuge} onChange={handleChange} min="0" step="0.01" className={inputCls} placeholder="200" />
@@ -432,8 +432,8 @@ export default function InputForm({ isDrawer = false }) {
           </details>
 
           {/* 용적률 완화 */}
-          <details className="rounded border border-emerald-200 bg-emerald-50/60 px-3 py-2">
-            <summary className="text-xs text-emerald-800 cursor-pointer select-none font-medium">🌿 용적률 완화</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--ok)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>용적률 완화</summary>
             <div className="space-y-2 mt-2">
               <Field label="녹색건축 인증">
                 <select name="green_grade" value={formData.green_grade} onChange={handleChange} className={inputCls}>
@@ -475,12 +475,12 @@ export default function InputForm({ isDrawer = false }) {
                 <input type="text" name="relief_reason_manual" value={formData.relief_reason_manual} onChange={handleChange} className={inputCls} placeholder="예: 도시계획심의 결정" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-emerald-700">※ 인증 합산 캡 15%, 전체 캡 1.15배 (녹색건축물법 §15)</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 인증 합산 캡 15%, 전체 캡 1.15배 (녹색건축물법 §15)</p>
           </details>
 
           {/* 도시계획시설 결정고시 */}
-          <details className="rounded border border-blue-200 bg-blue-50/40 px-3 py-2">
-            <summary className="text-xs text-blue-900 cursor-pointer select-none font-medium">📌 결정고시</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--info)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>결정고시</summary>
             <div className="space-y-2 mt-2">
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input type="checkbox" name="decision_notice_confirmed" checked={!!formData.decision_notice_confirmed} onChange={(e) => setFormData({ decision_notice_confirmed: e.target.checked })} className="w-4 h-4 accent-blue-600" />
@@ -500,59 +500,59 @@ export default function InputForm({ isDrawer = false }) {
                 </div>
               )}
             </div>
-            <p className="mt-2 text-[10px] text-blue-700">※ 확인 시 도시계획시설 저촉 → 조건부통과(YELLOW)</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 확인 시 도시계획시설 저촉 → 조건부통과(YELLOW)</p>
           </details>
 
           {/* 건축협정 */}
-          <details className="rounded border border-amber-200 bg-amber-50/40 px-3 py-2">
-            <summary className="text-xs text-amber-900 cursor-pointer select-none font-medium">🤝 건축협정</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--warn)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>건축협정</summary>
             <div className="space-y-2 mt-2">
               <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <input type="checkbox" name="building_agreement" checked={!!formData.building_agreement} onChange={(e) => setFormData({ building_agreement: e.target.checked })} className="w-4 h-4 accent-amber-600" />
+                <input type="checkbox" name="building_agreement" checked={!!formData.building_agreement} onChange={(e) => setFormData({ building_agreement: e.target.checked })} className="w-4 h-4 accent-[var(--warn)]" />
                 <span>협정 체결 (건폐율·용적률 1.2배)</span>
               </label>
               <label className="flex items-center gap-2 text-xs cursor-pointer ml-4">
-                <input type="checkbox" name="agreement_landscape_road_facing" checked={!!formData.agreement_landscape_road_facing} onChange={(e) => setFormData({ agreement_landscape_road_facing: e.target.checked })} disabled={!formData.building_agreement} className="w-4 h-4 accent-amber-600" />
+                <input type="checkbox" name="agreement_landscape_road_facing" checked={!!formData.agreement_landscape_road_facing} onChange={(e) => setFormData({ agreement_landscape_road_facing: e.target.checked })} disabled={!formData.building_agreement} className="w-4 h-4 accent-[var(--warn)]" />
                 <span className={!formData.building_agreement ? 'text-gray-400' : ''}>조경 도로면 통합조성 (의무 0.8배)</span>
               </label>
             </div>
-            <p className="mt-2 text-[10px] text-amber-700">※ 협정 인가 + 심의 통과 시에만 효력</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 협정 인가 + 심의 통과 시에만 효력</p>
           </details>
 
           {/* 특별 지구·인증 특례 */}
-          <details className="rounded border border-purple-200 bg-purple-50/40 px-3 py-2">
-            <summary className="text-xs text-purple-900 cursor-pointer select-none font-medium">📋 특별 지구·인증 특례</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>특별 지구·인증 특례</summary>
             <div className="space-y-2 mt-2">
               <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <input type="checkbox" name="rema_zone" checked={!!formData.rema_zone} onChange={(e) => setFormData({ rema_zone: e.target.checked })} className="w-4 h-4 accent-purple-600" />
+                <input type="checkbox" name="rema_zone" checked={!!formData.rema_zone} onChange={(e) => setFormData({ rema_zone: e.target.checked })} className="w-4 h-4 accent-[var(--brand)]" />
                 <span>재정비촉진지구 (용적률 ×1.2)</span>
               </label>
               <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <input type="checkbox" name="easy_remodel" checked={!!formData.easy_remodel} onChange={(e) => setFormData({ easy_remodel: e.target.checked })} disabled={!isApartment} className="w-4 h-4 accent-purple-600" />
+                <input type="checkbox" name="easy_remodel" checked={!!formData.easy_remodel} onChange={(e) => setFormData({ easy_remodel: e.target.checked })} disabled={!isApartment} className="w-4 h-4 accent-[var(--brand)]" />
                 <span className={!isApartment ? 'text-gray-400' : ''}>리모델링이 쉬운 구조 (공동주택, 용적률 ×1.2)</span>
               </label>
               <label className="flex items-center gap-2 text-xs cursor-pointer">
-                <input type="checkbox" name="public_rental" checked={!!formData.public_rental} onChange={(e) => setFormData({ public_rental: e.target.checked })} className="w-4 h-4 accent-purple-600" />
+                <input type="checkbox" name="public_rental" checked={!!formData.public_rental} onChange={(e) => setFormData({ public_rental: e.target.checked })} className="w-4 h-4 accent-[var(--brand)]" />
                 <span>공공지원민간임대주택 (법정 상한까지)</span>
               </label>
             </div>
-            <p className="mt-2 text-[10px] text-purple-700">※ 실제 인허가 단계에서 검토 필수</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 실제 인허가 단계에서 검토 필수</p>
           </details>
 
           {/* 도시계획시설 저촉 면적 */}
-          <details className="rounded border border-sky-200 bg-sky-50/40 px-3 py-2">
-            <summary className="text-xs text-sky-900 cursor-pointer select-none font-medium">🗺 시설 저촉 면적</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>시설 저촉 면적</summary>
             <div className="mt-2">
               <Field label="시설부지 면적 (㎡)" hint="비워두면 자동 산정">
                 <input type="number" name="urban_facility_exclude_area" value={formData.urban_facility_exclude_area} onChange={handleChange} min="0" step="0.01" className={inputCls} placeholder="예: 50.5" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-sky-700">※ 입력 시 VWorld×SHP 자동 추정 결과 무시</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 입력 시 VWorld×SHP 자동 추정 결과 무시</p>
           </details>
 
           {/* 높이·일조 */}
-          <details className="rounded border border-amber-200 bg-amber-50/40 px-3 py-2">
-            <summary className="text-xs text-amber-900 cursor-pointer select-none font-medium">☀ 높이·일조 판정</summary>
+          <details className="px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--warn)',backgroundColor:'var(--canvas)'}}>
+            <summary className="text-xs cursor-pointer select-none font-medium" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>높이·일조 판정</summary>
             <div className="space-y-2 mt-2">
               <Field label="정북 이격거리 (m)" hint="§86 ①항 자동비교">
                 <input type="number" name="north_setback_m" value={formData.north_setback_m} onChange={handleChange} min="0" step="0.01" className={inputCls} placeholder="예: 4.5" />
@@ -587,7 +587,7 @@ export default function InputForm({ isDrawer = false }) {
                 <input type="number" name="street_block_max_height_m" value={formData.street_block_max_height_m} onChange={handleChange} min="1" step="0.1" className={inputCls} placeholder="예: 30" />
               </Field>
             </div>
-            <p className="mt-2 text-[10px] text-amber-700">※ 미입력 시 수동 검토 필요</p>
+            <p className="mt-2 text-[10px]" style={{color:'var(--mute)'}}>※ 미입력 시 수동 검토 필요</p>
           </details>
 
         </div>
@@ -599,7 +599,8 @@ export default function InputForm({ isDrawer = false }) {
       <button
         type="submit"
         disabled={loading || !formData.address || !formData.building_use}
-        className="w-full py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold rounded-lg transition-colors text-sm"
+        className="w-full py-3 font-semibold text-sm transition-colors"
+        style={{backgroundColor:'var(--brand)',color:'#fff',borderRadius:'var(--radius-pill)',height:'var(--btn-h)',opacity:(loading || !formData.address || !formData.building_use)?0.4:1,cursor:(loading || !formData.address || !formData.building_use)?'not-allowed':'pointer',fontFamily:'var(--font-sans)'}}
       >
         {loading ? '진단 중...' : isMulti ? `합필 진단 시작 (${additionalParcels.length + 1}개 필지)` : '법규 진단 시작'}
       </button>
@@ -609,7 +610,7 @@ export default function InputForm({ isDrawer = false }) {
 
 function SectionLabel({ children }) {
   return (
-    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200 pb-1">
+    <p className="text-xs font-semibold uppercase pb-1" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',letterSpacing:'0.08em',borderBottom:'1px solid var(--hairline)'}}>
       {children}
     </p>
   )
@@ -628,18 +629,18 @@ function RatioCell({ formData }) {
   const far = site > 0 && above > 0 ? (farArea / site) * 100 : null
 
   return (
-    <div className="rounded border border-blue-200 bg-blue-50/60 px-3 py-2 flex flex-col justify-center">
-      <p className="text-[var(--font-size-2xs)] font-semibold text-blue-800 mb-1.5">📐 자동계산</p>
+    <div className="px-3 py-2 flex flex-col justify-center" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--info)',backgroundColor:'var(--canvas)'}}>
+      <p className="text-[10px] font-semibold mb-1.5" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',textTransform:'uppercase',letterSpacing:'0.06em'}}>자동계산</p>
       <div className="flex gap-4">
         <div>
-          <span className="text-[var(--font-size-2xs)] text-gray-500 block">건폐율</span>
-          <span className="text-base font-bold tabular-nums" style={{color:'var(--link)'}}>
+          <span className="text-[10px] block" style={{color:'var(--mute)'}}>건폐율</span>
+          <span className="text-base font-bold tabular-nums" style={{color:'var(--ink)',fontFamily:'var(--font-mono)'}}>
             {coverage !== null ? `${coverage.toFixed(1)}%` : '—'}
           </span>
         </div>
         <div>
-          <span className="text-[var(--font-size-2xs)] text-gray-500 block">용적률</span>
-          <span className="text-base font-bold text-blue-700 tabular-nums">
+          <span className="text-[10px] block" style={{color:'var(--mute)'}}>용적률</span>
+          <span className="text-base font-bold tabular-nums" style={{color:'var(--ink)',fontFamily:'var(--font-mono)'}}>
             {far !== null ? `${far.toFixed(1)}%` : '—'}
           </span>
         </div>
@@ -662,13 +663,13 @@ function FloorAreaSummary({ formData }) {
   if (refuge > 0) excludedParts.push(`피난안전구역 ${refuge.toLocaleString()}㎡`)
   if (atticRefuge > 0) excludedParts.push(`경사지붕 대피공간 ${atticRefuge.toLocaleString()}㎡`)
   return (
-    <p className="text-xs text-gray-500 leading-relaxed">
+    <p className="text-xs leading-relaxed" style={{color:'var(--mute)'}}>
       전체 연면적:{' '}
-      <span className="font-semibold text-gray-700">{(above + below).toLocaleString()}㎡</span>
+      <span className="font-semibold" style={{color:'var(--body)'}}>{(above + below).toLocaleString()}㎡</span>
       {hasExclusion && (
-        <span className="text-gray-400">
+        <span style={{color:'var(--faint)'}}>
           {' '}· 용적률 산정:{' '}
-          <span className="font-semibold text-blue-700">{farArea.toLocaleString()}㎡</span>
+          <span className="font-semibold" style={{color:'var(--link)',fontFamily:'var(--font-mono)'}}>{farArea.toLocaleString()}㎡</span>
           {excludedParts.length > 0 && (
             <span className="ml-1">({excludedParts.join(', ')} 제외)</span>
           )}
@@ -681,8 +682,8 @@ function FloorAreaSummary({ formData }) {
 function AutoLandInfoBanner({ loading, info }) {
   if (loading) {
     return (
-      <div className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded px-2 py-1.5 inline-flex items-center gap-1.5">
-        <span className="animate-spin">⟳</span>
+      <div className="mt-2 text-xs px-2 py-1.5 inline-flex items-center gap-1.5" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',color:'var(--mute)',backgroundColor:'var(--canvas)'}}>
+        <div style={{width:10,height:10,border:'2px solid var(--hairline)',borderTopColor:'var(--brand)',borderRadius:'50%',animation:'spin 0.8s linear infinite',flexShrink:0}} />
         토지이용계획 조회 중...
       </div>
     )
@@ -696,20 +697,20 @@ function AutoLandInfoBanner({ loading, info }) {
   if (info.official_price) items.push(['공시지가', `${info.official_price.toLocaleString()}원/㎡`])
   if (info.road_width_auto != null) items.push(['전면도로 폭', `${info.road_width_auto}m (자동)`])
   if (items.length === 0) {
-    return <p className="mt-2 text-xs text-amber-600">⚠ 토지이용계획 조회 실패 (수동 입력 필요)</p>
+    return <p className="mt-2 text-xs" style={{color:'var(--warn-deep)'}}>토지이용계획 조회 실패 (수동 입력 필요)</p>
   }
   return (
-    <div className="mt-2 text-xs bg-blue-50 border border-blue-200 rounded px-3 py-2">
-      <p className="font-semibold text-blue-900 mb-1">🔄 자동 조회 결과 (VWorld)</p>
+    <div className="mt-2 text-xs px-3 py-2" style={{borderRadius:'var(--radius-sm)',border:'1px solid var(--hairline)',borderLeft:'3px solid var(--info)',backgroundColor:'var(--canvas)'}}>
+      <p className="font-semibold mb-1" style={{color:'var(--ink)'}}>자동 조회 결과 (VWorld)</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
         {items.map(([k, v]) => (
           <div key={k}>
-            <span className="text-gray-500">{k}: </span>
-            <span className="font-medium text-gray-800">{v}</span>
+            <span style={{color:'var(--mute)'}}>{k}: </span>
+            <span className="font-medium" style={{color:'var(--ink)'}}>{v}</span>
           </div>
         ))}
       </div>
-      <p className="mt-1 text-blue-600 text-[10px]">↓ 아래 입력란에 자동 반영됨. 실제와 다르면 수정하세요.</p>
+      <p className="mt-1 text-[10px]" style={{color:'var(--link)'}}>↓ 아래 입력란에 자동 반영됨. 실제와 다르면 수정하세요.</p>
     </div>
   )
 }
@@ -738,10 +739,10 @@ function AreaWithRatio({ name, value, onChange, siteArea, placeholder }) {
 function Field({ label, required, hint, children }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium mb-1" style={{color:'var(--body)',fontFamily:'var(--font-sans)'}}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-        {hint && <span className="text-gray-400 ml-1 font-normal text-xs">({hint})</span>}
+        {required && <span className="ml-0.5" style={{color:'var(--error)'}}>*</span>}
+        {hint && <span className="ml-1 font-normal text-xs" style={{color:'var(--faint)'}}>({hint})</span>}
       </label>
       {children}
     </div>
@@ -749,4 +750,5 @@ function Field({ label, required, hint, children }) {
 }
 
 const inputCls =
-  'w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full px-3 py-2.5 text-sm focus:outline-none'
+  + ' border border-[var(--hairline)] rounded-[6px] bg-[var(--canvas-elevated)] text-[var(--ink)] font-[var(--font-sans)]'

@@ -29,10 +29,10 @@ const ROWS = [
 ]
 
 const VERDICT_COLOR = {
-  '참여 권장': 'var(--color-success)',
-  '협상 필요': 'var(--color-warning)',
-  '패스 권장': 'var(--color-danger)',
-  '정보 부족': 'var(--color-text-faint)',
+  '참여 권장': 'var(--ok)',
+  '협상 필요': 'var(--warn-deep)',
+  '패스 권장': 'var(--error)',
+  '정보 부족': 'var(--faint)',
 }
 
 export default function MultiSiteCompare() {
@@ -48,21 +48,27 @@ export default function MultiSiteCompare() {
       {/* 부지 엔트리 편집 */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-800">
+          <h3 className="text-sm font-semibold" style={{ color: 'var(--ink)' }}>
             비교할 부지 ({multiSites.length})
           </h3>
           <div className="flex gap-2">
             {multiSites.length > 0 && (
               <button
                 onClick={clearMultiSites}
-                className="text-[11px] text-gray-400 hover:text-gray-600"
+                className="text-[11px]"
+                style={{ color: 'var(--faint)' }}
               >
                 전체 삭제
               </button>
             )}
             <button
               onClick={() => addMultiSite()}
-              className="text-[11px] font-medium px-2.5 py-1 rounded border border-gray-300 hover:bg-gray-50"
+              className="text-[11px] font-medium px-2.5 py-1 border"
+              style={{
+                borderColor: 'var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--body)',
+              }}
             >
               + 부지 추가
             </button>
@@ -70,7 +76,15 @@ export default function MultiSiteCompare() {
         </div>
 
         {multiSites.length === 0 ? (
-          <div className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+          <div
+            className="text-[11px] border px-4 py-3"
+            style={{
+              color: 'var(--mute)',
+              background: 'var(--canvas-inset)',
+              borderColor: 'var(--hairline)',
+              borderRadius: 'var(--radius-sm)',
+            }}
+          >
             부지를 추가하거나 위의 "공모지침에서 부지 불러오기"로 시작하세요.
           </div>
         ) : (
@@ -89,7 +103,15 @@ export default function MultiSiteCompare() {
       </section>
 
       {multiError && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded">
+        <div
+          className="text-xs px-3 py-2 rounded"
+          style={{
+            color: 'var(--error)',
+            background: 'var(--canvas-elevated)',
+            borderLeft: '3px solid var(--error)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
           {multiError}
         </div>
       )}
@@ -98,8 +120,12 @@ export default function MultiSiteCompare() {
         <button
           onClick={runMulti}
           disabled={multiLoading}
-          className="w-full py-2.5 text-xs font-semibold text-white rounded-lg shadow-sm disabled:opacity-50"
-          style={{ backgroundColor: 'var(--color-accent)' }}
+          className="w-full py-2.5 text-xs font-semibold text-white disabled:opacity-50"
+          style={{
+            backgroundColor: 'var(--brand)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: 'var(--shadow-sm)',
+          }}
         >
           {multiLoading ? '비교 계산 중…' : `전체 비교 실행 (${multiSites.length}개 부지)`}
         </button>
@@ -131,23 +157,40 @@ function BriefLoader({ onLoad }) {
   }
 
   return (
-    <div className="border border-gray-200 rounded-lg bg-gray-50">
+    <div
+      className="border"
+      style={{
+        borderColor: 'var(--hairline)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--canvas-inset)',
+      }}
+    >
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-3 py-2.5 text-left"
       >
-        <span className="text-xs font-semibold text-gray-700">
-          📋 공모지침에서 부지 불러오기
-          <span className="text-[10px] font-normal text-gray-400 ml-2">
+        <span className="text-xs font-semibold" style={{ color: 'var(--body)' }}>
+          공모지침에서 부지 불러오기
+          <span className="text-[10px] font-normal ml-2" style={{ color: 'var(--faint)' }}>
             다부지 공모를 한 번에 비교
           </span>
         </span>
-        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+        <span className="text-xs" style={{ color: 'var(--faint)' }}>{open ? '▲' : '▼'}</span>
       </button>
       {open && (
-        <div className="px-3 pb-3 border-t border-gray-200 pt-3">
+        <div className="px-3 pb-3 pt-3" style={{ borderTop: '1px solid var(--hairline)' }}>
           {error && (
-            <div className="text-[11px] text-red-600 bg-red-50 border border-red-200 px-2 py-1.5 rounded mb-2">{error}</div>
+            <div
+              className="text-[11px] px-2 py-1.5 rounded mb-2"
+              style={{
+                color: 'var(--error)',
+                background: 'var(--canvas-elevated)',
+                borderLeft: '3px solid var(--error)',
+                border: '1px solid var(--hairline)',
+              }}
+            >
+              {error}
+            </div>
           )}
           <BriefList onPick={pick} picking={loading} />
         </div>
@@ -161,18 +204,27 @@ function SiteRow({ site, index, onUpdate, onRemove }) {
   const needAddr = !site.address
   const needUse = !site.facility_use
   return (
-    <div className="border border-gray-200 rounded-lg p-3 bg-white">
+    <div
+      className="border p-3"
+      style={{
+        borderColor: 'var(--hairline)',
+        borderRadius: 'var(--radius-sm)',
+        background: 'var(--canvas-elevated)',
+      }}
+    >
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] text-gray-400 w-5">{index + 1}</span>
+        <span className="text-[10px] w-5" style={{ color: 'var(--faint)' }}>{index + 1}</span>
         <input
           value={site.site_label}
           onChange={(e) => onUpdate({ site_label: e.target.value })}
-          className="flex-1 text-xs font-semibold border border-gray-200 rounded px-2 py-1"
+          className="flex-1 text-xs font-semibold border rounded px-2 py-1"
+          style={{ borderColor: 'var(--hairline)' }}
           placeholder="부지 이름"
         />
         <button
           onClick={onRemove}
-          className="text-gray-300 hover:text-red-500 px-1"
+          className="px-1"
+          style={{ color: 'var(--hairline)' }}
           title="삭제"
         >
           ×
@@ -184,13 +236,15 @@ function SiteRow({ site, index, onUpdate, onRemove }) {
             value={site.address}
             onChange={(e) => onUpdate({ address: e.target.value })}
             placeholder="주소 *"
-            className={`w-full text-xs border rounded px-2 py-1 ${needAddr ? 'border-red-300' : 'border-gray-300'}`}
+            className="w-full text-xs border rounded px-2 py-1"
+            style={{ borderColor: needAddr ? 'var(--error)' : 'var(--hairline)' }}
           />
         </div>
         <select
           value={site.facility_use}
           onChange={(e) => onUpdate({ facility_use: e.target.value })}
-          className={`text-xs border rounded px-2 py-1 ${needUse ? 'border-red-300' : 'border-gray-300'}`}
+          className="text-xs border rounded px-2 py-1"
+          style={{ borderColor: needUse ? 'var(--error)' : 'var(--hairline)' }}
         >
           <option value="">용도 선택 *</option>
           {FACILITY_USES.map((u) => (
@@ -202,12 +256,13 @@ function SiteRow({ site, index, onUpdate, onRemove }) {
           value={site.site_area_override}
           onChange={(e) => onUpdate({ site_area_override: e.target.value })}
           placeholder="대지면적 ㎡"
-          className="text-xs border border-gray-300 rounded px-2 py-1"
+          className="text-xs border rounded px-2 py-1"
+          style={{ borderColor: 'var(--hairline)' }}
         />
       </div>
       {/* 공모에서 채운 목표치 (참고 표시) */}
       {(site.target_far_pct || site.target_floor_area_sqm) && (
-        <div className="text-[10px] text-gray-400 mt-1.5">
+        <div className="text-[10px] mt-1.5" style={{ color: 'var(--faint)' }}>
           공모 목표: 연면적 {fmt(site.target_floor_area_sqm)}㎡ · 용적률 {fmt(site.target_far_pct, 1)}% · 건폐율 {fmt(site.target_building_coverage_pct, 1)}%
         </div>
       )}
@@ -230,17 +285,26 @@ function CompareMatrix({ results }) {
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-gray-800 mb-3">비교 결과</h3>
+      <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--ink)' }}>비교 결과</h3>
       {ok.length === 0 ? (
-        <div className="text-xs text-gray-500">성공한 부지가 없습니다.</div>
+        <div className="text-xs" style={{ color: 'var(--mute)' }}>성공한 부지가 없습니다.</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">
             <thead>
               <tr>
-                <th className="text-left font-medium text-gray-500 px-2 py-1.5 border-b border-gray-200">항목</th>
+                <th
+                  className="text-left font-medium px-2 py-1.5"
+                  style={{ color: 'var(--mute)', borderBottom: '1px solid var(--hairline)' }}
+                >
+                  항목
+                </th>
                 {ok.map((res, i) => (
-                  <th key={i} className="px-2 py-1.5 border-b border-gray-200 text-center min-w-[96px] font-semibold text-gray-700">
+                  <th
+                    key={i}
+                    className="px-2 py-1.5 text-center min-w-[96px] font-semibold"
+                    style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline)' }}
+                  >
                     {res.site_label || res.address}
                   </th>
                 ))}
@@ -249,12 +313,21 @@ function CompareMatrix({ results }) {
             <tbody>
               {ROWS.map((r) => (
                 <tr key={r.key}>
-                  <td className="px-2 py-1.5 text-gray-600 border-b border-gray-100">{r.label}</td>
+                  <td
+                    className="px-2 py-1.5"
+                    style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                  >
+                    {r.label}
+                  </td>
                   {ok.map((res, i) => {
                     const val = r.get(res)
                     if (r.text) {
                       return (
-                        <td key={i} className="px-2 py-1.5 text-center border-b border-gray-100 text-gray-700">
+                        <td
+                          key={i}
+                          className="px-2 py-1.5 text-center"
+                          style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                        >
                           {val}
                         </td>
                       )
@@ -263,8 +336,12 @@ function CompareMatrix({ results }) {
                     return (
                       <td
                         key={i}
-                        className="px-2 py-1.5 text-center border-b border-gray-100"
-                        style={isBest ? { color: 'var(--color-success)', fontWeight: 700 } : {}}
+                        className="px-2 py-1.5 text-center"
+                        style={
+                          isBest
+                            ? { color: 'var(--ok)', fontWeight: 700, borderBottom: '1px solid var(--hairline-soft)' }
+                            : { borderBottom: '1px solid var(--hairline-soft)' }
+                        }
                       >
                         {fmt(val, r.d)}{val != null ? r.unit : ''}
                       </td>
@@ -274,11 +351,23 @@ function CompareMatrix({ results }) {
               ))}
               {/* 종합 판단 */}
               <tr>
-                <td className="px-2 py-1.5 text-gray-600 border-b border-gray-100">종합 판단</td>
+                <td
+                  className="px-2 py-1.5"
+                  style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                >
+                  종합 판단
+                </td>
                 {ok.map((res, i) => {
                   const v = res.overall_recommendation?.verdict
                   return (
-                    <td key={i} className="px-2 py-1.5 text-center border-b border-gray-100 font-semibold" style={{ color: VERDICT_COLOR[v] || 'inherit' }}>
+                    <td
+                      key={i}
+                      className="px-2 py-1.5 text-center font-semibold"
+                      style={{
+                        color: VERDICT_COLOR[v] || 'inherit',
+                        borderBottom: '1px solid var(--hairline-soft)',
+                      }}
+                    >
                       {v || '—'}
                     </td>
                   )
@@ -286,23 +375,40 @@ function CompareMatrix({ results }) {
               </tr>
               {/* 심의 필수 */}
               <tr>
-                <td className="px-2 py-1.5 text-gray-600 border-b border-gray-100">심의 필수</td>
+                <td
+                  className="px-2 py-1.5"
+                  style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                >
+                  심의 필수
+                </td>
                 {ok.map((res, i) => (
-                  <td key={i} className="px-2 py-1.5 text-center border-b border-gray-100 text-gray-700">
+                  <td
+                    key={i}
+                    className="px-2 py-1.5 text-center"
+                    style={{ color: 'var(--body)', borderBottom: '1px solid var(--hairline-soft)' }}
+                  >
                     {res.review_burden?.count_required != null ? `${res.review_burden.count_required}건` : '—'}
                   </td>
                 ))}
               </tr>
             </tbody>
           </table>
-          <p className="text-[10px] text-gray-400 mt-2">
+          <p className="text-[10px] mt-2" style={{ color: 'var(--faint)' }}>
             초록색 = 항목별 가장 유리한 값 (용적률·건폐율·연면적은 클수록, 주차는 적을수록).
           </p>
         </div>
       )}
 
       {failed.length > 0 && (
-        <div className="mt-3 text-[11px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+        <div
+          className="mt-3 text-[11px] rounded px-3 py-2"
+          style={{
+            color: 'var(--error)',
+            background: 'var(--canvas-elevated)',
+            borderLeft: '3px solid var(--error)',
+            border: '1px solid var(--hairline)',
+          }}
+        >
           실패한 부지 {failed.length}개:
           <ul className="mt-1 space-y-0.5">
             {failed.map((f, i) => (

@@ -67,7 +67,7 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
 
   const today = new Date().toISOString().slice(0, 10)
   const signal = result.signal
-  const signalText = signal === 'GREEN' ? '🟢 적합' : signal === 'RED' ? '🔴 부적합' : '🟡 주의 필요'
+  const signalText = signal === 'GREEN' ? '적합' : signal === 'RED' ? '부적합' : '주의 필요'
 
   const categories = Object.entries(result.results || {})
 
@@ -94,21 +94,21 @@ export default function LegalReviewReport({ rawResult, formData, onClose }) {
         </div>
         <div className="lr-buttons">
           <button onClick={() => window.print()} className="lr-btn primary">
-            📄 인쇄 / PDF 저장
+            인쇄 / PDF 저장
           </button>
           <button
             onClick={() => handleDownload('md')}
             disabled={downloading === 'md'}
             className="lr-btn"
           >
-            {downloading === 'md' ? '⏳ 생성중...' : '📝 MD 다운로드'}
+            {downloading === 'md' ? '생성중...' : 'MD 다운로드'}
           </button>
           <button
             onClick={() => handleDownload('xlsx')}
             disabled={downloading === 'xlsx'}
             className="lr-btn"
           >
-            {downloading === 'xlsx' ? '⏳ 생성중...' : '📊 Excel 다운로드'}
+            {downloading === 'xlsx' ? '생성중...' : 'Excel 다운로드'}
           </button>
           <button onClick={onClose} className="lr-btn">닫기 (Esc)</button>
         </div>
