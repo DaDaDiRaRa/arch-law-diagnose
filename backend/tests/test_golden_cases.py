@@ -120,3 +120,83 @@ async def test_golden_case(case_path):
             assert card["pass"] is exp["pass"], (
                 f"[{case['id']}] {cat} pass {card['pass']} != 기대 {exp['pass']}"
             )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 고가치 경로 테스트 (합성) — 실 통과 케이스가 못 건드리는 미검증 경로를 직접 때린다.
+#   실패/RED · 완화(far_relief) · 주차 부족 · 비주입(엔진 자가 한도결정).
+#   여기서 실패가 나면 그게 곧 정확도 개선 지점.
+# ─────────────────────────────────────────────────────────────────────────────
+def _land(zone: str) -> dict:
+    return {"zone_use": zone, "jurisdiction_code": "GOLD0", "jurisdiction_name": "(익명)"}
+
+
+async def test_path_red_when_coverage_exceeds():
+    """건폐율이 한도를 넘으면 pass=False + 종합신호 RED (실패 경로 검증)."""
+    engine = _build_engine({"building_coverage_ratio": 60.0, "floor_area_ratio": 250.0})
+    req = {
+        "address": "RED-edge", "building_use": "업무시설",
+        "site_area": 1000.0, "building_area": 700.0,   # 70% > 한도 60%
+        "total_floor_area": 2000.0, "floor_area_above": 2000.0,  # 용적률 200% ≤ 250
+        "floors_above": 5, "floors_below": 1, "height": 18.0,
+    }
+    result = await engine._diagnose(req, _land("제2종일반주거지역"), save_history=False, skip_ai=True)
+    cov = result["results"]["건폐율"]
+    assert cov["pass"] is False
+    assert cov["actual_pct"] == 70.0 and cov["excess_pct"] == 10.0
+    assert result["signal"] == "RED"          # pass=False 항목이 있으면 RED
+
+
+async def test_path_relief_open_space_and_green_capped():
+    """공개공지 초과 + 녹색최우수 완화가 합산되되 전체 캡 1.15배에 걸린다 (far_relief 경로).
+
+    far_relief_rules.json 에 문서화된 실증 시나리오: 준공업·base 400% → 캡 460%.
+    """
+    engine = _build_engine({"floor_area_ratio": 400.0})
+    req = {
+        "address": "relief-edge", "building_use": "업무시설",
+        "site_area": 10000.0, "building_area": 5000.0,
+        "total_floor_area": 40000.0, "floor_area_above": 40000.0,
+        "floors_above": 10, "floors_below": 2, "height": 40.0,
+        "public_open_space_area": 2518.0,   # 25.18% → 의무 10% 초과 15.18%p
+        "green_grade": "최우수",             # +6%
+    }
+    result = await engine._diagnose(req, _land("준공업지역"), save_history=False, skip_ai=True)
+    far = result["results"]["용적률"]
+    relief = far["relief_info"]
+    assert relief["applied"] is True and relief["capped"] is True
+    assert far["limit_pct"] == 460.0          # 400 × 1.15 (전체 캡)
+
+
+async def test_path_parking_shortfall_fails():
+    """계획 주차가 법정보다 적으면 주차 pass=False + 부족분 노출 (주차 경로)."""
+    engine = _build_engine(None)
+    req = {
+        "address": "parking-edge", "building_use": "업무시설",
+        "site_area": 2000.0, "building_area": 1000.0,
+        "total_floor_area": 30000.0, "floor_area_above": 30000.0,
+        "floors_above": 10, "floors_below": 2, "height": 40.0,
+        "provided_parking_spaces": 10,        # 턱없이 부족
+    }
+    result = await engine._diagnose(req, _land("일반상업지역"), save_history=False, skip_ai=True)
+    pk = result["results"]["주차"]
+    assert pk["required_spaces"] is not None and pk["required_spaces"] > 10
+    assert pk["pass"] is False and pk["deficit"] > 0
+
+
+async def test_path_uninjected_uses_sihaengryeong_default():
+    """조례를 주입하지 않으면 엔진이 zone_limits.json(시행령) 한도를 스스로 적용한다.
+
+    → 한도 결정 로직 + 설정값 정확성 검증(여기 실패 = 실무 정확도 버그).
+    제2종일반주거 시행령: 건폐율 60% · 용적률 250%.
+    """
+    engine = _build_engine(None)   # OrdinanceResolver 없음
+    req = {
+        "address": "uninjected", "building_use": "업무시설",
+        "site_area": 1000.0, "building_area": 400.0,
+        "total_floor_area": 2000.0, "floor_area_above": 2000.0,
+        "floors_above": 5, "floors_below": 1, "height": 18.0,
+    }
+    result = await engine._diagnose(req, _land("제2종일반주거지역"), save_history=False, skip_ai=True)
+    assert result["results"]["건폐율"]["limit_pct"] == 60
+    assert result["results"]["용적률"]["limit_pct"] == 250

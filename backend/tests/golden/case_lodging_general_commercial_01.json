@@ -1,0 +1,30 @@
+{
+  "id": "lodging_general_commercial_01",
+  "label": "숙박시설(일반+생활숙박+판매) — 일반상업지역",
+  "source": "실 건축설계공모 설계개요에서 추출. 식별정보(사업명·주소) 전부 제외, 수치·용도지역만 보존.",
+  "note": "숙박시설. 건폐율 69.36/70·용적률 498.58/500 둘 다 면도날. 지하4·지상14층.",
+  "input": {
+    "building_use": "숙박시설",
+    "zone_use": "일반상업지역",
+    "site_area": 34253.00,
+    "building_area": 23757.23,
+    "total_floor_area": 264068.03,
+    "floor_area_above": 170778.29,
+    "floors_above": 14,
+    "floors_below": 4
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 70.0,
+    "floor_area_ratio": 500.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "일반숙박+생활숙박+판매 복합. 공개공지 법정 10%, 조경 15%.",
+    "room_count_approx": 443
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 69.36, "limit_pct": 70.0, "pass": true},
+    "용적률": {"actual_pct": 498.58, "limit_pct": 500.0, "pass": true},
+    "signal_not": "RED"
+  }
+}

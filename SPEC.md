@@ -1,7 +1,7 @@
 # arch-law-diagnose — 시스템 스펙
 
 > 코드에서 역추론한 문서. 불확실한 부분은 **[추정]** 으로 표시.  
-> 최종 업데이트: 2026-06-29 (학교·문화재 API 연동·지구단위계획구역 자동 감지 반영)
+> 최종 업데이트: 2026-06-30 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋)
 
 ---
 
@@ -95,13 +95,13 @@
 | `floors_below` | int | — | 지하 층수 |
 | `building_use` | string | ✅ | 건축물 용도 (건축법 19개 분류) |
 | `units` | int | — | 세대수 (공동주택) |
-| `provided_parking` | int | — | 계획 주차 대수 |
+| `provided_parking_spaces` | int | — | 계획 주차 대수 |
 | `north_setback_m` | float | — | 정북 이격거리 (m); 없으면 §61 pass=None |
 | `road_width_m` | float | — | 접도 너비 (m) |
 | `jurisdiction_code` | string | — | 시군구코드 (조례 조회용; PNU 있으면 자동 파생) |
 | `applicant_type` | string | — | `공공기관` / `민간` (공공인증 의무 판정용) |
 | `green_grade` | string | — | 녹색건축 인증 등급 (완화 적용용) |
-| `zero_energy_grade` | int | — | 제로에너지 등급 1~5 |
+| `energy_grade` | string | — | 제로에너지 등급 (문자열: `1++`/`1+`/`1`~`5`). 엔진은 `zero_energy_grade`도 허용 |
 | `far_limit_manual_override` | float | — | 용적률 상한 수동 지정 (심의 결정값 등) |
 | `building_agreement` | bool | — | 건축협정 여부 (§110의7 완화 적용) |
 | `skip_fire_safety` | bool | — | AI 설비소방 판단 생략 (빠른 재계산용) |
@@ -175,6 +175,8 @@ DiagnoseEngine.run(req)
 ---
 
 ## 5. 카테고리별 계산 로직
+
+> **산정 근거(provenance) — 2026-06-30 추가**: 정량 4개 카드(건폐율·용적률·높이·주차)는 반환에 `provenance{inputs, formula, computed, basis}`를 함께 실어, 어떤 입력·산식으로 그 수치가 나왔는지 자가기술한다(기존 필드 불변). 프론트는 카드 펼침의 "🧮 산정 근거"로 표시.
 
 ### 5-1. 행위제한 (`land_use_act.py`)
 
@@ -259,10 +261,11 @@ EUM  act_info API  ──┘
 
 **한도 결정**: 건폐율과 동일 cascade + FarRelief 완화 추가 적용
 
-**점수 산식** [추정]:
+**점수 산식** (`far.py` — 건폐율과 동일 곡선):
 ```
-용적률 / 한도 ≤ 0.9  → 10점
-          ≤ 1.0  →  6점
+용적률 / 한도 ≤ 0.7  → 10점
+          ≤ 0.9  →  8점 (선형 보간)
+          ≤ 1.0  →  6점 (선형 보간)
           > 1.0  →  0점 (pass=False)
 ```
 
@@ -276,9 +279,11 @@ EUM  act_info API  ──┘
 
 #### (A) 가로구역별 최고높이 (§60)
 ```
-조회 소스: street_block_heights.json (현재 비어 있음 → pass=None 고정)
-허가권자(자치구청장) 개별 고시 → 구조화 API 없음
-수동 seed만 가능
+조회 소스: street_block_heights.json (현재 비어 있음)
+값 있으면: 건물높이 > 지정높이 → pass=False(RED), 이하 → 통과
+값 없으면: §60 자동판정 미수행. height 카드 pass 를 None 으로 고정하지 않음
+           (일조 판정으로 결정). data_quality 에 STREET_BLOCK_UNVERIFIED(info) 경고
+허가권자(자치구청장) 개별 고시 → 구조화 API 없음, 수동 seed 만 가능
 ```
 
 #### (B) 일조 사선 (§61 + 시행령 §86, 2023.9.12 개정)
@@ -325,11 +330,12 @@ north_setback_m 입력됨 AND 인접지 용도 입력됨
 - 데이터센터: 별도 기준 적용
 - 주차장법 제외 대상: 연면적 50㎡ 이하 등 [추정]
 
-**점수 산식** [추정]:
+**점수 산식** (`parking.py`):
 ```
-provided ≥ required        → 10점 (pass=True)
-provided ≥ required × 0.9 →  7점 (pass=None, YELLOW)
-provided < required × 0.9 →  0점 (pass=False, RED)
+provided < required  → 0점 (pass=False, RED) — 부족 시 중간 YELLOW 단계 없음
+provided ≥ required  → 7 + (여유분 / required) × 3, 최대 10점 (pass=True)
+                       (딱 맞으면 7점, 넉넉할수록 10점)
+provided 미입력      → required만 계산, pass=None (계획 대수 입력 시 판정)
 ```
 
 ---
@@ -468,6 +474,8 @@ items = [
 | 3 | 조례 확인 필요 (시행령 추정값 사용) |
 | 2 | 두 소스 불일치 또는 입력 부족 |
 | 1 | 데이터 불충분 — 판정 불가 |
+
+**종합 신뢰도 노출 (2026-06-29 추가)**: `data_quality.aggregate_confidence`(1~5) = 채점에 기여한 카테고리 중 **최저 confidence**. *노출만* 하며 신호(RED/YELLOW/GREEN) 판정에는 사용하지 않는다. 프론트 DataQualityBanner 에 "신뢰도 N/5" 배지로 표시.
 
 ---
 
@@ -619,7 +627,7 @@ python -m scripts.seed_municipal_ordinances --commit
 
 | 항목 | 상태 | 영향 |
 |------|------|------|
-| 가로구역 최고높이 (§60) | `street_block_heights.json` 비어 있음 | 항상 `pass=None` |
+| 가로구역 최고높이 (§60) | `street_block_heights.json` 비어 있음 | §60 자동판정 미수행 → `STREET_BLOCK_UNVERIFIED`(info) 경고. height pass 는 일조 판정으로 결정 |
 | 교육환경평가 (학교 좌표) | ✅ 연동됨 (`school_client.py` — Kakao Places) | 좌표 확보 시 `required`/`not_required` 확정, 미확보 시 `maybe` |
 | 문화재 경계 좌표 | ✅ 연동됨 (`heritage_client.py` — 국가유산청 GIS `spca.do`) | 지정문화재 100~500m 자동 판정, 미확보 시 `maybe` |
 | 토지이음 `iuLawInfo` | 서버 측 404 | LawInfoPanel 비활성 |
@@ -644,6 +652,19 @@ python -m scripts.seed_municipal_ordinances --commit
 | 지구명·조례값 하드코딩 금지 | 전국 적용 원칙 |
 | 미구현 항목 → `pass=None` | 오판정보다 "확인 필요" 응답이 안전 |
 | 사내 케이스 DB 제거 | 더미 데이터라 실용성 없어 제거 (git 복원 가능) |
+
+### 데이터 품질 경고 (`data_quality.issues` — 2026-06-29 추가)
+
+| code | level | 발동 |
+|------|-------|------|
+| `STREET_BLOCK_UNVERIFIED` | info | 가로구역 최고높이 미확인 — §60 자동판정 미수행 |
+| `FACILITY_AREA_UNCORRECTED` | warn | 도시계획시설 저촉 감지됐으나 지적 폴리곤 미확보로 대지면적 보정 미수행(건폐·용적 낙관 가능) |
+
+(기존 `NO_ZONE_USE`·`NARROW_ROAD_SETBACK`·`STALE_CACHE`·`NO_ORDINANCE` 등과 함께 DataQualityBanner 에 표시.)
+
+### 회귀 테스트 — 골든 케이스 (D, 2026-06-29 추가)
+
+`backend/tests/golden/*.json` — 실 인허가 건축개요서에서 익명화 추출한 **12건(용도지역 7종)** + 고가치 경로 4종(실패/RED·완화·주차부족·비주입). 조례 한도를 stub 주입해 `_diagnose` 를 결정론 실행, 엔진이 실제 산정값(건폐율·용적률)을 재현하는지 고정. `test_golden_cases.py`. (산정값은 원문 절사 흡수 위해 ±0.01%p 허용.)
 
 ---
 

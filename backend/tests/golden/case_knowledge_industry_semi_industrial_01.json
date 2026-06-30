@@ -1,0 +1,33 @@
+{
+  "id": "knowledge_industry_semi_industrial_01",
+  "label": "지식산업센터+업무+판매 — 준공업지역(지구단위 특별계획구역)",
+  "source": "실 개발사업 건축개요에서 추출. 식별정보(사업명·주소·발주처) 전부 제외, 수치·용도지역만 보존.",
+  "note": "준공업지역. 건폐율 59.89/60, 용적률 398.90/400(허용 면도날). 높이 73.5/80m.",
+  "input": {
+    "building_use": "지식산업센터",
+    "zone_use": "준공업지역",
+    "site_area": 15656.00,
+    "building_area": 9377.00,
+    "total_floor_area": 123052.00,
+    "floor_area_above": 62452.00,
+    "floors_above": 17,
+    "floors_below": 4,
+    "height": 73.5
+  },
+  "applied_ordinance": {
+    "building_coverage_ratio": 60.0,
+    "floor_area_ratio": 400.0,
+    "landscape_ratio": 15.0
+  },
+  "context_recorded_not_asserted": {
+    "comment": "기준 300/허용 400%. 계획 398.90%. 제1종 지구단위계획구역 내 특별계획구역.",
+    "legal_height_m": 80.0,
+    "planned_height_m": 73.5,
+    "public_open_space_pct": 7.66
+  },
+  "expected": {
+    "건폐율": {"actual_pct": 59.89, "limit_pct": 60.0, "pass": true},
+    "용적률": {"actual_pct": 398.90, "limit_pct": 400.0, "pass": true},
+    "signal_not": "RED"
+  }
+}
