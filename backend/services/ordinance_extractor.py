@@ -29,26 +29,58 @@ _CATEGORY_KW = {
     "floor_area_ratio": ["용적률"],
 }
 
-# 한글 숫자 단위 변환
-_KR_UNIT = {"천": 1000, "백": 100}
-
+# 퍼센트/% 또는 100분의 N 앞의 수사 토큰을 통째로 캡쳐.
+# 토큰에는 아라비아 숫자와 한글 단위(천·백)가 섞일 수 있다(예: "1천300퍼센트").
 _PCT_IN_LINE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(?:천|백)?\s*(?:%|퍼센트|퍼\s*센트)"
+    r"([\d천백.,]+)\s*(?:%|퍼\s*센트)"
     r"|100\s*분\s*의\s*(\d+(?:\.\d+)?)"
 )
 
 
+def _kr_numeral(token: str) -> float | None:
+    """아라비아·한글 혼합 수사를 정수/실수로 환산.
+
+    조례 본문은 1,000 이상을 한글 단위로 표기한다:
+      "1천퍼센트"   → 1000   (천만 있고 끝)
+      "1천300퍼센트" → 1300   (천 + 나머지 300)   ← 과거 regex 가 300 으로 오인하던 케이스
+      "1천5백퍼센트" → 1500   (천 + 백)
+      "60퍼센트"    → 60     (단위 없음)
+    천·백을 누적 합산하고, 남은 아라비아 숫자를 그대로 더한다.
+    """
+    token = token.replace(",", "").replace(" ", "").strip().rstrip(".")
+    if not token:
+        return None
+    total = 0.0
+    matched = False
+    m = re.match(r"(\d+)천", token)
+    if m:
+        total += int(m.group(1)) * 1000
+        token = token[m.end():]
+        matched = True
+    m = re.match(r"(\d+)백", token)
+    if m:
+        total += int(m.group(1)) * 100
+        token = token[m.end():]
+        matched = True
+    if token:  # "1천300" 의 "300" 같은 나머지, 또는 단위 없는 순수 숫자
+        if not re.fullmatch(r"\d+(?:\.\d+)?", token):
+            return None
+        total += float(token)
+        matched = True
+    return total if matched else None
+
+
 def _parse_value(text: str) -> float | None:
     """한 줄 텍스트에서 첫 번째 % / 퍼센트 / 100분의 N 값을 추출."""
-    # "1천퍼센트" 같은 한글 단위 처리
-    kr = re.search(r"(\d+)\s*(천|백)\s*퍼센트", text)
-    if kr:
-        return float(kr.group(1)) * _KR_UNIT[kr.group(2)]
-
+    # "1천 300퍼센트"(천·백 뒤 공백) → "1천300퍼센트" 로 정규화해 수사 토큰이
+    # 공백에서 끊겨 "300" 만 잡히는 일을 막는다(대구 중심상업 등).
+    text = re.sub(r"([천백])\s+", r"\1", text)
     m = _PCT_IN_LINE.search(text)
-    if m:
-        return float(m.group(1) or m.group(2))
-    return None
+    if not m:
+        return None
+    if m.group(2) is not None:  # "100분의 N"
+        return float(m.group(2))
+    return _kr_numeral(m.group(1))
 
 
 def _sanity_ok(value: float, category: str, zone_use: str) -> bool:

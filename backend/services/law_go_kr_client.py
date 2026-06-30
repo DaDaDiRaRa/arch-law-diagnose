@@ -298,14 +298,23 @@ def _parse_law_xml(xml_text: str) -> list[dict]:
             continue
         bp_no = (byp.findtext("별표번호") or "").strip()
         bp_url = (byp.findtext("별표첨부파일명") or "").strip()
-        content = "본문은 별도 첨부파일(hwp) 참조 — 자동 추출 불가."
+        # 별표 본문 텍스트는 조문 XML 에 없지만 첨부 PDF/HWP 링크는 제공된다.
+        # https://www.law.go.kr + 링크값 으로 물리파일 다운로드 가능(별표 수치 검증용).
+        pdf_link = (byp.findtext("별표서식PDF파일링크") or "").strip()
+        hwp_link = (byp.findtext("별표서식파일링크") or "").strip()
+        content = "본문은 별도 첨부파일(PDF/HWP) 참조 — 조문 XML 에는 텍스트 없음."
         if bp_url:
             content += f"\n첨부: {bp_url}"
-        articles.append({
+        art = {
             "article_no": f"별표{bp_no}".strip(),
             "title": bp_title,
             "content": content,
-        })
+        }
+        if pdf_link:
+            art["pdf_url"] = f"https://www.law.go.kr{pdf_link}"
+        if hwp_link:
+            art["hwp_url"] = f"https://www.law.go.kr{hwp_link}"
+        articles.append(art)
 
     # 폴백 — 파싱 0건일 때 전체 XML 통째 (예전 스키마 또는 응답 이상 대응)
     if not articles and xml_text.strip():

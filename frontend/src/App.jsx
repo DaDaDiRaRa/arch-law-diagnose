@@ -23,29 +23,29 @@ export default function App() {
   }, [loading])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
-        <div className="w-full flex items-center gap-3">
-          <span className="text-2xl">🏛️</span>
-          <div>
-            <h1 className="text-base font-bold text-gray-900 leading-tight">
-              건축 법규 자동 진단
-            </h1>
-            <p className="text-xs text-gray-500">arch-law-diagnose · Phase 4</p>
-          </div>
-          <div className="ml-auto flex items-center gap-3">
-            {mode === 'verify' && hasOutput && (
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="flex items-center gap-1.5 text-xs bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-colors shadow-sm"
-              >
-                ✏️ 대지정보 수정
-              </button>
-            )}
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full font-medium">
-              사내 전용
-            </span>
-          </div>
+    <div className="min-h-screen" style={{backgroundColor:'var(--canvas)'}}>
+      <header className="sticky top-0 z-10 px-6 py-0 flex items-center gap-3" style={{height:'var(--header-h)',backgroundColor:'var(--canvas-elevated)',borderBottom:'1px solid var(--hairline)'}}>
+        {/* 로고칩 + 앱 제목 */}
+        <span style={{width:22,height:22,borderRadius:'var(--radius-sm)',backgroundColor:'var(--brand)',flexShrink:0,display:'inline-block'}} />
+        <div>
+          <h1 className="text-sm font-semibold leading-tight" style={{color:'var(--ink)',fontFamily:'var(--font-sans)',letterSpacing:'-0.02em'}}>
+            건축 법규 자동 진단
+          </h1>
+          <p className="text-xs" style={{color:'var(--mute)',fontFamily:'var(--font-mono)'}}>arch-law-diagnose · Phase 4</p>
+        </div>
+        <div className="ml-auto flex items-center gap-3">
+          {mode === 'verify' && hasOutput && (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 transition-colors"
+              style={{backgroundColor:'var(--canvas-elevated)',border:'1px solid var(--hairline)',color:'var(--body)',borderRadius:'var(--radius-sm)',fontFamily:'var(--font-sans)'}}
+            >
+              ✏️ 대지정보 수정
+            </button>
+          )}
+          <span className="text-xs px-2 py-1 font-medium" style={{backgroundColor:'var(--info-bg)',color:'var(--info)',borderRadius:'var(--radius-pill)'}}>
+            사내 전용
+          </span>
         </div>
       </header>
 
@@ -133,7 +133,7 @@ function ModeSelector({ onSelect }) {
             '참여/협상/패스 종합 판단',
           ]}
           ctaLabel="사전 사업성 시작"
-          accent="var(--color-accent)"
+          accent="var(--brand)"
           onClick={() => onSelect('feasibility')}
         />
         <ModeCard
@@ -148,7 +148,7 @@ function ModeSelector({ onSelect }) {
             '합필 진단 · 자연어 질의',
           ]}
           ctaLabel="설계 검증 시작"
-          accent="var(--color-info)"
+          accent="var(--link)"
           onClick={() => onSelect('verify')}
         />
       </div>
@@ -164,29 +164,32 @@ function ModeCard({ icon, title, tagline, description, features, ctaLabel, accen
   return (
     <button
       onClick={onClick}
-      className="text-left bg-white rounded-2xl border-2 border-gray-200 p-6 hover:border-gray-400 hover:shadow-lg transition-all"
+      className="text-left p-6 transition-all"
+      style={{backgroundColor:'var(--canvas-elevated)',border:'1px solid var(--hairline)',borderRadius:'var(--radius)',boxShadow:'var(--shadow-sm)'}}
+      onMouseEnter={e=>e.currentTarget.style.boxShadow='var(--shadow-md)'}
+      onMouseLeave={e=>e.currentTarget.style.boxShadow='var(--shadow-sm)'}
     >
       <div className="flex items-start gap-3 mb-3">
         <span className="text-3xl">{icon}</span>
         <div>
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+          <h3 className="text-lg font-semibold" style={{color:'var(--ink)',fontFamily:'var(--font-sans)',letterSpacing:'-0.02em'}}>{title}</h3>
           <p className="text-xs font-medium" style={{ color: accent }}>
             {tagline}
           </p>
         </div>
       </div>
-      <p className="text-sm text-gray-600 mb-4">{description}</p>
+      <p className="text-sm mb-4" style={{color:'var(--body)'}}>{description}</p>
       <ul className="space-y-1.5 mb-5">
         {features.map((f, idx) => (
-          <li key={idx} className="text-xs text-gray-700 flex items-start gap-1.5">
+          <li key={idx} className="text-xs flex items-start gap-1.5" style={{color:'var(--body)'}}>
             <span style={{ color: accent }}>·</span>
             <span>{f}</span>
           </li>
         ))}
       </ul>
       <div
-        className="text-center text-sm font-semibold py-2.5 rounded-lg text-white"
-        style={{ backgroundColor: accent }}
+        className="text-center text-sm font-semibold py-2.5 text-white"
+        style={{ backgroundColor: accent, borderRadius:'var(--radius-sm)' }}
       >
         {ctaLabel} →
       </div>

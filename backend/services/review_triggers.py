@@ -11,7 +11,45 @@
 """
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
+
+# 교통영향평가 용도별 임계값 seed (도시교통정비촉진법 시행령 별표1, 법제처 PDF 검증).
+_TRAFFIC_SEED: dict | None = None
+
+
+def _traffic_thresholds() -> dict:
+    global _TRAFFIC_SEED
+    if _TRAFFIC_SEED is None:
+        path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "config", "traffic_impact_thresholds.json")
+        )
+        with open(path, encoding="utf-8") as f:
+            _TRAFFIC_SEED = json.load(f)
+    return _TRAFFIC_SEED
+
+
+def _resolve_traffic_use(building_use: str, seed: dict) -> tuple[str, dict] | None:
+    """건축물 용도 → 별표1 용도 키 + 임계값. 미해결 시 None."""
+    by_use = seed["by_use"]
+    aliases = seed.get("use_aliases", {})
+    if building_use in by_use:
+        return building_use, by_use[building_use]
+    if building_use in aliases and aliases[building_use] in by_use:
+        return aliases[building_use], by_use[aliases[building_use]]
+    # 부분 매칭 — 가장 긴 키 우선
+    best = None
+    for k in by_use:
+        if (k in building_use or building_use in k) and (best is None or len(k) > len(best)):
+            best = k
+    if best:
+        return best, by_use[best]
+    for a, canon in aliases.items():
+        if (a in building_use or building_use in a) and canon in by_use:
+            return canon, by_use[canon]
+    return None
+
 
 # 도시교통정비지역 — 특·광역시 + 일부 광역도시권
 _URBAN_TRAFFIC_AREAS = (
@@ -108,40 +146,66 @@ def _eval_building_committee(req: dict, land: dict) -> dict:
 def _eval_traffic_impact(req: dict, land: dict) -> dict:
     total = float(req.get("total_floor_area") or 0)
     units = int(req.get("units") or 0)
+    use = req.get("building_use") or ""
     address = req.get("address") or land.get("jurisdiction_name", "")
     in_urban = any(area in address for area in _URBAN_TRAFFIC_AREAS)
+
+    # 용도별 임계값 — 도시교통정비촉진법 시행령 별표1 (법제처 PDF 검증, 전국 적용).
+    seed = _traffic_thresholds()
+    col = "urban" if in_urban else "region"          # 도시교통정비지역 / 교통권역
+    zone_label = seed["columns"][col]
+    resolved = _resolve_traffic_use(use, seed)
+    threshold = resolved[1][col] if resolved else None
+    use_key = resolved[0] if resolved else None
 
     triggered = False
     reasons: list[str] = []
 
-    # 도시교통정비지역
-    if in_urban and total >= 50000:
+    if threshold is not None and total >= threshold:
         triggered = True
-        reasons.append(f"도시교통정비지역 + 연면적 50,000㎡ 이상({total:,.0f}㎡)")
-    elif not in_urban and total >= 70000:
-        triggered = True
-        reasons.append(f"기타지역 + 연면적 70,000㎡ 이상({total:,.0f}㎡)")
-
-    # 주택 세대수 기준
+        reasons.append(
+            f"{zone_label} {use_key} 연면적 {threshold:,}㎡ 이상 기준 충족"
+            f"({total:,.0f}㎡) — 시행령 별표1"
+        )
+    # 공동주택 세대수 보수 트리거 (별표 외, 안전측 유지)
     if units >= 1000:
         triggered = True
         reasons.append(f"공동주택 1,000세대 이상({units}세대)")
 
-    severity = "REQUIRED" if triggered else "MAYBE" if (
-        total >= 30000 or units >= 500
-    ) else "NONE"
+    if triggered:
+        severity = "REQUIRED"
+    elif threshold is not None and total >= threshold * 0.8:
+        severity = "MAYBE"                            # 임계 80% 근접
+    elif threshold is None and (total >= 30000 or units >= 500):
+        severity = "MAYBE"                            # 용도 미해결 시 규모 기준 보수
+    else:
+        severity = "NONE"
+
+    if triggered:
+        note = (
+            "교통영향평가서 제출 → 심의위원회 통과 후 인허가 가능. 보통 6~12개월 소요."
+            f" (적용 기준: {use_key} {zone_label} {threshold:,}㎡)" if use_key else
+            "교통영향평가서 제출 → 심의위원회 통과 후 인허가 가능. 보통 6~12개월 소요."
+        )
+    elif threshold is not None:
+        note = (
+            f"현재 규모는 {use_key} {zone_label} 단일용도 기준({threshold:,}㎡) 미만. "
+            "단, 복합용도(각 용도 연면적÷용도별 최소기준의 합 ≥ 1)면 대상일 수 있어 "
+            "별표1 복합용도 규칙 확인 필요."
+        )
+    else:
+        note = (
+            f"용도 '{use}'가 별표1 대상 용도표에 매칭되지 않음 — 대상 여부 별도 확인 필요."
+            if use else "용도 미입력 — 교통영향평가 대상 여부 확인 불가."
+        )
 
     return {
         "name": "교통영향평가",
         "severity": severity,
         "triggered_reasons": reasons,
-        "law_ref": "도시교통정비촉진법 §15, 시행령 §13-2",
+        "law_ref": "도시교통정비촉진법 §15, 시행령 제13조의2, 별표 1",
         "law_ref_url": "https://www.law.go.kr/법령/도시교통정비촉진법/제15조",
-        "note": (
-            "교통영향평가서 제출 → 심의위원회 통과 후 인허가 가능. 보통 6~12개월 소요."
-            if triggered else
-            "규모 임박 시 조기 협의 권장."
-        ),
+        "note": note,
     }
 
 

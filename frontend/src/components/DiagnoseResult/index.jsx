@@ -979,7 +979,7 @@ function ProvenanceBlock({ prov }) {
           </div>
         )}
         {prov.basis && (
-          <p className="text-[var(--font-size-2xs)] text-gray-400">근거: {prov.basis}</p>
+          <p className="text-[10px] text-gray-400">근거: {prov.basis}</p>
         )}
       </div>
     </details>
@@ -1024,7 +1024,7 @@ function LawRefs({ refs }) {
                 href={graphUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[var(--font-size-2xs)] text-gray-400 hover:text-emerald-600 hover:underline"
+                className="text-[10px] text-gray-400 hover:text-emerald-600 hover:underline"
                 title="법령 그래프에서 조문 원문·인용관계·지자체 비교 보기"
               >
                 원문↗

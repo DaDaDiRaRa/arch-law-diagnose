@@ -1,14 +1,82 @@
-@import './kunwon-tokens.css';
+/* Vercel Design System (Geist fonts) */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   KUNWON Design Tokens — Vercel DESIGN.md 기반
+   kunwon-tokens.css 대체. 이 파일이 유일한 색상/폰트 정의 소스.
+   ========================================================================== */
+:root {
+  /* --- Surfaces --- */
+  --canvas:          #fafafa;   /* 앱 전체 배경 */
+  --canvas-elevated: #ffffff;   /* 카드, 헤더, 패널 */
+  --canvas-inset:    #f2f2f2;   /* 중첩 인셋 영역 */
+
+  /* --- Text (Vercel ink ladder) --- */
+  --ink:    #171717;   /* 제목, 강조 텍스트 */
+  --body:   #4d4d4d;   /* 본문 */
+  --mute:   #8f8f8f;   /* 보조 설명 */
+  --faint:  #a1a1a1;   /* 비활성, 플레이스홀더 */
+
+  /* --- Lines --- */
+  --hairline:      #ebebeb;   /* 기본 구분선 */
+  --hairline-soft: #f2f2f2;   /* 연한 구분선 */
+
+  /* --- Brand (KUNWON CI — 변경 금지) --- */
+  --brand:       #E60012;
+  --brand-hover: #c5000f;
+  --brand-text:  #ffffff;
+
+  /* --- Semantic: Link --- */
+  --link:      #0070f3;
+  --link-deep: #0761d1;
+  --link-soft: #d3e5ff;
+
+  /* --- Semantic: Status --- */
+  --ok:          #2ea043;   /* 성공/통과 */
+  --ok-bg:       #dcfce7;
+  --warn:        #f5a623;   /* 경고 */
+  --warn-bg:     #ffefcf;
+  --warn-deep:   #ab570a;
+  --error:       #ee0000;   /* 오류/부적합 */
+  --error-deep:  #c50000;
+  --error-bg:    #fff0f0;
+  --info:        #0070f3;   /* 정보/진행중 */
+  --info-bg:     #d3e5ff;
+
+  /* --- Vercel accent colors (일러스트/그라디언트 전용) --- */
+  --violet:      #7928ca;
+  --violet-soft: #d8ccf1;
+  --cyan:        #50e3c2;
+  --pink:        #ff0080;
+
+  /* --- Shape (Vercel: 기능버튼 6px / 카드 12px) --- */
+  --radius:    12px;     /* 카드, 패널 */
+  --radius-sm:  6px;     /* 버튼, 인풋 */
+  --radius-pill: 9999px; /* 원형 아이콘 버튼 */
+
+  /* --- Typography --- */
+  --font-sans: "Geist", "Inter", Arial, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+
+  /* --- Elevation (Vercel: hairline 우선, 그림자 최소) --- */
+  --shadow-sm: 0px 1px 1px rgba(0,0,0,0.04);
+  --shadow-md: 0px 2px 2px rgba(0,0,0,0.04), 0px 8px 16px -4px rgba(0,0,0,0.06);
+
+  /* --- Layout constants --- */
+  --header-h:   56px;
+  --content-max: 1100px;
+  --btn-h:       40px;
+}
+
 @layer base {
   body {
-    background-color: var(--color-bg-page);
-    color: var(--color-text-body);
-    font-family: var(--font-primary);
+    background-color: var(--canvas);
+    color: var(--body);
+    font-family: var(--font-sans);
     @apply antialiased;
   }
 }

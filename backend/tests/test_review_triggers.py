@@ -73,6 +73,41 @@ def test_traffic_maybe():
     assert rt._eval_traffic_impact(_req(total_floor_area=30000, address="강원도 어딘가"), {})["severity"] == "MAYBE"
 
 
+# ── 교통영향평가 — 용도별 임계값(시행령 별표1, 법제처 PDF 검증) ────────────────
+def test_traffic_office_25000_threshold():
+    """업무시설(오피스텔 포함) 도시교통정비지역 임계 25,000㎡ — 과거 50,000 오류 정정.
+
+    실 사례(오피스텔 47,629㎡)가 교통영향평가를 거쳤으나 과거 엔진은 MAYBE 였다.
+    """
+    r = rt._eval_traffic_impact(
+        _req(building_use="오피스텔", total_floor_area=47629, address="서울특별시"), {})
+    assert r["severity"] == "REQUIRED"
+    # 24,000㎡ 업무시설(서울) → 임계 미만이나 80% 근접 → MAYBE
+    r2 = rt._eval_traffic_impact(
+        _req(building_use="업무시설", total_floor_area=24000, address="서울특별시"), {})
+    assert r2["severity"] == "MAYBE"
+    # 10,000㎡ 업무시설(서울) → NONE
+    r3 = rt._eval_traffic_impact(
+        _req(building_use="업무시설", total_floor_area=10000, address="서울특별시"), {})
+    assert r3["severity"] == "NONE"
+
+
+def test_traffic_use_specific_thresholds():
+    """용도별로 임계가 다름 — 숙박 40,000 vs 업무 25,000(도시교통정비지역)."""
+    assert rt._eval_traffic_impact(
+        _req(building_use="숙박시설", total_floor_area=30000, address="서울특별시"), {})["severity"] == "NONE"
+    assert rt._eval_traffic_impact(
+        _req(building_use="업무시설", total_floor_area=30000, address="서울특별시"), {})["severity"] == "REQUIRED"
+
+
+def test_traffic_region_column_for_non_urban():
+    """비도시교통정비지역(교통권역)은 1.5배 임계 적용 — 업무 37,500㎡."""
+    assert rt._eval_traffic_impact(
+        _req(building_use="업무시설", total_floor_area=37500, address="강원도 어딘가"), {})["severity"] == "REQUIRED"
+    assert rt._eval_traffic_impact(
+        _req(building_use="업무시설", total_floor_area=26000, address="강원도 어딘가"), {})["severity"] == "NONE"
+
+
 # ── 환경영향평가 ─────────────────────────────────────────────────────────────
 def test_environmental_large_dev():
     assert rt._eval_environmental(_req(site_area=250000), {"zone_use": "일반상업지역"})["severity"] == "REQUIRED"

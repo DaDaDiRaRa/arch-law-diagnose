@@ -202,7 +202,7 @@ export default function WhatIfPanel() {
           {/* 종합 점수·신호 */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-purple-50 rounded p-2">
-              <p className="text-[var(--font-size-2xs)] text-gray-500 mb-0.5">종합 점수</p>
+              <p className="text-[10px] text-gray-500 mb-0.5">종합 점수</p>
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500">
                   {comparison.origScore?.toFixed(1) ?? '–'}
@@ -219,15 +219,15 @@ export default function WhatIfPanel() {
               </div>
             </div>
             <div className="bg-purple-50 rounded p-2">
-              <p className="text-[var(--font-size-2xs)] text-gray-500 mb-0.5">종합 신호</p>
+              <p className="text-[10px] text-gray-500 mb-0.5">종합 신호</p>
               <div className="flex items-center gap-1.5">
-                <span className={`text-[var(--font-size-xs)] ${SIGNAL_CLS[comparison.origSignal] || 'text-gray-500'}`}>
+                <span className={`text-[11px] ${SIGNAL_CLS[comparison.origSignal] || 'text-gray-500'}`}>
                   {SIGNAL_LABEL[comparison.origSignal] || comparison.origSignal}
                 </span>
                 {comparison.signalChanged && (
                   <>
                     <span className="text-gray-400">→</span>
-                    <span className={`text-[var(--font-size-xs)] font-bold ${SIGNAL_CLS[comparison.currSignal] || 'text-gray-500'}`}>
+                    <span className={`text-[11px] font-bold ${SIGNAL_CLS[comparison.currSignal] || 'text-gray-500'}`}>
                       {SIGNAL_LABEL[comparison.currSignal] || comparison.currSignal}
                     </span>
                   </>
@@ -263,7 +263,7 @@ export default function WhatIfPanel() {
               })}
             </div>
           ) : (
-            <p className="text-[var(--font-size-2xs)] text-gray-500 italic pt-1 border-t border-purple-100">
+            <p className="text-[10px] text-gray-500 italic pt-1 border-t border-purple-100">
               변경된 카테고리 점수 없음 (입력 변화가 결과에 영향 없음)
             </p>
           )}
@@ -308,7 +308,7 @@ export default function WhatIfPanel() {
                 onChange={(e) => handleSlider(s.key, Number(e.target.value))}
                 className="w-full accent-purple-600"
               />
-              <div className="flex justify-between text-[var(--font-size-2xs)] text-gray-400 mt-0.5">
+              <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
                 <span>{s.integer ? min : min.toFixed(1)}</span>
                 <span className="text-gray-500">기준: {s.integer ? base : base.toFixed(1)}</span>
                 <span>{s.integer ? max : max.toFixed(1)}</span>
