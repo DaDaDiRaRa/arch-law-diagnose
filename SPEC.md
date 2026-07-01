@@ -1,7 +1,7 @@
 # arch-law-diagnose — 시스템 스펙
 
 > 코드에서 역추론한 문서. 불확실한 부분은 **[추정]** 으로 표시.  
-> 최종 업데이트: 2026-07-01 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋·환경영향평가 별표4 JSON 연동·교통영향평가 용도별 임계·프론트 Vercel 디자인시스템)
+> 최종 업데이트: 2026-07-01 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋·환경영향평가 별표4 JSON 연동·교통영향평가 용도별 임계·프론트 Vercel 디자인시스템·조례 needs_review 첫추출 게이팅·ordinance_used BCR/FAR 개별 노출)
 
 ---
 
@@ -139,9 +139,11 @@ DiagnoseEngine.run(req)
 │      (도시계획시설 저촉분은 건폐율·용적률 산정 기준면적에서 제외)
 │
 ├─ 4. OrdinanceResolver.resolve(jurisdiction_code, zone_use, category)
-│      ┌─ DB 캐시 HIT → 즉시 반환
-│      ├─ MISS → 법제처 API 조회 + LLM 수치 추출 → DB 저장
-│      └─ 실패 → zone_limits.json 시행령 기본값 (fallback)
+│      ┌─ DB 캐시 HIT (needs_review=False) → 즉시 반환
+│      ├─ MISS → 법제처 API 조회 + 수치 추출(regex + LLM) → DB 저장
+│      │      추출값이 sanity check 실패(예: 예외 단서 포함 조문) → needs_review=True로
+│      │      캐시엔 남기되(수동 검토용) 이번 호출은 아래 fallback으로 폴백
+│      └─ 실패 또는 needs_review=True → zone_limits.json 시행령 기본값 (fallback)
 │
 ├─ 5. 특례 적용 (T3)
 │      재정비촉진구역: FAR 1.2배 [추정]
@@ -661,6 +663,8 @@ python -m scripts.seed_municipal_ordinances --commit
 | `FACILITY_AREA_UNCORRECTED` | warn | 도시계획시설 저촉 감지됐으나 지적 폴리곤 미확보로 대지면적 보정 미수행(건폐·용적 낙관 가능) |
 
 (기존 `NO_ZONE_USE`·`NARROW_ROAD_SETBACK`·`STALE_CACHE`·`NO_ORDINANCE` 등과 함께 DataQualityBanner 에 표시.)
+
+`data_quality.ordinance_used`는 건폐율·용적률 **둘 다** 조례로 조회됐을 때만 True(개별 상태는 `ordinance_used_bcr`/`ordinance_used_far`). 하나라도 시행령 폴백이면 `NO_ORDINANCE` 경고에 어느 항목인지 명시(예: "조례 수치 미조회(용적률)").
 
 ### 회귀 테스트 — 골든 케이스 (D, 2026-06-29 추가)
 

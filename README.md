@@ -69,7 +69,7 @@ FastAPI 백엔드 (Python 3.12, 포트 8000)
 | 행위제한 | `land_use_act.py` |
 | 도시계획시설 | `urban_facility.py` (VWorld WFS 실시간) |
 | 건폐율 | `coverage.py` |
-| 용적률 | `far.py` (완화 6종 포함) |
+| 용적률 | `far.py` (완화 4종 활성 — 공개공지·녹색건축·ZEB·시범사업) |
 | 높이·일조 | `height.py` |
 | 주차 | `parking.py` |
 | 조경 | `landscape.py` |

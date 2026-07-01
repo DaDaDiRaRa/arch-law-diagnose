@@ -27,96 +27,50 @@
 - ① **진단 결과 종속 어시스턴트** — `query_engine`이 진단 law_refs를 "적용 조문" 블록으로 주입 + graph `POST /api/lookup`으로 조문 원문 RAG 그라운딩(`graph_client.py`, env `GRAPH_API_URL`, 실패 시 degrade). "원문에 있는 내용만 인용"으로 환각 차단.
 - ② **링크아웃** — 진단 카드 law_refs·AI citation 옆 "원문↗"이 graph 검색을 `?q=<조문명>`으로 엶(`utils/graphLink.js`, env `VITE_GRAPH_URL`). ⚠ graph 레포 변경분은 별도 커밋.
 
-**보류·제외**: MCP/API 정식 통합·QueryBox 경계 재편 = 보류(아래 "다음 작업"). graph.json 파일 이식(B안) = 동기화 부담으로 제외. 합칠 때 조례/주차/완화 해결 범위 분석 → [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md) §4.5.1.
+**보류·제외**: MCP/API 정식 통합·QueryBox 경계 재편 = 보류(아래 "다음 작업"). graph.json 파일 이식(B안) = 동기화 부담으로 제외. 합칠 때 조례/주차/완화 해결 범위 분석 → [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md) "graph 합칠 때 조례/주차/완화 해결 범위 분석".
 
 ---
 
 ## ⏭️ 다음 작업
 
-**2026-06-29 계획 — 정확도·정직성 강화 (기능 유지·추가형 우선)** → 상세: [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md)
+> 정체성: diagnose = 결정론적 **"대지 판정 계산 엔진"**(숫자 + 판정 + 근거조문 포인터 law_refs). 법 해석은 graph 담당. 설계 원칙·배경은 [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md)(완료된 계획, 원칙·가드레일만 유효).
 
-> 정체성: diagnose = 결정론적 **"대지 판정 계산 엔진"**(숫자 + 판정 + 근거조문 포인터 law_refs). 법 해석은 graph 담당.
-> 원칙: **MCP/API화·기능 경계 재편은 보류**(graph 정식 통합 시). 지금은 **기존 기능 그대로 두고 정확도·정직성만** 올린다 = 추가형만(기존 신호·점수·답변범위 불변).
+### 🎯 활성 TODO
 
-지금 할 일 (기존 동작 불변·추가형, 순서 E→A→B→D):
+- [ ] **법규그래프 참조 조문 7건 정정** (graph E-12 감사 발견, 2026-06-30) — `config/law_graph_auto.json`(+ `law_graph_seed.json`)이 graph에 실재하지 않는 조문을 참조. graph 측 감사(diagnose 참조 127건 실재성 검사)에서 확정: **7건 전부 diagnose 측 오류**(법제처 현행 fetch로 교차확인). ① 法/시행령 오기재 4건 — `건축법 시행령 제13조의2·제53조의2·제77조의2·제77조의4`로 적었으나 실제 조문은 `건축법`(본문)에 존재 → law 정정. ② 현행 미존재 3건 — `건축법 제7조의2`·`주차장법 제51조`·`녹색건축물 조성 지원법 제61조`는 법제처에도 없음(삭제/오기) → 참조 제거 또는 교체. 정정 후 `law_graph_auto.json` 재수확. graph 코드와 무관(diagnose 단독 작업).
+- [ ] **brief 추가 샘플**(민간·다부지) → Step 9 매핑 견고화 (공공 1건 검증됨). *(사용자 처리)*
+- [ ] **토지이음 404 문의**(`iuLawInfo`·`sDevList`) ✉ luris@korea.kr · ☎ 1522-4484 → LawInfoPanel·DevTrendPanel 활성화. *(사용자 처리)*
+- [ ] **사내 시설용도 매핑표**(시니어 30분) → brief 용도 완전 자동화. *(사용자 처리)*
+- [ ] **철도보호지구** — 보류(복잡). 코드(`railway/indexer.py`) 준비됨 → `RAILWAY_SHP_PATH`에 철도선형 SHP(Geofabrik OSM `gis_osm_railways_free_1.shp`, EPSG:4326) 배치 시 동작. 도시계획시설 철도는 이미 VWorld 판정 중, 빠진 건 운영철도 30m 보호지구(철도안전법 §45)뿐.
+- [ ] (낮음) 운영 인프라(Cloud Logging·Sentry·BigQuery), dev `npm audit fix`.
 
-- [x] **E. 침묵 과대평가 구멍 경고** — ✅ 완료 (2026-06-29). `data_quality.issues`에 2종 추가: `STREET_BLOCK_UNVERIFIED`(info — 가로구역 §60 미평가 고지) + `FACILITY_AREA_UNCORRECTED`(warn — 시설 저촉 감지됐으나 폴리곤 미확보로 면적보정 미수행). **신호·점수 로직 불변**(테스트로 보증). 테스트 +5(전체 269).
-- [x] **A(노출만). 종합 신뢰도 노출** — ✅ 완료 (2026-06-29). `_weighted_score`가 계산해 버리던 `min_confidence`를 `data_quality.aggregate_confidence`(채점 항목 중 최저 confidence 1~5)로 노출 + `DataQualityBanner`에 "신뢰도 N/5" 배지(초록/노랑/주황). **신호 로직 불변**(게이팅 아님). 이력은 JSON blob이라 스키마 ALTER 불필요. 테스트 +1(전체 270) + 프론트 빌드 통과.
-- [x] **B. 산정 근거(provenance) 블록** — ✅ 백엔드 완료 (2026-06-29). 정량 4개 카드(건폐율·용적률·높이_일조·주차) 반환에 `provenance{inputs·formula·computed·basis}` 추가 — 각 계산기가 자기 산식을 스스로 기술(미래 MCP 도구화 대비). 기존 필드(`law_refs`·`source`·`notes` 등)·동작 불변. 계산 발생한 카드에만 부착(확인불가 분기 생략). 테스트 +2(전체 272). 프론트: `DiagnoseResult` 카테고리 카드 펼침에 "🧮 산정 근거" 접이식 추가(입력값·산식·산출, 키→한글 라벨). 프론트 빌드 통과.
-- [x] **D. 골든 케이스 회귀셋** — ✅ 골격+실제 **12건** 완료 (2026-06-29). `tests/golden/*.json`(익명화·숫자만) + `test_golden_cases.py`(조례 stub + `_diagnose` skip_ai 결정론, actual_pct ±0.01%p 허용으로 원문 절사 흡수). M드라이브 실 인허가 건축개요서 12건 추출(식별정보 전부 제외, 수치·용도지역만). **용도지역 7종 커버**: 일반상업(오피스텔·업무재개발·여의도주상복합·김포숙박)·준주거(주거복합)·제2종일반주거(재개발·목동재건축)·제3종일반주거(방배재건축·수지초교육)·중심상업(대구주상복합)·준공업(문래동지식산업센터)·지구단위(광교). 재건축·아파트·공동주택·업무·교육·숙박·지식산업센터 등 유형 다양. 다수가 법정/허용/상한 면도날 통과. 커버리지 표·스키마·익명화 규칙은 `golden/README.md`. **+ 고가치 경로 4종 검증 완료**(합성, `test_path_*`): 실패/RED(한도초과→pass=False·신호 RED)·완화(`far_relief` 공개공지 25.18%+녹색최우수→전체 캡 1.15배=460%, 룰 문서화 실증 시나리오)·주차 부족(pass=False)·비주입(조례 미주입 시 엔진이 `zone_limits.json` 시행령 60/250 자가결정). **전부 엔진이 정확 처리 확인**(버그 무, 경로 회귀 고정). 테스트 +16(전체 288). ※ 제거된 Step 8(케이스 매칭)과 다른 *정답 측정*. ⏳ 남은 용도지역(1종일반주거·전용주거·근린/유통상업·일반공업·녹지)·시설(근생·의료·물류)은 통과형이라 가치 작음 — 폭 넓힐 때만. 후보 카탈로그 scratchpad `m_cat2.tsv`·`m_gaeyo.tsv`·`m_hits.tsv`.
+### 보류 (graph 정식 API 통합 시 착수)
 
-보류 (기존 동작 변경/제거 수반 → graph 정식 API 통합 시):
-
-- [ ] **C. QueryBox 일반 법령 Q&A 축소·graph 링크아웃** — 기능 *축소*라 합치기 전엔 안 함. 현재는 일반 질문도 답하되 graph 원문 그라운딩(A안)으로 환각만 억제, **그대로 유지**.
+- [ ] **C. QueryBox 일반 법령 Q&A 축소·graph 링크아웃** — 기능 *축소*라 합치기 전엔 안 함. 현재는 일반 질문도 답하되 graph 원문 그라운딩으로 환각만 억제, 그대로 유지.
 - [ ] **A(게이팅). confidence로 GREEN→YELLOW** — 판정 로직 변경이라 별도 사용자 결정.
-- [ ] **MCP/API 도구화 + 계약** — 합치는 단계 일. 불변식: diagnose 도구는 *숫자+판정+law_refs만* 반환, 법령 본문/해석 산문은 절대 반환 안 함(본문은 graph `/api/lookup`).
+- [ ] **MCP/API 도구화 + 계약** — 불변식: diagnose 도구는 *숫자+판정+law_refs만* 반환, 법령 본문/해석 산문은 절대 반환 안 함(본문은 graph `/api/lookup`).
 
-하지 말 것 (환각 표면 차단): 조문 본문·해석 자체 생성 금지(graph 영역), **자치구 고시** PDF 자동파싱 금지(폐지고시 오인 — 가로구역 §60 등), LLM 결정수치 금지, 점수곡선 재발명 금지(골든셋 캘리브레이션만). ※ 단, **법제처 DRF 별표 PDF**(현행 시행령 별표, `별표서식PDF파일링크`)는 권위·버전관리 원문이라 OK — 추출값을 seed로 전사 + verify 스크립트로 전수 대조(예: 교통영향평가 ②). 고시(행정처분·폐지위험)와 시행령 별표(현행법)를 구분.
-
-**다음 정확도 단계 (진행 중)** — 실제 케이스 기반 **캘리브레이션 루프**: 골든은 "맞음을 증명·고정", 이건 "틀림을 찾아 고침"(엔진 정확도가 실제로 오르는 경로). 새 구조 아님 — 기존 `ordinance_resolver`/`seed`/`extractor` 파이프라인을 신뢰·우선순위화. 상세: [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md) §4.5.
-
-- [x] **진입점: 법정 한도 재현 감사** — ✅ 완료 (2026-06-30). `scripts/audit_legal_limit_reproduction.py`(실행 `python -m scripts.audit_legal_limit_reproduction`). 골든 12건을 **조례 미주입**(시행령 폴백)으로 돌려 엔진 한도 vs 실제 적용 법정 한도(`applied_ordinance`) 갭 정량화. **결과: 12건 중 10건 과대평가**(통과 오판 위험). 최대 레버 = **상업·준주거 용적률**: 일반상업 FAR 시행령 1300% vs 실제 490~800% → 최대 **+810%p 과대평가**, 중심상업 +200%p, 준주거 +122.5%p, BCR도 일반상업 최대 +20%p. **근본 원인**: `ordinance_seed.json`에 건폐율/용적률 한도를 가진 지자체는 **서울특별시 1곳뿐**, 나머지 16개 광역시/도는 `landscape_ratio` 추정값만 → 서울 밖은 전부 시행령 과대평가. 신호·점수 로직 불변(순수 측정 도구).
-- [x] **① 조례 한도 DB 보강 (17개 시도)** — ✅ 완료 (2026-06-30). 새 도구 불필요 — 기존 `scripts/seed_ordinances.py`(법제처 DRF→`fetch_ordinance`→`OrdinanceExtractor`→DB `ordinance_zone_limits`)를 `--commit` 실행, **310건 적재**. resolver가 시군구 코드 미스 시 `XX000`(시도) 폴백으로 전국 사용. 검증: 대구중구(27110)→대구(27000) 폴백으로 중심상업 FAR 1300% 반환 확인. **수집 중 추출기 버그 2건 발견·수정**(아래). 오추출(울산 경관지구 20%·제주 지구단위 140%)은 sanity 초과→`needs_review=True`→resolver **자동 skip→시행령 폴백**(오염 0, 안전 degrade). 서울 일반상업 800·대전 1100 등 실제 다운조닝값 정확 적재. **영속성**: DB는 idempotent upsert(`ON CONFLICT DO UPDATE`)라 `--commit` 재실행 안전(전 regex 히트라 LLM 불요·결정론). DB 초기화 시 재실행 필요(CLAUDE.md 캐시 초기화 절차).
-  - **추출기 버그 fix** (`services/ordinance_extractor.py` `_parse_value`+신규 `_kr_numeral`): ① "1천300퍼센트"(=1,300%)를 과거 regex 가 **300%**로 오인 → 천·백 누적 한글수사 파서. ② "1천 300"(천 뒤 **공백**) 변종도 정규화. 부산·대구 중심상업이 1300%로 정정(과거 시행령 폴백보다 정확). 회귀 테스트 `tests/test_ordinance_extractor.py` **+19**(전체 307).
-- [x] **② 주차·심의 트리거 감사 + 교통영향평가 임계 정정** — ✅ 완료 (2026-06-30). `scripts/audit_review_triggers.py`: 골든 `context_recorded_not_asserted.reviews`(실 사례 거친 심의) vs 엔진 `evaluate_reviews` 대조 → 과소호출 surface. **주차**: 버그 없음(오피스텔 호수 미입력 → 정직하게 "확인필요"). **심의 과소호출 1건 = 교통영향평가** → **실제 임계값으로 정정 완료**(아래).
-  - **🔑 별표 PDF 수집 경로 확보** (사용자 제보): 법제처 DRF `lawService.do` 응답 `별표단위`에 `별표서식PDF파일링크`/`별표서식파일링크` 존재 → `https://www.law.go.kr`+링크값으로 별표 PDF/HWP 물리파일 다운로드 가능. 별표 본문은 조문 XML에 텍스트로 없지만 **PDF는 pdfplumber로 텍스트 추출됨**(설치済). `law_go_kr_client._parse_law_xml`이 별표 article에 `pdf_url`/`hwp_url` 부착하도록 확장. → 그간 "별표는 수집 불가"로 보류하던 수치(교통·주차·환경 등)가 **검증 가능**해짐.
-  - **교통영향평가 임계 정정**: 도시교통정비촉진법 시행령 **별표1**(교통영향평가 대상)을 PDF로 받아 용도별 연면적 임계 추출 → `config/traffic_impact_thresholds.json`(원문 전사, LLM추정 아님). `scripts/verify_traffic_thresholds.py`가 PDF 재다운로드로 **40개 값 전수 대조**(법개정 회귀게이트). `_eval_traffic_impact`를 **플랫 5만/7만㎡ → 용도별 임계**로 교체(업무시설/오피스텔 25,000·숙박 40,000·판매 11,000·의료 25,000·공동주택 60,000 등, 비도시는 교통권역 1.5배 컬럼). **office 케이스(오피스텔 47,629㎡) 과소호출→REQUIRED 정정 확인**(과거 플랫 5만 미달이라 누락). 복합용도 Σ(연면적/용도별기준)≥1 규칙은 note로 안내. 신호 로직 정정(더 정확), 테스트 +3·전체 310, 감사 과소호출 0.
-  - ⏳ 남은: 복합용도 공식 자동계산(현재 note 안내, 입력에 용도별 연면적 분해 없어 보류 — 아래).
-- [x] **③ 환경·재해 임계 정밀화 (별표 PDF 경로 재사용)** — ✅ 완료 (2026-06-30). ②에서 확보한 별표 PDF 경로를 환경영향평가법 시행령에 적용.
-  - **재해**(자연재해대책법 시행령 별표1): 원문 대조 결과 **엔진이 이미 정확**(부지면적 5,000㎡ 일반기준 + 위험지구 면적무관 note 기존 보유) — 보정 불필요, 측정만 하고 종료.
-  - **환경**(환경영향평가법 시행령 별표3·별표4): 엔진이 **비도시(관리·농림·자연환경보전) 플랫 7,500㎡ + 도시지역 완전 누락**이었던 걸 별표4 원문 zone별 임계로 교체 — `config/environmental_assessment_thresholds.json`(원문 전사) + `scripts/verify_environmental_thresholds.py`(숫자 경계·근접 정규식으로 PDF 재대조, 부분열 오탐 방지, **8/8 일치**). `_eval_environmental`을 `zone_use_normalizer` 표준명 기반 카테고리 매핑으로 재작성(보전관리 5,000·생산관리 7,500·계획관리 10,000·농림 7,500·자연환경보전 5,000·녹지지역 10,000·**도시지역 기타(주거·상업·공업) 60,000 신규** — 과거 완전 누락 구간). 별표3(대형, 25만㎡)은 사업유형 기반이라 매핑 난이도 큼 → 기존 플랫 임계를 "대규모 개발" 보수 플래그로 유지(추측 매핑 안 함). 테스트 +2, 전체 310(회계상 교통+환경 합산 반영), 전체 스위트 그린.
-  - **골든 심의케이스 추가(Step 2)는 보류** — M드라이브 조사 결과 건축개요서엔 심의 이력이 체계적으로 없고, 별도 심의 문서(인허가 일정표 등)는 *예정* 초안이거나 타 프로젝트 텍스트가 섞여 신뢰 불가 확인(오염 방지 위해 강행 안 함). 사용자가 실제 심의 거친 특정 프로젝트를 지정해줄 때만 건별 추가.
-  - **복합용도 Σ공식 자동계산(1단계)도 보류** — 엔진 입력이 `building_use` 단일값뿐이라 용도별 연면적 분해(`use_breakdown`) 없이는 Σ 계산이 죽은 코드가 됨. 백엔드 단독 추가는 부적절(도달 불가능한 코드) → 프론트 입력 UI와 함께 묶어야 함, 별도 착수 필요.
-- [x] **④ 실사용 라이브 진단 감사 발견분** — (2026-07-01, 실제 서버 기동 + 서울 중구 태평로1가 25 실주소 `/api/diagnose` 라이브 호출로 발견. 골든셋·감사스크립트로는 안 잡히던 구멍)
-  - [x] **④-a. 조례 1차추출 needs_review 게이팅 안 됨** — ✅ 완료 (2026-07-01). `ordinance_resolver.py` 2단계(캐시 미스 시 법제처 즉시 추출, [L141-165](backend/services/ordinance_resolver.py#L141))가 `needs_review=True`를 **DB 캐시엔 기록**하면서 **그 호출 자체엔 값을 무조건 반환**하던 버그. 안전장치(needs_review→시행령 폴백)가 1단계·1-b단계(캐시 재조회)에서만 작동해, 처음 그 조문을 추출하는 요청은 보호받지 못했다. 라이브 재현: 서울 일반상업지역 용적률 조례 원문 "800%(단, 서울도심: 600%)"가 sanity check 실패로 needs_review 플래그가 붙는데도 예외단서 무시한 800%가 "🏛 조례"로 그대로 노출(실제 서울도심 특별관리구역이면 진짜 한도 600%, 601.96% 입력이 여유가 아니라 초과). **수정**: 2단계도 needs_review=True면 캐시엔 남기되(수동검토용) 응답은 3단계 시행령 폴백으로 떨어지도록 변경 — 1/1-b단계와 동일 패턴 적용, 신호·점수 로직 불변. 라이브 재검증 완료(같은 케이스가 이제 시행령 1300%로 안전 폴백). 테스트 `tests/test_ordinance_resolver.py` 신규 2건.
-  - [x] **④-b. `data_quality.ordinance_used`가 BCR만 체크** — ✅ 완료 (2026-07-01). [diagnose_engine.py:700](backend/services/diagnose_engine.py#L700) `ordinance_used = cov_source is not None and "조례" in cov_source`가 건폐율(cov_source)만 보고 용적률(far_source)은 안 봐서, FAR이 조용히 시행령 폴백돼도 `DataQualityBanner`의 "조례 ✓" 배지·`NO_ORDINANCE` 경고가 안 뜨던 문제. **수정**: `ordinance_used_bcr`/`ordinance_used_far` 개별 플래그 추가, 기존 `ordinance_used`는 **둘 다 조례일 때만 True**로 재정의(더 엄격·정직), `NO_ORDINANCE` 메시지에 어느 쪽이 미조회인지 명시("조례 수치 미조회(용적률)" 등). 프론트 `DataQualityBanner`는 변경 없이 기존 `ordinance_used` pill이 그대로 더 정확해짐. 테스트 `tests/test_regressions.py` 신규 2건(대칭 케이스 포함). 전체 314 통과.
-  - [x] **④-c. 레이턴시 실측 114초/건** — ✅ 완료 (2026-07-01). 원인 2가지 모두 수정: (1) `heritage_client.py` `_load_all()`이 국가유산청 종목 6개를 순차 호출(콜드 캐시 시 20~40초) → `asyncio.gather`로 병렬화(라이브 재측정 5.4초). (2) `diagnose_engine.py`에서 설비·소방 AI 호출(`fire_safety.calculate`, 최대 90초)과 원래 그 뒤에 순차 실행되던 학교·문화재 근접 조회(B4, 서로 데이터 의존관계 없음)를 `_compute_fire()`/`_compute_nearby()` 두 코루틴으로 분리해 `asyncio.gather`로 동시 실행 — 이후 코드는 동일한 `nearby_schools`/`nearby_heritages` 결과를 그대로 사용(신호·값 불변, 실행 타이밍만 변경). (3) `llm_client.py` `AsyncAnthropic(max_retries=1)`(SDK 기본 2 → 축소)로 Claude API 전체 실패 시 최악 대기를 30초×3회(~90초)에서 30초×2회로 단축, 실패 시 기존과 동일하게 `_fallback()` graceful degrade. **같은 실주소·같은 입력으로 라이브 재검증: 114초 → 65초(-43%)**, 국가유산청 6종 병렬 완료 5.4초, Claude 재시도 1회로 감소. 전체 테스트 314건 그린(신규 테스트 없음 — 순수 동시성 리팩터, 결과값 동일성은 기존 회귀 스위트로 보증).
+**하지 말 것** (환각 표면 차단 — 영구 가드레일): 조문 본문·해석 자체 생성 금지(graph 영역), 자치구 고시 PDF 자동파싱 금지(폐지고시 오인 위험), LLM 결정수치 금지, 점수곡선 재발명 금지(골든셋 캘리브레이션만). ※ 법제처 DRF 별표 PDF(현행 시행령 별표, `별표서식PDF파일링크`)는 예외 — 추출값을 seed로 전사 + verify 스크립트로 전수 대조 OK.
 
 ---
 
-**완료 이력 (요약)** — 2026-06-22 사업성 모드 A~E 확장(제안화면·What-If·brief 불러오기 E1·다중비교 E2·MD/Excel E3, `feasibility_*`·`/api/feasibility/*`). 2026-06-26 버그 5건 fix + pytest CI 게이트(`deploy.yml` test job) + 외부 API 재시도(`http_retry.py`, 정부 GET 14곳) + Step 8(사내 케이스 DB) 제거 + Step 9(brief 연계, 소스앱 `competition_comparison`·버킷 `kunwon-competition-db/_briefs/`·env `BRIEF_DIR`) + Step 11(법규 그래프 138노드). 2026-05-20~22 Step 5a(법령 수치 검증)·5b(#13~15)·6(Docker·Cloud Run·디자인 토큰). 2026-06-19 Step 7(사업성 초판).
-
-**보류 (외부 의존)**: D 부대시설·사업성 지표(추가 데이터·기준 필요) · 용도 매핑표(brief 사업유형↔건축법 19용도 전체표, 시니어 회의). ※ brief 괄호표기 부분 자동감지는 이미 동작.
-
 ### 📋 현재 상태
 
-핵심 계산 엔진 운영급 완성(건폐율·용적률·완화 합산·심의 트리거 정확). 막힌 건 "데이터"(SHP·고시·brief 샘플 — 외부에서 채울 영역).
+핵심 계산 엔진 운영급 완성(건폐율·용적률·완화 합산·심의 트리거·조례 리졸버 정확). 막힌 건 "데이터"(SHP·고시·brief 샘플 — 외부에서 채울 영역).
 
 | 영역 | 상태 |
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel | ✅ 운영급 |
 | API 키 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 310건 · CI 게이트) | ✅ |
+| 검증 인프라 (pytest 314건 · CI 게이트) | ✅ |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json` 검증) |
 | 일부 SHP 누락 (철도 / 일부 도시계획시설) | ❌ |
 
-### 🎯 활성 TODO
+### ✅ 완료 이력 (요약)
 
-> 정규 로드맵 Step 5a~11 전부 완료/제외(Step 8 케이스 DB·10 계산식 노출은 사용자 결정으로 제외).
+**2026-05~06월**: Step 5a(법령 수치 검증)·5b(#13~15 주차·다중이용·영향평가 5종)·6(Docker·Cloud Run·디자인 토큰)·7(사업성 초판)·9(brief 연계)·11(법규 그래프 138노드). 버그 5건 fix, pytest CI 게이트, 외부 API 재시도(`http_retry.py`). Step 8(사내 케이스 DB)은 더미라 제거. NSDI 폐기(VWorld 대체)·지구단위계획구역 자동감지·학교(Kakao)·문화재(국가유산청) 좌표 판정·도시계획시설 VWorld WFS 실시간 전환.
 
-- [ ] **법규그래프 참조 조문 7건 정정** (graph E-12 감사 발견, 2026-06-30) — `config/law_graph_auto.json`(+ `law_graph_seed.json`, 및 이를 수확하는 계산기 `law_refs`)이 graph에 실재하지 않는 조문을 참조. graph 측 감사(diagnose 참조 127건 실재성 검사)에서 확정: corpus 빈틈 0이고 **7건 전부 diagnose 측 오류**(법제처 현행 fetch로 교차확인). ① **法/시행령 오기재 4건** — `건축법 시행령 제13조의2·제53조의2·제77조의2·제77조의4`로 적었으나 실제 조문은 `건축법`(본문)에 존재(안전영향평가·특별건축구역·건축협정 등) → law 정정. ② **현행 미존재 3건** — `건축법 제7조의2`·`주차장법 제51조`·`녹색건축물 조성 지원법 제61조`는 법제처에도 없음(삭제/오기) → 참조 제거 또는 올바른 조문으로 교체. ※ 정정 후 `law_graph_auto.json` 재수확. graph 코드와 무관(diagnose 단독 작업).
-- [ ] **brief 추가 샘플**(민간·다부지) → Step 9 매핑 견고화 (공공 1건 검증됨).
-- [ ] **토지이음 404 문의**(`iuLawInfo`·`sDevList`) ✉ luris@korea.kr · ☎ 1522-4484 → LawInfoPanel·DevTrendPanel 활성화.
-- [ ] **사내 시설용도 매핑표**(시니어 30분) → brief 용도 완전 자동화.
-- [ ] **철도보호지구** — 보류(복잡). 코드(`railway/indexer.py`) 준비됨 → `RAILWAY_SHP_PATH`에 철도선형 SHP(Geofabrik OSM `gis_osm_railways_free_1.shp`, EPSG:4326, → `backend/files/railway/`) 배치 시 동작. ※ 도시계획시설 철도는 이미 VWorld 판정 중, 빠진 건 운영철도 30m 보호지구(철도안전법 §45)뿐.
-- [ ] (낮음) 운영 인프라(Cloud Logging·Sentry·BigQuery), dev `npm audit fix`.
-
-> 완료: NSDI 폐기(서비스 종료→VWorld 대체)·지구단위계획구역 자동감지(VWorld WFS `lt_c_upisuq161`)·학교(Kakao)·문화재(국가유산청 GIS) 좌표 판정·도시계획시설 VWorld WFS 실시간 전환.
-
----
-
-### 완료 로드맵 (요약)
-
-- **Step 5a 법령 수치 검증**(2026-05-20): `far_relief_rules.json` 별표9(녹색 6/3·ZEB 15~11·시범 10), `public_certification` ZEB 의무, `landscape_standards` 추정값 제거(미매칭→pass=None·conf 2), `building_agreement` §110의7.
-- **Step 5b**(2026-05-20): #13 주차 세부분류·#14 다중이용(`multi_use.py`)·#15 영향평가 5종(총 11 심의), Spec 9 조경 고시(국토부 제2021-1778호).
-- **Step 6**(2026-05-22): Docker·Cloud Run·디자인 토큰(`kunwon-tokens.css`), `DESIGN_SYSTEM.md`·`DEPLOY.md`.
-- **Step 7**(2026-06-19): 사업성 모드 + MD/Excel. **Step 9**: brief 연계. **Step 11**: 법규 그래프(138노드). **Step 8·10**: 제거/보류(사용자 결정). Spec 1~11 코드 완료.
-
-### 사용자가 직접 처리할 항목
-
-1. brief 추가 샘플(`competition_comparison` 출력, 민간 1 + 다부지 1). 공공 1건 검증됨.
-2. 토지이음 404 문의(`iuLawInfo`·`sDevList` — ✉ luris@korea.kr · ☎ 1522-4484).
-3. 사내 시설용도 매핑표(brief 14 사업유형 ↔ 건축법 19 용도, 시니어 30분).
+**2026-06-29~07-01 정확도·정직성 강화** (배경·원칙 [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md)): 침묵 과대평가 경고 2종(`STREET_BLOCK_UNVERIFIED`·`FACILITY_AREA_UNCORRECTED`) · `aggregate_confidence` 노출 · 정량 4개 카드 `provenance` 블록 · 골든 케이스 12건(용도지역 7종)+합성 경로 4종(`tests/golden/`) · 조례 한도 DB 보강(17개 시도 310건 — 법정 한도 재현 감사로 서울 밖 최대 +810%p 과대평가 발견·해소, 한글수사 추출 버그 fix) · 심의 트리거 감사 + 교통영향평가 임계 정정(별표1 PDF 전수 대조) · 환경영향평가 임계 정밀화(별표4, 도시지역 완전누락 구간 발견·해소) · 별표 PDF 수집 경로 확보(법제처 DRF `별표서식PDF파일링크` + pdfplumber). **실사용 라이브 진단 감사(2026-07-01, 실주소 `/api/diagnose` 호출)**로 3건 추가 발견·수정: 조례 1차추출 needs_review 미게이팅(검증 안 된 조례값이 첫 조회 때 그대로 쓰이던 구멍, `ordinance_resolver.py`) · `data_quality.ordinance_used`가 건폐율만 체크하던 문제(`ordinance_used_bcr`/`ordinance_used_far` 분리) · 진단 1건 레이턴시 114초(국가유산청 8회 순차 호출 + Claude 재시도) → 병렬화로 65초(-43%). 테스트 269→314건.
 
 ### 공유 폴더 (셋업 완료)
 
@@ -211,6 +165,8 @@
 ---
 
 ## 주요 서비스 파일 (backend/services/)
+
+> `backend/main.py`는 FastAPI 라우터만 담당, API 입력 스키마는 `backend/schemas.py`(Pydantic)로 분리되어 있다.
 
 | 파일 | 역할 |
 | --- | --- |
