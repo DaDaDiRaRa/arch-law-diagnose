@@ -152,14 +152,22 @@ class OrdinanceResolver:
                 source_article=extracted.get("source_article"),
                 needs_review=extracted.get("needs_review", False),
             )
-            return {
-                "value": extracted["value"],
-                "source": "조례",
-                "source_detail": extracted.get("source_article", ""),
-                "is_ordinance": True,
-                "needs_review": extracted.get("needs_review", False),
-                "is_estimate": False,
-            }
+            if extracted.get("needs_review", False):
+                # 추출 실패 의심(예: 예외 단서 포함 조문) — 캐시엔 남기되(수동 검토용)
+                # 이번 응답은 1/1-b단계와 동일하게 시행령 fallback이 더 안전.
+                logger.debug(
+                    "needs_review=True 레코드 건너뜀(첫 추출): %s %s %s = %.1f%%",
+                    jurisdiction_code, zone_use, category, extracted["value"],
+                )
+            else:
+                return {
+                    "value": extracted["value"],
+                    "source": "조례",
+                    "source_detail": extracted.get("source_article", ""),
+                    "is_ordinance": True,
+                    "needs_review": False,
+                    "is_estimate": False,
+                }
 
         # ── 3단계: JSON fallback ──────────────────────────────────────
         return self._fallback(zone_use, category, "조례 미조회")

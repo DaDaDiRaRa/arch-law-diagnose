@@ -16,6 +16,7 @@ Phase 3 추가:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -560,18 +561,20 @@ class DiagnoseEngine:
                     "(§110의7 5호 — 현재 자동 진단 외)"
                 )
 
-        # 설비_소방 — AI 호출 (선택적 스킵)
-        if skip_ai and cached_fire_safety is not None:
-            r_fire = {
-                **cached_fire_safety,
-                "notes": (cached_fire_safety.get("notes", "") + " [What-if: 기본 진단 결과 재사용]").strip(),
-            }
-        elif skip_ai:
-            r_fire = fire_safety.skipped_result(
-                "What-if 모드 — AI 재판단 생략. 기본 진단 결과 참조."
-            )
-        else:
-            r_fire = await fire_safety.calculate(
+        # 설비_소방 — AI 호출 (선택적 스킵). 서로 무관한 국가유산청/학교 근접
+        # 조회(B4, 원래 아래쪽에서 순차 실행되던 것)를 여기서 동시에 미리 시작해
+        # Claude API 호출 대기 시간과 겹치게 한다(④-c, 레이턴시 단축, 결과값 불변).
+        async def _compute_fire() -> dict:
+            if skip_ai and cached_fire_safety is not None:
+                return {
+                    **cached_fire_safety,
+                    "notes": (cached_fire_safety.get("notes", "") + " [What-if: 기본 진단 결과 재사용]").strip(),
+                }
+            if skip_ai:
+                return fire_safety.skipped_result(
+                    "What-if 모드 — AI 재판단 생략. 기본 진단 결과 참조."
+                )
+            return await fire_safety.calculate(
                 self._llm,
                 building_use=building_use,
                 floors_above=floors_above,
@@ -580,6 +583,28 @@ class DiagnoseEngine:
                 total_floor_area=total_floor_area,
                 units=units,
             )
+
+        async def _compute_nearby() -> tuple[list[dict] | None, list[dict] | None]:
+            schools: list[dict] | None = None
+            heritages: list[dict] | None = None
+            if land.get("lat") is None or land.get("lon") is None:
+                return schools, heritages
+            _lon = float(land["lon"])
+            _lat = float(land["lat"])
+            tasks: dict[str, "asyncio.Future"] = {}
+            if self._school:
+                tasks["schools"] = asyncio.ensure_future(self._school.find_nearby_schools(_lon, _lat))
+            if self._heritage:
+                tasks["heritages"] = asyncio.ensure_future(self._heritage.find_nearby_heritages(_lon, _lat))
+            if tasks:
+                await asyncio.gather(*tasks.values())
+                schools = tasks["schools"].result() if "schools" in tasks else None
+                heritages = tasks["heritages"].result() if "heritages" in tasks else None
+            return schools, heritages
+
+        r_fire, (nearby_schools, nearby_heritages) = await asyncio.gather(
+            _compute_fire(), _compute_nearby()
+        )
 
         # 공공기관 의무 인증 3종 카드 (가중치 0 → 종합점수 무영향)
         r_public_cert = public_certification.calculate(
@@ -647,16 +672,8 @@ class DiagnoseEngine:
         else:
             signal = "GREEN"
 
-        # B4: 교육환경·문화재 근접 데이터 선조회 (좌표가 있을 때만)
-        nearby_schools: list[dict] | None = None
-        nearby_heritages: list[dict] | None = None
-        if land.get("lat") is not None and land.get("lon") is not None:
-            _lon = float(land["lon"])
-            _lat = float(land["lat"])
-            if self._school:
-                nearby_schools = await self._school.find_nearby_schools(_lon, _lat)
-            if self._heritage:
-                nearby_heritages = await self._heritage.find_nearby_heritages(_lon, _lat)
+        # B4: 교육환경·문화재 근접 데이터 — 위에서 설비_소방 AI 호출과 동시에 이미 조회됨
+        # (nearby_schools/nearby_heritages는 _compute_nearby() 결과).
 
         # B4: 심의 자동 트리거
         applicable_reviews = evaluate_reviews(
@@ -697,12 +714,18 @@ class DiagnoseEngine:
                 "msg": f"토지 정보가 {age}일 전 캐시 데이터입니다 — VWorld 재조회 실패. 용도지역이 변경됐을 수 있습니다.",
             })
 
-        ordinance_used = cov_source is not None and "조례" in cov_source
+        ordinance_used_bcr = cov_source is not None and "조례" in cov_source
+        ordinance_used_far = far_source is not None and "조례" in far_source
+        ordinance_used = ordinance_used_bcr and ordinance_used_far
         if not ordinance_used:
+            missing = [
+                name for name, used in (("건폐율", ordinance_used_bcr), ("용적률", ordinance_used_far))
+                if not used
+            ]
             dq_issues.append({
                 "level": "warn",
                 "code": "NO_ORDINANCE",
-                "msg": "조례 수치 미조회 — 국토계획법 시행령 기본값 사용 (지자체 강화 조례 미반영 가능)",
+                "msg": f"조례 수치 미조회({'·'.join(missing)}) — 국토계획법 시행령 기본값 사용 (지자체 강화 조례 미반영 가능)",
             })
 
         if not self._llm.available:
@@ -786,6 +809,8 @@ class DiagnoseEngine:
             "issues": dq_issues,
             "aggregate_confidence": aggregate_confidence,
             "ordinance_used": ordinance_used,
+            "ordinance_used_bcr": ordinance_used_bcr,
+            "ordinance_used_far": ordinance_used_far,
             "llm_used": self._llm.available,
             "luris_used": bool(self._luris and self._luris._key),
             "zone_use_source": (

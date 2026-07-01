@@ -35,8 +35,11 @@ class LLMClient:
             logger.warning("ANTHROPIC_API_KEY 미설정 — AI 판단 항목 비활성화")
             self._client: AsyncAnthropic | None = None
         else:
-            # 네트워크 장애 시 무한 대기 방지 (다른 httpx 클라이언트와 동일 정책)
-            self._client = AsyncAnthropic(api_key=api_key, timeout=30.0)
+            # 네트워크 장애 시 무한 대기 방지 (다른 httpx 클라이언트와 동일 정책).
+            # max_retries=1(SDK 기본 2 → 축소): 설비_소방 카드 하나 때문에 진단
+            # 전체가 최악의 경우 30초×3회(≈90초)까지 블로킹되던 걸 30초×2회로 단축.
+            # 완전 실패 시 fire_safety._fallback()로 graceful degrade — 동작 불변.
+            self._client = AsyncAnthropic(api_key=api_key, timeout=30.0, max_retries=1)
         self._model = os.environ.get("ANTHROPIC_MODEL", _DEFAULT_MODEL)
 
     @property

@@ -67,6 +67,10 @@
   - **환경**(환경영향평가법 시행령 별표3·별표4): 엔진이 **비도시(관리·농림·자연환경보전) 플랫 7,500㎡ + 도시지역 완전 누락**이었던 걸 별표4 원문 zone별 임계로 교체 — `config/environmental_assessment_thresholds.json`(원문 전사) + `scripts/verify_environmental_thresholds.py`(숫자 경계·근접 정규식으로 PDF 재대조, 부분열 오탐 방지, **8/8 일치**). `_eval_environmental`을 `zone_use_normalizer` 표준명 기반 카테고리 매핑으로 재작성(보전관리 5,000·생산관리 7,500·계획관리 10,000·농림 7,500·자연환경보전 5,000·녹지지역 10,000·**도시지역 기타(주거·상업·공업) 60,000 신규** — 과거 완전 누락 구간). 별표3(대형, 25만㎡)은 사업유형 기반이라 매핑 난이도 큼 → 기존 플랫 임계를 "대규모 개발" 보수 플래그로 유지(추측 매핑 안 함). 테스트 +2, 전체 310(회계상 교통+환경 합산 반영), 전체 스위트 그린.
   - **골든 심의케이스 추가(Step 2)는 보류** — M드라이브 조사 결과 건축개요서엔 심의 이력이 체계적으로 없고, 별도 심의 문서(인허가 일정표 등)는 *예정* 초안이거나 타 프로젝트 텍스트가 섞여 신뢰 불가 확인(오염 방지 위해 강행 안 함). 사용자가 실제 심의 거친 특정 프로젝트를 지정해줄 때만 건별 추가.
   - **복합용도 Σ공식 자동계산(1단계)도 보류** — 엔진 입력이 `building_use` 단일값뿐이라 용도별 연면적 분해(`use_breakdown`) 없이는 Σ 계산이 죽은 코드가 됨. 백엔드 단독 추가는 부적절(도달 불가능한 코드) → 프론트 입력 UI와 함께 묶어야 함, 별도 착수 필요.
+- [x] **④ 실사용 라이브 진단 감사 발견분** — (2026-07-01, 실제 서버 기동 + 서울 중구 태평로1가 25 실주소 `/api/diagnose` 라이브 호출로 발견. 골든셋·감사스크립트로는 안 잡히던 구멍)
+  - [x] **④-a. 조례 1차추출 needs_review 게이팅 안 됨** — ✅ 완료 (2026-07-01). `ordinance_resolver.py` 2단계(캐시 미스 시 법제처 즉시 추출, [L141-165](backend/services/ordinance_resolver.py#L141))가 `needs_review=True`를 **DB 캐시엔 기록**하면서 **그 호출 자체엔 값을 무조건 반환**하던 버그. 안전장치(needs_review→시행령 폴백)가 1단계·1-b단계(캐시 재조회)에서만 작동해, 처음 그 조문을 추출하는 요청은 보호받지 못했다. 라이브 재현: 서울 일반상업지역 용적률 조례 원문 "800%(단, 서울도심: 600%)"가 sanity check 실패로 needs_review 플래그가 붙는데도 예외단서 무시한 800%가 "🏛 조례"로 그대로 노출(실제 서울도심 특별관리구역이면 진짜 한도 600%, 601.96% 입력이 여유가 아니라 초과). **수정**: 2단계도 needs_review=True면 캐시엔 남기되(수동검토용) 응답은 3단계 시행령 폴백으로 떨어지도록 변경 — 1/1-b단계와 동일 패턴 적용, 신호·점수 로직 불변. 라이브 재검증 완료(같은 케이스가 이제 시행령 1300%로 안전 폴백). 테스트 `tests/test_ordinance_resolver.py` 신규 2건.
+  - [x] **④-b. `data_quality.ordinance_used`가 BCR만 체크** — ✅ 완료 (2026-07-01). [diagnose_engine.py:700](backend/services/diagnose_engine.py#L700) `ordinance_used = cov_source is not None and "조례" in cov_source`가 건폐율(cov_source)만 보고 용적률(far_source)은 안 봐서, FAR이 조용히 시행령 폴백돼도 `DataQualityBanner`의 "조례 ✓" 배지·`NO_ORDINANCE` 경고가 안 뜨던 문제. **수정**: `ordinance_used_bcr`/`ordinance_used_far` 개별 플래그 추가, 기존 `ordinance_used`는 **둘 다 조례일 때만 True**로 재정의(더 엄격·정직), `NO_ORDINANCE` 메시지에 어느 쪽이 미조회인지 명시("조례 수치 미조회(용적률)" 등). 프론트 `DataQualityBanner`는 변경 없이 기존 `ordinance_used` pill이 그대로 더 정확해짐. 테스트 `tests/test_regressions.py` 신규 2건(대칭 케이스 포함). 전체 314 통과.
+  - [x] **④-c. 레이턴시 실측 114초/건** — ✅ 완료 (2026-07-01). 원인 2가지 모두 수정: (1) `heritage_client.py` `_load_all()`이 국가유산청 종목 6개를 순차 호출(콜드 캐시 시 20~40초) → `asyncio.gather`로 병렬화(라이브 재측정 5.4초). (2) `diagnose_engine.py`에서 설비·소방 AI 호출(`fire_safety.calculate`, 최대 90초)과 원래 그 뒤에 순차 실행되던 학교·문화재 근접 조회(B4, 서로 데이터 의존관계 없음)를 `_compute_fire()`/`_compute_nearby()` 두 코루틴으로 분리해 `asyncio.gather`로 동시 실행 — 이후 코드는 동일한 `nearby_schools`/`nearby_heritages` 결과를 그대로 사용(신호·값 불변, 실행 타이밍만 변경). (3) `llm_client.py` `AsyncAnthropic(max_retries=1)`(SDK 기본 2 → 축소)로 Claude API 전체 실패 시 최악 대기를 30초×3회(~90초)에서 30초×2회로 단축, 실패 시 기존과 동일하게 `_fallback()` graceful degrade. **같은 실주소·같은 입력으로 라이브 재검증: 114초 → 65초(-43%)**, 국가유산청 6종 병렬 완료 5.4초, Claude 재시도 1회로 감소. 전체 테스트 314건 그린(신규 테스트 없음 — 순수 동시성 리팩터, 결과값 동일성은 기존 회귀 스위트로 보증).
 
 ---
 
@@ -159,7 +163,7 @@
 | 행위제한 | `land_use_act.py` | LURIS + EUM 교차검증 |
 | 도시계획시설 | `urban_facility.py` | VWorld WFS 실시간(lt_c_upisuq151~159) ∩ 지적도 — SHP 없이. 실패 시 로컬 SHP 폴백 |
 | 건폐율 | `coverage.py` | 조례 우선 → 시행령 (zone_limits.json) |
-| 용적률 | `far.py` | 동일 + 4종 완화 (녹색·에너지·지능형·장수명) |
+| 용적률 | `far.py` | 동일 + 완화(공개공지·녹색·ZEB·시범 — 지능형·장수명은 별표9 미포함으로 현재 비활성) |
 | 높이·일조 | `height.py` | §60·§61 자동 판정 |
 | 주차 | `parking.py` | 주차장법 시행령 |
 | 조경 | `landscape.py` | 건축법 §42 + 시행령 §27 + 조례 리졸버 |
@@ -211,14 +215,14 @@
 | 파일 | 역할 |
 | --- | --- |
 | `diagnose_engine.py` | 진단 전체 오케스트레이션 |
-| `zone_use_normalizer.py` | 용도지역 표준명 정규화 (19종 + 별칭 61개) |
+| `zone_use_normalizer.py` | 용도지역 표준명 정규화 (19종 + 별칭 31개) |
 | `eum_client.py` | 토지이음 7개 API |
 | `luris_client.py` | 공공데이터포털 LURIS 행위제한 2개 API (EUC-KR XML) |
 | `vworld_client.py` ⚠️ | VWorld WFS 지적 폴리곤 + 지오코딩 (검증 필요) |
 | `ordinance_resolver.py` | 조례 cascade 조회. `needs_review=True` 레코드는 자동 skip → 시행령 fallback |
 | `ordinance_extractor.py` | 법령 본문 → 건폐율/용적률 수치 추출 (regex + LLM) |
 | `land_use_resolver.py` | 토지 정보 조회 + stale 캐시 fallback |
-| `far_relief.py` | 용적률 완화 6레버(공개공지·녹색·ZEB·시범·지능형·장수명)+수동. 인증 합산 캡 15%, 전체 캡 1.15배 |
+| `far_relief.py` | 용적률 완화 4레버 활성(공개공지·녹색·ZEB·시범)+수동. 지능형·장수명은 규칙 골격만 있고 `by_grade` 값이 비어 있어 현재 0% 기여(별표9 미포함, 원문 확인 전까지 비활성). 인증 합산 캡 15%, 전체 캡 1.15배 |
 | `building_agreement.py` | 건축협정 §110의7 완화 사후 보정 |
 | `multi_parcel.py` | 합필 진단 (면적 안분 + 소규모 예외) |
 | `review_triggers.py` | 심의 자동 트리거 11종 (건축위·교통·경관·재해·교육·문화재·환경·도시계획위·지하안전·안전영향·범죄예방) |

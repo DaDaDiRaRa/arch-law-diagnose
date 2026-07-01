@@ -55,40 +55,45 @@ class HeritageClient:
     async def close(self) -> None:
         await self._http.aclose()
 
+    async def _fetch_kind(self, code: str, kind: str) -> list[dict]:
+        """종목 1개 수확. 실패해도 예외를 던지지 않고 빈 리스트로 degrade."""
+        try:
+            r = await request_with_retry(
+                self._http, "GET", _SPCA_URL, params={"ccbaKdcd": code},
+            )
+            r.raise_for_status()
+            root = ET.fromstring(r.content)  # bytes → 선언된 인코딩 자동 처리
+        except Exception as exc:
+            logger.warning("국가유산청 종목 %s(%s) 수확 실패: %s", code, kind, exc)
+            return []
+
+        items: list[dict] = []
+        for spca in root.findall("spca"):
+            name = (spca.findtext("ccbaMnm") or "").strip()
+            try:
+                x = float(spca.findtext("cnX") or "")
+                y = float(spca.findtext("cnY") or "")
+            except (ValueError, TypeError):
+                continue  # 좌표 없는 항목(무형 등) skip
+            if name:
+                items.append({"name": name, "heritage_type": kind, "x": x, "y": y})
+        logger.debug("국가유산청 %s: %d건", kind, len(items))
+        return items
+
     async def _load_all(self) -> list[dict] | None:
-        """6개 종목 전체 좌표 수확(1회). 성공 시 캐시·반환, 전부 실패 시 None."""
+        """6개 종목 전체 좌표 수확(1회, 병렬). 성공 시 캐시·반환, 전부 실패 시 None."""
         if self._cache is not None:
             return self._cache
         async with self._lock:
             if self._cache is not None:  # 락 대기 중 다른 코루틴이 적재
                 return self._cache
 
-            heritages: list[dict] = []
-            for code, kind in _TARGET_KINDS.items():
-                try:
-                    r = await request_with_retry(
-                        self._http, "GET", _SPCA_URL, params={"ccbaKdcd": code},
-                    )
-                    r.raise_for_status()
-                    root = ET.fromstring(r.content)  # bytes → 선언된 인코딩 자동 처리
-                except Exception as exc:
-                    logger.warning("국가유산청 종목 %s(%s) 수확 실패: %s", code, kind, exc)
-                    continue
-
-                added = 0
-                for spca in root.findall("spca"):
-                    name = (spca.findtext("ccbaMnm") or "").strip()
-                    try:
-                        x = float(spca.findtext("cnX") or "")
-                        y = float(spca.findtext("cnY") or "")
-                    except (ValueError, TypeError):
-                        continue  # 좌표 없는 항목(무형 등) skip
-                    if name:
-                        heritages.append(
-                            {"name": name, "heritage_type": kind, "x": x, "y": y}
-                        )
-                        added += 1
-                logger.debug("국가유산청 %s: %d건", kind, added)
+            # 종목 6개는 서로 무관한 독립 조회 — 순차 호출 대신 동시 실행해
+            # 콜드 스타트(서버 기동 후 첫 진단) 레이턴시를 줄인다(④-c).
+            results = await asyncio.gather(
+                *(self._fetch_kind(code, kind) for code, kind in _TARGET_KINDS.items())
+            )
+            heritages: list[dict] = [item for sub in results for item in sub]
 
             if not heritages:
                 logger.warning("국가유산청 수확 0건 — degrade (다음 호출 재시도)")

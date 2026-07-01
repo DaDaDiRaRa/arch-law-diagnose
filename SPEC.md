@@ -106,7 +106,7 @@
 | `building_agreement` | bool | — | 건축협정 여부 (§110의7 완화 적용) |
 | `skip_fire_safety` | bool | — | AI 설비소방 판단 생략 (빠른 재계산용) |
 
-**용도지역 표준화**: 모든 `zone_use` 값은 `zone_use_normalizer.py`의 `normalize()`를 거쳐 19개 표준명 + 별칭 61개 매핑. 매칭 실패 시 `None` → 전 항목 `pass=None`.
+**용도지역 표준화**: 모든 `zone_use` 값은 `zone_use_normalizer.py`의 `normalize()`를 거쳐 19개 표준명 + 별칭 31개 매핑(+ 표준명을 유일하게 포함하는 부분일치 폴백). 매칭 실패 시 `None` → 전 항목 `pass=None`.
 
 ### 3-2. 사업성 모드 추가 필드 (`POST /api/feasibility/run`)
 
@@ -673,6 +673,7 @@ python -m scripts.seed_municipal_ordinances --commit
 ```
 backend/
 ├── main.py                      FastAPI 진입점·라우터
+├── schemas.py                   API 입력 스키마 (Pydantic, main.py 에서 분리)
 ├── config/
 │   ├── zone_limits.json         용도지역별 법정 상한 (시행령)
 │   ├── far_relief_rules.json    완화 규칙 파라미터

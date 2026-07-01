@@ -329,3 +329,54 @@ async def test_resolver_survives_gather_exception(monkeypatch):
     # 예외가 전파되면 이 호출이 RuntimeError 로 실패 → 수정 전 동작
     result = await resolver.resolve("서울특별시 어딘가", pnu="1156010300103850000")
     assert result.get("zone_use") == "준공업지역"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ④-b (실사용 라이브 진단 감사, 2026-07-01): data_quality.ordinance_used 가
+#   건폐율(cov_source)만 보고 용적률(far_source)은 안 봐서, 용적률만 조례
+#   미조회 상태여도 "조례 ✓" 배지·NO_ORDINANCE 경고가 안 뜨던 문제.
+#   건폐율·용적률 둘 다 조례일 때만 ordinance_used=True 로 바꾸고, 개별
+#   플래그(ordinance_used_bcr/far)를 추가로 노출.
+# ─────────────────────────────────────────────────────────────────────────────
+def _make_ordinance_mock(bcr_is_ordinance: bool, far_is_ordinance: bool):
+    ordinance = MagicMock()
+
+    async def _resolve(jurisdiction_code, jurisdiction_name, zone_use, category):
+        if category == "building_coverage_ratio":
+            return {
+                "value": 60.0, "is_ordinance": bcr_is_ordinance, "is_estimate": False,
+                "source_detail": "조례 건폐율" if bcr_is_ordinance else "zone_limits.json",
+            }
+        if category == "floor_area_ratio":
+            return {
+                "value": 400.0, "is_ordinance": far_is_ordinance, "is_estimate": False,
+                "source_detail": "조례 용적률" if far_is_ordinance else "zone_limits.json",
+            }
+        return {"value": None, "is_ordinance": False, "is_estimate": False, "source_detail": ""}
+
+    ordinance.resolve = AsyncMock(side_effect=_resolve)
+    return ordinance
+
+
+async def test_ordinance_used_false_when_only_bcr_is_ordinance(_engine, _land):
+    """건폐율만 조례고 용적률은 시행령 폴백이면 ordinance_used=False + 용적률 명시 경고."""
+    _engine._ordinance = _make_ordinance_mock(bcr_is_ordinance=True, far_is_ordinance=False)
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    dq = result["data_quality"]
+    assert dq["ordinance_used_bcr"] is True
+    assert dq["ordinance_used_far"] is False
+    assert dq["ordinance_used"] is False
+    no_ordinance = next(i for i in dq["issues"] if i["code"] == "NO_ORDINANCE")
+    assert "용적률" in no_ordinance["msg"]
+    assert "건폐율" not in no_ordinance["msg"]
+
+
+async def test_ordinance_used_true_when_both_bcr_and_far_are_ordinance(_engine, _land):
+    """건폐율·용적률 둘 다 조례로 조회되면 ordinance_used=True, 경고 없음 (대칭 케이스)."""
+    _engine._ordinance = _make_ordinance_mock(bcr_is_ordinance=True, far_is_ordinance=True)
+    result = await _engine._diagnose(_req(), _land, save_history=False, skip_ai=True)
+    dq = result["data_quality"]
+    assert dq["ordinance_used_bcr"] is True
+    assert dq["ordinance_used_far"] is True
+    assert dq["ordinance_used"] is True
+    assert "NO_ORDINANCE" not in _dq_codes(result)
