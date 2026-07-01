@@ -12,6 +12,7 @@ import asyncio
 import io
 import json
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -59,24 +60,31 @@ async def _fetch_byp4_text() -> str:
 def main() -> None:
     seed = json.loads(_SEED.read_text(encoding="utf-8"))
     text = asyncio.run(_fetch_byp4_text())
-    # 줄바꿈·공백·콤마 제거 — PDF 가 "6만\n제곱미터" 처럼 토큰을 끊어도 매칭되게.
-    norm = text.replace(",", "").replace(" ", "").replace("\n", "")
+    # 콤마 제거만 — 줄바꿈은 남겨 근접(re.DOTALL) 매칭에 활용.
+    norm = text.replace(",", "")
 
     print("소규모환경영향평가 임계값 seed ↔ 별표4 PDF 대조\n")
     ok = miss = 0
     for cat, val in seed["small_scale"]["by_zone_category"].items():
-        # PDF 표기: "5천제곱미터"/"5,000제곱미터"/"6만제곱미터"/"1만제곱미터" 등 혼용
-        cands = [f"{val}제곱미터", f"{val}㎡"]
+        # PDF 표가 2열을 섞어 추출해 "6만…제곱미터" 처럼 단위 접미사가 끊길 수 있다.
+        # 그래서 수치 토큰(아라비아 또는 한글 만/천, 숫자 경계 보장) 뒤 30자 이내에
+        # "제곱미터"가 나오는지로 판정 — 단순 부분열 포함(예: "5000"⊂"25000")을 피한다.
+        tokens = [str(val)]
         if val % 10000 == 0:
-            cands.append(f"{val // 10000}만제곱미터")
-        if val % 1000 == 0 and val < 10000:
-            cands.append(f"{val // 1000}천제곱미터")
-        found = any(cand.replace(",", "").replace(" ", "") in norm for cand in cands)
+            tokens.append(f"{val // 10000}만")
+        elif val % 1000 == 0 and val < 10000:
+            tokens.append(f"{val // 1000}천")
+        found = False
+        for tok in tokens:
+            pattern = rf"(?<!\d){re.escape(tok)}(?!\d)[^0-9]{{0,30}}?제곱미터"
+            if re.search(pattern, norm, re.DOTALL):
+                found = True
+                break
         if found:
             ok += 1
         else:
             miss += 1
-            print(f"  ✗ {cat}={val}㎡ — PDF 원문에서 미발견 (검색: {cands})")
+            print(f"  ✗ {cat}={val}㎡ — PDF 원문에서 근접 매칭 실패 (검색 토큰: {tokens})")
     print(f"\n  대조 {ok + miss}건 중 일치 {ok}, 불일치 {miss}")
     if miss:
         print("  ⚠ 불일치 — 법 개정 또는 seed 오기 가능. 수동 확인 필요.")
