@@ -183,7 +183,7 @@ function ModeCard({ title, tagline, description, features, ctaLabel, accent, onC
       </ul>
       <div
         className="text-center text-sm font-semibold py-2.5"
-        style={{ backgroundColor: accent, color:'#fff', borderRadius:'var(--radius-pill)' }}
+        style={{ backgroundColor: accent, color:'var(--brand-text)', borderRadius:'var(--radius-pill)' }}
       >
         {ctaLabel} →
       </div>

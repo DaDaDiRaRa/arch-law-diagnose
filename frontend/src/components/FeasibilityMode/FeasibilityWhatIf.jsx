@@ -147,8 +147,8 @@ export default function FeasibilityWhatIf() {
           style={{
             color: 'var(--error)',
             background: 'var(--canvas-elevated)',
-            borderLeft: '3px solid var(--error)',
             border: '1px solid var(--hairline)',
+            borderLeft: '3px solid var(--error)',
           }}
         >
           {whatifError}

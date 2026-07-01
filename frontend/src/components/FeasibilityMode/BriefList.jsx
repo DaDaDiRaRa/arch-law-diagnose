@@ -100,8 +100,8 @@ export default function BriefList({ onPick, picking = false }) {
           style={{
             color: 'var(--error)',
             background: 'var(--canvas-elevated)',
-            borderLeft: '3px solid var(--error)',
             border: '1px solid var(--hairline)',
+            borderLeft: '3px solid var(--error)',
           }}
         >
           {error}

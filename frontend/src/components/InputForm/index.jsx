@@ -750,5 +750,5 @@ function Field({ label, required, hint, children }) {
 }
 
 const inputCls =
-  'w-full px-3 py-2.5 text-sm focus:outline-none'
+  'w-full px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand)] focus:ring-offset-0'
   + ' border border-[var(--hairline)] rounded-[6px] bg-[var(--canvas-elevated)] text-[var(--ink)] font-[var(--font-sans)]'

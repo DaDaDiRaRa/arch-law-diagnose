@@ -66,9 +66,9 @@ export default function FeasibilityInputForm() {
               style={{
                 color: 'var(--info)',
                 background: 'var(--canvas-elevated)',
+                border: '1px solid var(--hairline)',
                 borderLeft: '3px solid var(--info)',
                 borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--hairline)',
               }}
             >
               토지 정보 자동 조회 중...
@@ -220,8 +220,8 @@ export default function FeasibilityInputForm() {
           style={{
             color: 'var(--error)',
             background: 'var(--canvas-elevated)',
-            borderLeft: '3px solid var(--error)',
             border: '1px solid var(--hairline)',
+            borderLeft: '3px solid var(--error)',
           }}
         >
           {error}

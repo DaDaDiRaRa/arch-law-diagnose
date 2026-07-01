@@ -114,8 +114,12 @@ def test_environmental_large_dev():
 
 
 def test_environmental_nonurban_small():
-    assert rt._eval_environmental(_req(site_area=8000), {"zone_use": "계획관리지역"})["severity"] == "REQUIRED"
-    # 도시지역 8000㎡는 대상 아님
+    # 보전관리지역: 별표4 기준 5,000㎡ 이상 → REQUIRED
+    assert rt._eval_environmental(_req(site_area=5500), {"zone_use": "보전관리지역"})["severity"] == "REQUIRED"
+    # 계획관리지역: 별표4 기준 10,000㎡ 이상 (8,000㎡는 미달 → NONE)
+    assert rt._eval_environmental(_req(site_area=8000), {"zone_use": "계획관리지역"})["severity"] == "NONE"
+    assert rt._eval_environmental(_req(site_area=11000), {"zone_use": "계획관리지역"})["severity"] == "REQUIRED"
+    # 도시지역 기타(일반상업): 60,000㎡ 미만 → NONE
     assert rt._eval_environmental(_req(site_area=8000), {"zone_use": "일반상업지역"})["severity"] == "NONE"
 
 

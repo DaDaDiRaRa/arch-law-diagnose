@@ -78,7 +78,7 @@
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel | ✅ 운영급 |
 | API 키 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 307건 · CI 게이트) | ✅ |
+| 검증 인프라 (pytest 310건 · CI 게이트) | ✅ |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json` 검증) |
 | 일부 SHP 누락 (철도 / 일부 도시계획시설) | ❌ |
 

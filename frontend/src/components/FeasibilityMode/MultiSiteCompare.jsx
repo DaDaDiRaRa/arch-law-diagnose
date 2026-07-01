@@ -108,8 +108,8 @@ export default function MultiSiteCompare() {
           style={{
             color: 'var(--error)',
             background: 'var(--canvas-elevated)',
-            borderLeft: '3px solid var(--error)',
             border: '1px solid var(--hairline)',
+            borderLeft: '3px solid var(--error)',
           }}
         >
           {multiError}
@@ -224,7 +224,7 @@ function SiteRow({ site, index, onUpdate, onRemove }) {
         <button
           onClick={onRemove}
           className="px-1"
-          style={{ color: 'var(--hairline)' }}
+          style={{ color: 'var(--mute)' }}
           title="삭제"
         >
           ×
@@ -405,8 +405,8 @@ function CompareMatrix({ results }) {
           style={{
             color: 'var(--error)',
             background: 'var(--canvas-elevated)',
-            borderLeft: '3px solid var(--error)',
             border: '1px solid var(--hairline)',
+            borderLeft: '3px solid var(--error)',
           }}
         >
           실패한 부지 {failed.length}개:

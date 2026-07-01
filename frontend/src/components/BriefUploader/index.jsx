@@ -79,7 +79,7 @@ export default function BriefUploader({ onExtracted }) {
       {status === 'idle' || status === 'error' ? (
         <div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <span className="px-3 py-1.5 text-xs transition-colors" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--brand)',color:'#fff',fontFamily:'var(--font-sans)'}}>
+            <span className="px-3 py-1.5 text-xs transition-colors" style={{borderRadius:'var(--radius-sm)',backgroundColor:'var(--brand)',color:'var(--brand-text)',fontFamily:'var(--font-sans)'}}>
               파일 선택
             </span>
             <span className="text-xs" style={{color:'var(--mute)'}}>건폐율·용적률·높이 등 자동 추출</span>

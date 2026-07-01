@@ -18,6 +18,33 @@ from typing import Any
 # 교통영향평가 용도별 임계값 seed (도시교통정비촉진법 시행령 별표1, 법제처 PDF 검증).
 _TRAFFIC_SEED: dict | None = None
 
+# 소규모환경영향평가 용도지역별 임계값 seed (환경영향평가법 시행령 별표4, 법제처 PDF 검증).
+_ENV_SEED: dict | None = None
+
+# zone_use_normalizer 표준명 → by_zone_category 키 매핑 (부분매칭 금지).
+_ZONE_TO_ENV_CATEGORY: dict[str, str] = {
+    "보전녹지지역": "도시지역_녹지지역",
+    "생산녹지지역": "도시지역_녹지지역",
+    "자연녹지지역": "도시지역_녹지지역",
+    "보전관리지역": "보전관리지역",
+    "생산관리지역": "생산관리지역",
+    "계획관리지역": "계획관리지역",
+    "농림지역": "농림지역",
+    "자연환경보전지역": "자연환경보전지역",
+    "개발제한구역": "개발제한구역",
+}
+
+
+def _env_thresholds() -> dict:
+    global _ENV_SEED
+    if _ENV_SEED is None:
+        path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "config", "environmental_assessment_thresholds.json")
+        )
+        with open(path, encoding="utf-8") as f:
+            _ENV_SEED = json.load(f)
+    return _ENV_SEED
+
 
 def _traffic_thresholds() -> dict:
     global _TRAFFIC_SEED
@@ -450,31 +477,37 @@ def _eval_cultural_heritage(
 # 7. 환경영향평가 / 소규모환경영향평가 — 환경영향평가법
 # ───────────────────────────────────────────────────────────────────────
 def _eval_environmental(req: dict, land: dict) -> dict:
-    site = float(req.get("site_area") or 0)
-    zone = land.get("zone_use") or ""
-    is_non_urban = any(kw in zone for kw in ("관리지역", "농림지역", "자연환경보전지역"))
+    from services.zone_use_normalizer import normalize as _norm_zone
 
-    # 단일 건축물은 통상 평가 대상 아님. 도시개발사업 25만㎡ 이상이 일반 환영.
-    # 소규모환경영향평가는 보전·관리지역에서 7,500~30,000㎡
+    site = float(req.get("site_area") or 0)
+    zone_raw = land.get("zone_use") or ""
+    zone = _norm_zone(zone_raw) or zone_raw
+
+    seed = _env_thresholds()
+    large_threshold: float = seed.get("large_scale", {}).get("engine_coarse_threshold", 250000)
+    small_by_cat: dict = seed.get("small_scale", {}).get("by_zone_category", {})
+    env_cat = _ZONE_TO_ENV_CATEGORY.get(zone, "도시지역_기타")
+    small_threshold: int | None = small_by_cat.get(env_cat)
+
     triggered = False
     reasons: list[str] = []
-    if site >= 250000:
+    if site >= large_threshold:
         triggered = True
-        reasons.append(f"개발면적 25만㎡ 이상({site:,.0f}㎡) — 환경영향평가")
-    elif is_non_urban and site >= 7500:
+        reasons.append(f"개발면적 {large_threshold:,.0f}㎡ 이상({site:,.0f}㎡) — 환경영향평가")
+    elif small_threshold and site >= small_threshold:
         triggered = True
-        reasons.append(f"{zone} + 면적 7,500㎡ 이상({site:,.0f}㎡) — 소규모환경영향평가")
+        reasons.append(f"{zone}({env_cat}) + 면적 {small_threshold:,}㎡ 이상({site:,.0f}㎡) — 소규모환경영향평가")
 
     severity = "REQUIRED" if triggered else "NONE"
     return {
         "name": "환경영향평가",
         "severity": severity,
         "triggered_reasons": reasons,
-        "law_ref": "환경영향평가법 §22, §43, 시행령 별표 3·4",
+        "law_ref": "환경영향평가법 §22, §43, 시행령 별표3·별표4",
         "law_ref_url": "https://www.law.go.kr/법령/환경영향평가법/제22조",
         "note": (
             "단순 건축물 인허가는 통상 평가 대상 아님. "
-            "도시개발·산단·관광단지 등 대규모 개발사업이거나 보전지역·관리지역에서 일정 규모 시 해당."
+            "도시개발·산단·관광단지 등 대규모 개발사업이거나 비도시지역에서 일정 규모 초과 시 해당."
         ),
     }
 

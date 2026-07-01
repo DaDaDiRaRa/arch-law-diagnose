@@ -1,7 +1,7 @@
 # arch-law-diagnose — 시스템 스펙
 
 > 코드에서 역추론한 문서. 불확실한 부분은 **[추정]** 으로 표시.  
-> 최종 업데이트: 2026-06-30 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋)
+> 최종 업데이트: 2026-07-01 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋·환경영향평가 별표4 JSON 연동·교통영향평가 용도별 임계·프론트 Vercel 디자인시스템)
 
 ---
 
@@ -556,7 +556,7 @@ brief_importer.map_brief() 자동 매핑:
 | 재해영향평가 | 재해위험지구 또는 규모 기준 [추정] |
 | 교육환경평가 | 학교 경계 50m/200m 이내 (`school_client` Kakao Places 자동 조회; 좌표 없으면 `maybe`) |
 | 문화재심의 | 문화재 경계 100~500m 이내 (`heritage_client` 국가유산청 GIS 자동 조회; 좌표 없으면 `maybe`) |
-| 환경영향평가 | 보전지역·생태자연도 (데이터 미보유 시 `maybe`) |
+| 환경영향평가 | site_area + zone_use 용도지역별 별표4 임계(`environmental_assessment_thresholds.json`); 임계 미달·비매칭 → NONE |
 | 도시계획위원회 | 지구단위계획구역 내 (VWorld WFS `lt_c_upisuq161` 좌표 자동 감지 → `zone_district` 보강) |
 | 지하안전평가 | 굴착깊이 10m 이상 또는 연면적 기준 [추정] |
 | 건축물 안전영향평가 | 초고층(50층↑ or 200m↑) OR 연면적 10만㎡ 이상 AND 16층 이상 |
@@ -681,6 +681,9 @@ backend/
 │   ├── law_scoring_weights.json 종합점수 가중치
 │   ├── ordinance_seed.json      서울 조례 시드
 │   ├── street_block_heights.json 가로구역 최고높이 (현재 비어 있음)
+│   ├── traffic_impact_thresholds.json 교통영향평가 용도별 임계 (별표1 PDF 검증)
+│   ├── environmental_assessment_thresholds.json 환경영향평가 용도지역별 임계 (별표4)
+│   ├── ucode_mapping.json       용도코드 매핑표
 │   ├── law_graph_seed.json      법규 그래프 수동 시드 (49노드)
 │   └── law_graph_auto.json      법규 그래프 자동 수확
 ├── services/

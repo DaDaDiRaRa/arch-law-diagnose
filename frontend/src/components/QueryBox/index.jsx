@@ -69,7 +69,7 @@ export default function QueryBox() {
           onKeyDown={onKey}
           rows={3}
           placeholder="질문을 입력하세요 (Ctrl+Enter 로 전송)"
-          className="w-full px-3 py-2 text-sm focus:outline-none"
+          className="w-full px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand)]"
           style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',backgroundColor:'var(--canvas-elevated)',color:'var(--ink)',fontFamily:'var(--font-sans)'}}
         />
         <div className="flex items-center justify-between gap-2">

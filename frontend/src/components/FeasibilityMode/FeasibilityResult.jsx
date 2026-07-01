@@ -15,6 +15,13 @@ const VERDICT_COLOR = {
   '정보 부족': 'var(--mute)',
 }
 
+const VERDICT_BG = {
+  '참여 권장': 'var(--ok-bg)',
+  '협상 필요': 'var(--warn-bg)',
+  '패스 권장': 'var(--error-bg)',
+  '정보 부족': 'var(--canvas-elevated)',
+}
+
 export default function FeasibilityResult() {
   const { result, reset, whatifOpen, openWhatif, formData, briefApplied } =
     useFeasibilityStore()
@@ -56,7 +63,7 @@ export default function FeasibilityResult() {
   return (
     <div className="space-y-5">
       {/* 종합 판단 배너 */}
-      <div className="p-5" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:`4px solid ${color}`,backgroundColor:'var(--canvas-elevated)'}}>
+      <div className="p-5" style={{borderRadius:'var(--radius)',border:'1px solid var(--hairline)',borderLeft:`4px solid ${color}`,backgroundColor:VERDICT_BG[verdict]||'var(--canvas-elevated)'}}>
         <div className="flex items-baseline justify-between mb-2">
           <div>
             <div className="text-[10px] uppercase font-bold mb-1" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',letterSpacing:'0.08em'}}>

@@ -669,7 +669,7 @@ function CategoryCard({ label, cat, nodeId, onShowGraph }) {
       <button
         type="button"
         onClick={() => hasDetail && setOpen((v) => !v)}
-        className={`w-full text-left p-3 transition-colors`}
+        className={`w-full text-left p-3 transition-colors ${hasDetail ? 'hover:bg-[var(--canvas)]' : ''}`}
         style={{borderRadius:'var(--radius)',cursor:hasDetail?'pointer':'default'}}
       >
         <div className="flex items-center justify-between gap-3">

@@ -8,7 +8,7 @@ const GraphCanvas = lazy(() => import('./GraphCanvas'))
 
 const REL_STYLE = {
   근거:   { bg: 'rgba(37,99,235,0.08)',   fg: 'var(--info)' },
-  위임:   { bg: 'rgba(124,58,237,0.08)',  fg: '#7c3aed' },
+  위임:   { bg: 'rgba(124,58,237,0.08)',  fg: 'var(--violet)' },
   완화:   { bg: 'rgba(22,163,74,0.08)',   fg: 'var(--ok)' },
   제외:   { bg: 'rgba(107,114,128,0.1)',  fg: 'var(--mute)' },
   트리거: { bg: 'rgba(217,119,6,0.1)',    fg: 'var(--warn-deep)' },

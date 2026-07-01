@@ -6,7 +6,7 @@
   "verified_on": "2026-06-30",
   "unit": "㎡ 이상 (사업계획/부지 면적 기준)",
   "small_scale": {
-    "_note": "별표4 소규모환경영향평가 — 국토계획법 용도지역별 사업계획 면적(=대지/개발면적). 엔진은 site_area 로 근사.",
+    "_note": "별표4 소규모환경영향평가 — 국토계획법 용도지역별 사업계획 면적(=대지/개발면적). 엔진은 site_area 로 근사. 카테고리 매핑은 review_triggers._ZONE_TO_ENV_CATEGORY(zone_use_normalizer 표준명 기반).",
     "by_zone_category": {
       "도시지역_녹지지역": 10000,
       "도시지역_기타": 60000,
@@ -16,18 +16,6 @@
       "농림지역": 7500,
       "자연환경보전지역": 5000,
       "개발제한구역": 5000
-    },
-    "zone_classify": {
-      "_note": "zone_use 문자열 → 위 category. 부분매칭, 위에서부터 우선.",
-      "rules": [
-        {"contains": "녹지지역", "category": "도시지역_녹지지역"},
-        {"contains": "보전관리", "category": "보전관리지역"},
-        {"contains": "생산관리", "category": "생산관리지역"},
-        {"contains": "계획관리", "category": "계획관리지역"},
-        {"contains": "농림지역", "category": "농림지역"},
-        {"contains": "자연환경보전지역", "category": "자연환경보전지역"},
-        {"contains_any": ["주거지역", "상업지역", "공업지역"], "category": "도시지역_기타"}
-      ]
     }
   },
   "large_scale": {
