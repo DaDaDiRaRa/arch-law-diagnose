@@ -113,7 +113,8 @@ class QueryEngine:
         context = self._build_context(
             address, zone_use, building_info, current_result, applied_refs, bodies
         )
-        user_prompt = _USER_TEMPLATE.format(question=question.strip(), context=context)
+        # str.format 대신 치환 — 질문/조문원문에 리터럴 {}가 있어도 크래시하지 않도록.
+        user_prompt = _USER_TEMPLATE.replace("{question}", question.strip()).replace("{context}", context)
 
         data = await self._llm.judge_json(_SYSTEM_PROMPT, user_prompt, max_tokens=4096)
         if data is None:

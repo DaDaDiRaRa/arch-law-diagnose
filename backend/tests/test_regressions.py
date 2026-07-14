@@ -380,3 +380,43 @@ async def test_ordinance_used_true_when_both_bcr_and_far_are_ordinance(_engine, 
     assert dq["ordinance_used_far"] is True
     assert dq["ordinance_used"] is True
     assert "NO_ORDINANCE" not in _dq_codes(result)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 전체 코드 리뷰 (2026-07-14) 확정 버그 회귀 방지
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_land_use_act_forbidden_label_not_misclassified_as_allowed():
+    """C1: '건축 불가능' 라벨이 '가능' substring 때문에 allowed 로 오분류되면 안 됨."""
+    from services.calculator.land_use_act import _collect_items
+    acts = [{"allowed": "건축 불가능", "items": [{"name": "공동주택", "law_ref": "§1"}]}]
+    allowed, forbidden, _ = _collect_items(acts)
+    assert "공동주택" in forbidden
+    assert "공동주택" not in allowed
+
+
+def test_land_use_act_allowed_label_still_works():
+    """C1 대칭: '건축 가능' 은 정상적으로 allowed."""
+    from services.calculator.land_use_act import _collect_items
+    acts = [{"allowed": "건축 가능", "items": [{"name": "제1종근린생활시설", "law_ref": "§1"}]}]
+    allowed, forbidden, _ = _collect_items(acts)
+    assert "제1종근린생활시설" in allowed
+    assert "제1종근린생활시설" not in forbidden
+
+
+def test_public_cert_renewable_ratio_no_crash_before_2020():
+    """C2: permit_year < 2020(표 최소연도) 이면 max() 빈 시퀀스로 크래시하던 것 → 폴백."""
+    from services.calculator.public_certification import _get_renewable_ratio
+    out = _get_renewable_ratio(2019)  # 수정 전: ValueError
+    assert "30%" in out
+    # 정상 범위는 그대로
+    assert "40%" in _get_renewable_ratio(2031)
+
+
+def test_parking_general_hospital_not_excluded():
+    """C3: 일반 '병원'이 '정신병원/요양병원/격리병원' 키에 substring으로 걸려 주차 제외되면 안 됨."""
+    from services.calculator.parking import _check_excluded
+    standards = {"excluded_uses": {"정신병원": "제외1", "요양병원": "제외2", "격리병원": "제외3"}}
+    assert _check_excluded("병원", standards) is None
+    # 실제 제외 대상은 여전히 제외
+    assert _check_excluded("요양병원", standards) == "제외2"

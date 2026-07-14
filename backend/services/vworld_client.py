@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 
 import httpx
@@ -210,12 +211,13 @@ class VWorldClient:
         field_csv = os.getenv("VWORLD_ROAD_WIDTH_FIELDS", "wdth,road_width,rd_wth,wdth_clss,WDTH,ROAD_BT,ROA_WDTH")
         width_fields = [f.strip() for f in field_csv.split(",") if f.strip()]
 
-        # buffer 영역 BBOX (lon/lat ± delta) — 1도 ≈ 111km
-        delta = buffer_m / 111_000.0
+        # buffer 영역 BBOX — 위도 1도≈111km(고정), 경도 1도는 cos(위도)만큼 짧아짐.
+        lat_d = buffer_m / 111_000.0
+        lon_d = buffer_m / (111_000.0 * max(0.01, math.cos(math.radians(lat))))
         bbox_geom = (
-            f"POLYGON(({lon - delta} {lat - delta},{lon + delta} {lat - delta},"
-            f"{lon + delta} {lat + delta},{lon - delta} {lat + delta},"
-            f"{lon - delta} {lat - delta}))"
+            f"POLYGON(({lon - lon_d} {lat - lat_d},{lon + lon_d} {lat - lat_d},"
+            f"{lon + lon_d} {lat + lat_d},{lon - lon_d} {lat + lat_d},"
+            f"{lon - lon_d} {lat - lat_d}))"
         )
 
         params = {
@@ -408,9 +410,11 @@ class VWorldClient:
         """
         if not self._key:
             return None
-        d = buffer_m / 111_000.0
+        # 위도 1도≈111km(고정), 경도는 cos(위도) 보정으로 실제 거리 반영.
+        lat_d = buffer_m / 111_000.0
+        lon_d = buffer_m / (111_000.0 * max(0.01, math.cos(math.radians(lat))))
         # WFS 1.1.0 + EPSG:4326 축 순서: minLat,minLon,maxLat,maxLon
-        bbox = f"{lat - d},{lon - d},{lat + d},{lon + d}"
+        bbox = f"{lat - lat_d},{lon - lon_d},{lat + lat_d},{lon + lon_d}"
         results = await asyncio.gather(
             *(self._fetch_facility_layer(tn, uq, bbox)
               for tn, uq in self._FACILITY_LAYERS.items()),
@@ -448,9 +452,11 @@ class VWorldClient:
         """
         if not self._key:
             return None
-        d = buffer_m / 111_000.0
+        # 위도 1도≈111km(고정), 경도는 cos(위도) 보정으로 실제 거리 반영.
+        lat_d = buffer_m / 111_000.0
+        lon_d = buffer_m / (111_000.0 * max(0.01, math.cos(math.radians(lat))))
         # WFS 1.1.0 + EPSG:4326 축 순서: minLat,minLon,maxLat,maxLon
-        bbox = f"{lat - d},{lon - d},{lat + d},{lon + d}"
+        bbox = f"{lat - lat_d},{lon - lon_d},{lat + lat_d},{lon + lon_d}"
         try:
             return await self._fetch_facility_layer(
                 self._DISTRICT_UNIT_LAYER, "UQ161", bbox
