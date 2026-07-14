@@ -193,7 +193,9 @@ def _check_excluded(building_use: str, standards: dict) -> str | None:
     excluded = standards.get("excluded_uses", {})
     use_norm = _norm(building_use)
     for key, msg in excluded.items():
-        if _norm(key) in use_norm or use_norm in _norm(key):
+        # key(제외 시설명)가 입력 용도에 포함될 때만 제외. 역방향(use_norm in key)은
+        # 일반 '병원'이 '정신병원/요양병원/격리병원' 키에 substring으로 걸려 오제외됨.
+        if _norm(key) in use_norm:
             return msg
     return None
 

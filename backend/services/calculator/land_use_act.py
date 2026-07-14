@@ -203,10 +203,12 @@ def _collect_items(acts: list[dict]) -> tuple[list[str], list[str], list[str]]:
             ref = it.get("law_ref", "")
             if not name:
                 continue
-            if "가능" in allowed_label:
-                allowed.append(name)
-            elif "금지" in allowed_label or "불가" in allowed_label:
+            # '불가'/'금지'를 먼저 검사 — '불가능'은 '가능'을 substring으로 포함하므로
+            # 순서가 뒤바뀌면 금지 항목이 allowed로 오분류됨.
+            if "금지" in allowed_label or "불가" in allowed_label:
                 forbidden.append(name)
+            elif "가능" in allowed_label:
+                allowed.append(name)
             if ref and ref not in refs:
                 refs.append(ref)
     return allowed, forbidden, refs

@@ -94,7 +94,9 @@ def _get_renewable_ratio(permit_year: int) -> str:
     table = {
         2020: 30, 2022: 32, 2024: 34, 2026: 36, 2028: 38, 2030: 40,
     }
-    ratio = max(v for y, v in table.items() if permit_year >= y)
+    # permit_year가 표 최소 연도(2020) 미만이면 빈 시퀀스 → 최저 의무비율(30%)로 폴백.
+    _eligible = [v for y, v in table.items() if permit_year >= y]
+    ratio = max(_eligible) if _eligible else 30
     return f"{ratio}% (시행령 §15 별표 2, {permit_year}년 기준)"
 
 

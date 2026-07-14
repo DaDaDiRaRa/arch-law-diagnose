@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any
@@ -159,9 +160,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 교차출처 허용 오리진 — env ALLOWED_ORIGINS(콤마구분)로 지정, 미설정 시 로컬 개발용만.
+# 단일 컨테이너 배포는 프론트가 동일 오리진이라 CORS 불필요 → 화이트리스트가 안전.
+_default_origins = "http://localhost:5173,http://localhost:8000,http://localhost:8080"
+_allowed_origins = [
+    o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -173,7 +180,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "ok", "version": app.version}
 
 
 @app.get("/api/eum/health")
@@ -292,7 +299,7 @@ async def eum_notices(
         result = await eum_client.get_notices(area_cd, start_dt, end_dt, page_no)
     except Exception as e:
         logger.exception("EUM 고시 조회 오류: %s", e)
-        raise HTTPException(500, f"EUM 고시 조회 실패: {e}")
+        raise HTTPException(500, "EUM 고시 조회 실패")
     return {
         "area_cd": area_cd,
         "period": {"start": start_dt, "end": end_dt, "days": days},
@@ -392,7 +399,7 @@ async def land_info(
         return info
     except Exception as e:
         logger.exception("land_info 조회 오류: %s", e)
-        raise HTTPException(500, f"토지정보 조회 오류: {e}")
+        raise HTTPException(500, "토지정보 조회 오류")
 
 
 def _attach_total_floor_area(d: dict) -> dict:
@@ -419,7 +426,7 @@ async def diagnose(req: DiagnoseRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("진단 오류: %s", e)
-        raise HTTPException(500, f"진단 중 오류가 발생했습니다: {e}")
+        raise HTTPException(500, "진단 중 오류가 발생했습니다")
 
 
 @app.post("/api/diagnose/whatif")
@@ -461,7 +468,7 @@ async def diagnose_whatif(req: WhatIfRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("What-if 진단 오류: %s", e)
-        raise HTTPException(500, f"What-if 진단 중 오류: {e}")
+        raise HTTPException(500, "What-if 진단 중 오류")
 
 
 @app.post("/api/diagnose/multi")
@@ -637,7 +644,7 @@ async def diagnose_multi(req: MultiDiagnoseRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("멀티 진단 오류: %s", e)
-        raise HTTPException(500, f"멀티 진단 중 오류: {e}")
+        raise HTTPException(500, "멀티 진단 중 오류")
 
 
 class ExportRequest(BaseModel):
@@ -673,7 +680,7 @@ async def diagnose_export_md(req: ExportRequest):
         )
     except Exception as e:
         logger.exception("MD export 오류: %s", e)
-        raise HTTPException(500, f"MD export 오류: {e}")
+        raise HTTPException(500, "MD export 오류")
 
 
 @app.post("/api/diagnose/export/xlsx")
@@ -694,7 +701,7 @@ async def diagnose_export_xlsx(req: ExportRequest):
         )
     except Exception as e:
         logger.exception("xlsx export 오류: %s", e)
-        raise HTTPException(500, f"xlsx export 오류: {e}")
+        raise HTTPException(500, "xlsx export 오류")
 
 
 def _build_content_disposition(req: ExportRequest, *, ext: str) -> str:
@@ -736,7 +743,7 @@ async def feasibility_run(req: FeasibilityRequest):
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("사업성 검토 오류: %s", e)
-        raise HTTPException(500, f"사업성 검토 중 오류: {e}")
+        raise HTTPException(500, "사업성 검토 중 오류")
 
 
 @app.post("/api/feasibility/export/md")
@@ -759,7 +766,7 @@ async def feasibility_export_md(req: ExportRequest):
         )
     except Exception as e:
         logger.exception("사업성 MD export 오류: %s", e)
-        raise HTTPException(500, f"사업성 MD export 오류: {e}")
+        raise HTTPException(500, "사업성 MD export 오류")
 
 
 @app.post("/api/feasibility/export/xlsx")
@@ -782,7 +789,7 @@ async def feasibility_export_xlsx(req: ExportRequest):
         )
     except Exception as e:
         logger.exception("사업성 xlsx export 오류: %s", e)
-        raise HTTPException(500, f"사업성 xlsx export 오류: {e}")
+        raise HTTPException(500, "사업성 xlsx export 오류")
 
 
 @app.post("/api/feasibility/export/html")
@@ -808,7 +815,7 @@ async def feasibility_export_html(req: ExportRequest):
         )
     except Exception as e:
         logger.exception("사업성 HTML export 오류: %s", e)
-        raise HTTPException(500, f"사업성 HTML export 오류: {e}")
+        raise HTTPException(500, "사업성 HTML export 오류")
 
 
 @app.post("/api/feasibility/run-multi")
@@ -849,7 +856,7 @@ async def feasibility_brief_list(
         return {"briefs": brief_importer.list_briefs(limit=limit, category=category)}
     except Exception as e:
         logger.exception("brief 목록 조회 오류: %s", e)
-        raise HTTPException(500, f"brief 목록 조회 오류: {e}")
+        raise HTTPException(500, "brief 목록 조회 오류")
 
 
 @app.get("/api/feasibility/briefs/{file_id}")
@@ -864,7 +871,7 @@ async def feasibility_brief_get(file_id: str):
         raise HTTPException(400, str(e))
     except Exception as e:
         logger.exception("brief 매핑 오류: %s", e)
-        raise HTTPException(500, f"brief 매핑 오류: {e}")
+        raise HTTPException(500, "brief 매핑 오류")
 
 
 @app.post("/api/query")
@@ -883,7 +890,7 @@ async def query(req: QueryRequest):
         return answer
     except Exception as e:
         logger.exception("Query 오류: %s", e)
-        raise HTTPException(500, f"자연어 질의 오류: {e}")
+        raise HTTPException(500, "자연어 질의 오류")
 
 
 # ── 법규 의미 그래프 (Step 11) ──────────────────────────────────────────────
@@ -897,7 +904,7 @@ async def law_graph_all():
         return law_graph.get_graph_dict()
     except Exception as e:
         logger.exception("법규 그래프 조회 오류: %s", e)
-        raise HTTPException(500, f"법규 그래프 조회 오류: {e}")
+        raise HTTPException(500, "법규 그래프 조회 오류")
 
 
 @app.get("/api/law-graph/node/{node_id}")
@@ -965,7 +972,7 @@ async def law_changes(
         return {"changes": changes, "count": len(changes)}
     except Exception as e:
         logger.exception("법규 변경 조회 오류: %s", e)
-        raise HTTPException(500, f"법규 변경 조회 오류: {e}")
+        raise HTTPException(500, "법규 변경 조회 오류")
 
 
 @app.post("/api/law/changes/scan")
@@ -981,7 +988,7 @@ async def law_changes_scan(
         return await law_tracker.scan(jurisdiction_code, region_name, law_keyword)
     except Exception as e:
         logger.exception("법규 스캔 오류: %s", e)
-        raise HTTPException(500, f"법규 스캔 오류: {e}")
+        raise HTTPException(500, "법규 스캔 오류")
 
 
 @app.post("/api/law/changes/seed_demo")
@@ -1009,7 +1016,7 @@ async def law_scan_now():
         return await scan_all_sido(law_tracker)
     except Exception as e:
         logger.exception("law_scan_now 오류: %s", e)
-        raise HTTPException(500, f"법규 일괄 스캔 오류: {e}")
+        raise HTTPException(500, "법규 일괄 스캔 오류")
 
 
 @app.get("/api/law/scheduler_status")
@@ -1046,7 +1053,7 @@ async def review_request(req: ReviewRequest):
         )
     except Exception as e:
         logger.exception("리뷰 요청 오류: %s", e)
-        raise HTTPException(500, f"리뷰 요청 오류: {e}")
+        raise HTTPException(500, "리뷰 요청 오류")
 
 
 # ── 발주처 지침서 PDF 추출 ─────────────────────────────────────────────────────
@@ -1083,7 +1090,7 @@ async def brief_extract(file: UploadFile = File(...)):
         raise HTTPException(422, str(e))
     except Exception as e:
         logger.exception("지침서 추출 오류: %s", e)
-        raise HTTPException(500, f"추출 오류: {e}")
+        raise HTTPException(500, "추출 오류")
 
 
 # ── 프론트엔드 정적 파일 서빙 (컨테이너 단일 포트 운영용) ─────────────────

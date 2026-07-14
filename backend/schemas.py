@@ -39,7 +39,7 @@ class DiagnoseRequest(BaseModel):
     floors_below: int = Field(0, ge=0, description="지하 층수")
     height: float = Field(..., gt=0, description="건물 높이 (m)")
     units: int | None = Field(None, description="세대수 (공동주택)")
-    road_width: float | None = Field(None, description="전면도로 폭 (m), 미입력 시 추정")
+    road_width: float | None = Field(None, gt=0, description="전면도로 폭 (m), 미입력 시 추정")
     landscape_area: float | None = Field(
         None, ge=0, description="조경면적 (㎡, 선택). 미입력 시 의무비율만 표시"
     )
@@ -66,6 +66,7 @@ class DiagnoseRequest(BaseModel):
     energy_grade: str | None = Field(None, description="에너지효율 등급 (1++/1+/1/2)")
     smart_grade: str | None = Field(None, description="지능형건축물 인증 등급 (최우수/우수/우량/일반)")
     long_life_grade: str | None = Field(None, description="장수명주택 인증 등급 (최우수/우수/우량/일반, 공동주택 한정)")
+    pilot_project: bool = Field(False, description="녹색건축 시범사업 여부 (용적률 완화 레버)")
     far_limit_manual_override: float | None = Field(
         None, gt=0,
         description="용적률 한도 직접 지정 (도시계획심의/지구단위/정비사업 등). 입력 시 기본 한도 대신 사용",
@@ -177,7 +178,7 @@ class MultiDiagnoseRequest(BaseModel):
     floors_below: int = Field(0, ge=0, description="지하 층수")
     height: float = Field(..., gt=0, description="건물 높이 (m)")
     units: int | None = Field(None, description="세대수 (공동주택)")
-    road_width: float | None = Field(None, description="전면도로 폭 (m)")
+    road_width: float | None = Field(None, gt=0, description="전면도로 폭 (m)")
     landscape_area: float | None = Field(None, ge=0, description="조경면적 (㎡)")
     provided_parking_spaces: int | None = Field(None, ge=0, description="계획 주차대수 (선택)")
     public_open_space_area: float | None = Field(None, ge=0, description="공개공지 면적 (㎡, 선택)")
@@ -213,7 +214,7 @@ class FeasibilityRequest(BaseModel):
     applicant_type: str = Field("개인", description="신청 주체: 개인/민간법인/공공기관")
     zone_use_override: str | None = Field(None, description="용도지역 직접 지정")
     zone_district: str | None = Field(None, description="지역지구 직접 지정")
-    road_width: float | None = Field(None, description="전면도로 폭 (m)")
+    road_width: float | None = Field(None, gt=0, description="전면도로 폭 (m)")
     site_area_override: float | None = Field(
         None, gt=0, description="대지면적 직접 입력 (VWorld 자동 조회 실패 시)"
     )
