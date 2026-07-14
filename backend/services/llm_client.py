@@ -16,7 +16,7 @@ from anthropic import APIError, AsyncAnthropic
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "claude-sonnet-4-5"
+_DEFAULT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_MAX_TOKENS = 4096  # 설비·소방 긴 응답 잘림 방지 (구 2048 → 4096)
 
 _JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)

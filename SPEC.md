@@ -1,7 +1,7 @@
 # arch-law-diagnose — 시스템 스펙
 
 > 코드에서 역추론한 문서. 불확실한 부분은 **[추정]** 으로 표시.  
-> 최종 업데이트: 2026-07-01 (정확도·정직성 강화 반영: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋·환경영향평가 별표4 JSON 연동·교통영향평가 용도별 임계·프론트 Vercel 디자인시스템·조례 needs_review 첫추출 게이팅·ordinance_used BCR/FAR 개별 노출)
+> 최종 업데이트: 2026-07-14 (전체 코드 리뷰 후 코드 동기화 — §3-1 입력 스키마를 실제 `DiagnoseRequest`에 맞춰 정정, §11 law-graph 엔드포인트명 정정). 이전: 2026-07-01 (정확도·정직성 강화: data_quality 경고 2종·aggregate_confidence·provenance·골든 테스트셋·환경영향평가 별표4 JSON 연동·교통영향평가 용도별 임계·조례 needs_review 첫추출 게이팅·ordinance_used BCR/FAR 개별 노출)
 
 ---
 
@@ -80,31 +80,40 @@
 
 ### 3-1. 기본 진단 (`POST /api/diagnose`)
 
+> 실제 필드는 `backend/schemas.py`의 `DiagnoseRequest` 기준. `total_floor_area`는 입력이 아니라 엔진 내부에서 파생(`_attach_total_floor_area`), 용도지역은 `zone_use`가 아니라 `zone_use_override`(선택)로 지정하며 미입력 시 VWorld 자동 조회.
+
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
 | `address` | string | ✅ | 도로명 또는 지번 주소 |
-| `lat` / `lng` | float | — | 좌표 (주소 선택 시 자동 채움) |
-| `pnu` | string | — | 법정동 코드+번지 19자리 |
-| `zone_use` | string | ✅ | 용도지역 (예: `제2종일반주거지역`) |
-| `site_area` | float | ✅ | 대지면적 (㎡) |
-| `building_area` | float | ✅ | 건축면적 (㎡) |
-| `total_floor_area` | float | ✅ | 연면적 전체 (㎡) |
-| `floor_area_above` | float | — | 지상층 연면적 (용적률 산정용; 없으면 total 사용) [추정] |
-| `height` | float | ✅ | 건물 높이 (m) |
-| `floors_above` | int | ✅ | 지상 층수 |
-| `floors_below` | int | — | 지하 층수 |
-| `building_use` | string | ✅ | 건축물 용도 (건축법 19개 분류) |
-| `units` | int | — | 세대수 (공동주택) |
-| `provided_parking_spaces` | int | — | 계획 주차 대수 |
+| `building_use` | string | ✅ | 건축물 주 용도 (분류) |
+| `site_area` | float | ✅ | 대지면적 (㎡, >0) |
+| `building_area` | float | ✅ | 건축면적 (㎡, >0) |
+| `floor_area_above` | float | ✅ | 지상 연면적 (㎡, 주차장 포함 전체) — 용적률 산정 기준 |
+| `height` | float | ✅ | 건물 높이 (m, >0) |
+| `floors_above` | int | ✅ | 지상 층수 (≥1) |
+| `pnu` | string | — | 필지번호(19자리); 조례 조회 시군구코드 자동 파생 |
+| `zone_use_override` | string | — | 용도지역 직접 지정 (미입력 시 VWorld 자동 조회) |
+| `zone_district` | string | — | 지역지구 (미입력 시 VWorld) |
+| `building_use_detail` | string | — | 세부/복합 용도 자유 입력 |
+| `floor_area_below` | float | — | 지하 연면적 — 용적률 제외 |
+| `floor_area_parking_above` | float | — | 지상 주차장 면적 — 용적률 제외 (시행령 §119) |
+| `floor_area_refuge` / `floor_area_attic_refuge` | float | — | 피난안전구역·경사지붕 대피공간 — 용적률 제외 |
+| `floors_below` | int | — | 지하 층수 (기본 0) |
+| `units` / `unit_exclusive_area` | int / float | — | 세대수 / 세대 평균 전용면적(60㎡ 분기) |
+| `road_width` | float | — | 전면도로 폭 (m, >0); 미입력 시 추정 |
+| `provided_parking_spaces` / `parking_capacity` | int | — | 계획 주차 대수 / 홀·타석·정원(count_based) |
+| `landscape_area` / `rooftop_landscape_area` / `public_open_space_area` | float | — | 조경·옥상조경·공개공지 면적 |
 | `north_setback_m` | float | — | 정북 이격거리 (m); 없으면 §61 pass=None |
-| `road_width_m` | float | — | 접도 너비 (m) |
-| `jurisdiction_code` | string | — | 시군구코드 (조례 조회용; PNU 있으면 자동 파생) |
-| `applicant_type` | string | — | `공공기관` / `민간` (공공인증 의무 판정용) |
-| `green_grade` | string | — | 녹색건축 인증 등급 (완화 적용용) |
-| `energy_grade` | string | — | 제로에너지 등급 (문자열: `1++`/`1+`/`1`~`5`). 엔진은 `zero_energy_grade`도 허용 |
+| `adjacent_zone_north` / `road_20m_adjacent` | string / bool | — | 정북 인접 용도지역 / 20m 도로 접함 (§86 제외조건) |
+| `street_block_max_height_m` | float | — | 가로구역 최고높이 지정값 (§60 비교) |
+| `applicant_type` | string | — | `개인`(기본)/`민간법인`/`공공기관` (공공인증·BF 판정용) |
+| `green_grade`/`energy_grade`/`smart_grade`/`long_life_grade` | string | — | 인증 등급 (완화용; `energy_grade`는 ZEB로도 사용) |
+| `pilot_project` | bool | — | 녹색건축 시범사업 (완화 레버) |
 | `far_limit_manual_override` | float | — | 용적률 상한 수동 지정 (심의 결정값 등) |
-| `building_agreement` | bool | — | 건축협정 여부 (§110의7 완화 적용) |
-| `skip_fire_safety` | bool | — | AI 설비소방 판단 생략 (빠른 재계산용) |
+| `building_agreement` | bool | — | 건축협정 (§110의7) — 건폐율·용적률 ×1.2 |
+| `rema_zone` / `easy_remodel` / `public_rental` | bool | — | 재정비촉진·리모델링·공공임대 특례 완화 |
+| `decision_notice_confirmed` (+`decision_far/cov/height_limit`) | bool/float | — | 도시계획시설 결정고시 — 저촉 조건부 통과 + 한도 대체 |
+| `brief_conditions` | dict | — | 지침서 추출 조건 (`/api/brief/extract` 결과) |
 
 **용도지역 표준화**: 모든 `zone_use` 값은 `zone_use_normalizer.py`의 `normalize()`를 거쳐 19개 표준명 + 별칭 31개 매핑(+ 표준명을 유일하게 포함하는 부분일치 폴백). 매칭 실패 시 `None` → 전 항목 `pass=None`.
 
@@ -577,9 +586,11 @@ nodes: 138개 (seed 49 + auto 수확 89) [추정]
 edges: 조문 간 인용·위임 관계
 
 API:
-  GET /api/law-graph           → 전체 그래프 JSON
-  GET /api/law-graph/node/{id} → 노드 상세
-  GET /api/law-graph/neighbors/{id} → 이웃 노드
+  GET  /api/law-graph               → 전체 그래프 JSON
+  GET  /api/law-graph/node/{id}     → 노드 상세
+  GET  /api/law-graph/category/{id} → 진단 카테고리 → 관련 노드
+  POST /api/law-graph/promote       → auto 노드를 seed 로 승격 (큐레이션)
+  POST /api/law-graph/reject        → auto 노드 기각
 ```
 
 **프론트 렌더**: react-flow 캔버스 (lazy import) + 카테고리→그래프 점프 + arch-law-graph 링크아웃

@@ -39,7 +39,7 @@ cd backend
 | `LAW_API_KEY` | ✅ | 법제처 — 조례 본문 수집 |
 | `LURIS_API_KEY` | 선택 | LURIS 행위제한 (EUM 교차검증) |
 | `GRAPH_API_URL` | 선택 | arch-law-graph 서비스 URL (기본값: 프로덕션 Cloud Run) |
-| `ANTHROPIC_MODEL` | 선택 | 기본값 `claude-sonnet-4-5` |
+| `ANTHROPIC_MODEL` | 선택 | 기본값 `claude-sonnet-4-6` |
 
 전체 목록과 기본값은 [`.env.example`](.env.example) 참조.
 

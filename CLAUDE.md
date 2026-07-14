@@ -62,7 +62,7 @@
 | --- | --- |
 | 핵심 계산 + 사업성 모드 + UI + PDF/MD/Excel | ✅ 운영급 |
 | API 키 (Kakao·VWorld·EUM·LURIS·Claude·법제처) | ✅ 활성 |
-| 검증 인프라 (pytest 314건 · CI 게이트) | ✅ |
+| 검증 인프라 (pytest 318건 · CI 게이트) | ✅ |
 | brief 연계 (Step 9) | ✅ 동작 (실샘플 `data/briefs/_brief.json` 검증) |
 | 일부 SHP 누락 (철도 / 일부 도시계획시설) | ❌ |
 
@@ -71,6 +71,8 @@
 **2026-05~06월**: Step 5a(법령 수치 검증)·5b(#13~15 주차·다중이용·영향평가 5종)·6(Docker·Cloud Run·디자인 토큰)·7(사업성 초판)·9(brief 연계)·11(법규 그래프 138노드). 버그 5건 fix, pytest CI 게이트, 외부 API 재시도(`http_retry.py`). Step 8(사내 케이스 DB)은 더미라 제거. NSDI 폐기(VWorld 대체)·지구단위계획구역 자동감지·학교(Kakao)·문화재(국가유산청) 좌표 판정·도시계획시설 VWorld WFS 실시간 전환.
 
 **2026-06-29~07-01 정확도·정직성 강화** (배경·원칙 [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md)): 침묵 과대평가 경고 2종(`STREET_BLOCK_UNVERIFIED`·`FACILITY_AREA_UNCORRECTED`) · `aggregate_confidence` 노출 · 정량 4개 카드 `provenance` 블록 · 골든 케이스 12건(용도지역 7종)+합성 경로 4종(`tests/golden/`) · 조례 한도 DB 보강(17개 시도 310건 — 법정 한도 재현 감사로 서울 밖 최대 +810%p 과대평가 발견·해소, 한글수사 추출 버그 fix) · 심의 트리거 감사 + 교통영향평가 임계 정정(별표1 PDF 전수 대조) · 환경영향평가 임계 정밀화(별표4, 도시지역 완전누락 구간 발견·해소) · 별표 PDF 수집 경로 확보(법제처 DRF `별표서식PDF파일링크` + pdfplumber). **실사용 라이브 진단 감사(2026-07-01, 실주소 `/api/diagnose` 호출)**로 3건 추가 발견·수정: 조례 1차추출 needs_review 미게이팅(검증 안 된 조례값이 첫 조회 때 그대로 쓰이던 구멍, `ordinance_resolver.py`) · `data_quality.ordinance_used`가 건폐율만 체크하던 문제(`ordinance_used_bcr`/`ordinance_used_far` 분리) · 진단 1건 레이턴시 114초(국가유산청 8회 순차 호출 + Claude 재시도) → 병렬화로 65초(-43%). 테스트 269→314건.
+
+**2026-07-14 전체 코드 리뷰·수정** (PR #2, 5개 에이전트 종합 리뷰 후 확정건만 수정): CORS `*`→화이트리스트(env `ALLOWED_ORIGINS`) · 자연어질의 `.format()` 인젝션→치환 · HTTP 500 응답에서 내부 예외 메시지 제거(20곳) · 행위제한 `"불가능"⊃"가능"` substring 오분류 정정(`land_use_act.py`) · 공공인증 `permit_year<2020` max() 크래시 폴백(`public_certification.py`) · 주차 제외용도 양방향 substring 오매칭('병원'↔'정신병원') 정정(`parking.py`) · VWorld BBOX 경도 `cos(위도)` 보정(도시계획시설 저촉 과소평가 해소) · `road_width` `gt=0` 검증 · `/health` 버전 동기화 · `pilot_project` 진단경로 스키마 추가(사문화 해소). 회귀 4건 추가. 테스트 314→318건.
 
 ### 공유 폴더 (셋업 완료)
 
