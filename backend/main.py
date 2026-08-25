@@ -10,7 +10,10 @@ from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import PlainTextResponse
 from pydantic import BaseModel, Field
+
+from mcp_server.server import mcp as _mcp
 
 from schemas import (
     DiagnoseRequest,
@@ -154,11 +157,82 @@ async def lifespan(app: FastAPI):
     await review_notifier.close()
 
 
+# --- MCP (/mcp) ---------------------------------------------------------------
+# arch-site-model/터읽기 배포에서 확립한 패턴 그대로(kunwon-ops 저장소
+# docs/plan-mcp-gateway.md §9): lifespan 결합 · Bearer 토큰 미들웨어 · Mount 대신
+# raw ASGI 프리픽스 래퍼. 이 앱은 파일 맨 끝에 SPA 캐치올(GET /{full_path:path})이
+# 있어서 특히 Mount 를 쓰면 "/mcp"(슬래시 없음)가 그쪽으로 샌다(실측, arch-site-model).
+_mcp_asgi_app = _mcp.streamable_http_app()  # session_manager 를 여기서 지연 생성한다
+
+
+@asynccontextmanager
+async def _combined_lifespan(_app: FastAPI):
+    # 기존 lifespan(외부 클라이언트·캐시·스케줄러 초기화)은 그대로 두고, mcp 세션
+    # 매니저만 같이 연다 — 교체가 아니라 감싸기.
+    async with lifespan(_app):
+        async with _mcp.session_manager.run():
+            yield
+
+
+# 나머지 REST API 는 지금처럼 공개로 둔다 — 여기서 막는 건 /mcp 뿐이다.
+# diagnose 도구는 호출 1건에 Claude API 호출 포함 65~110초가 걸려 공개로 열면
+# 안 된다(판단 근거: kunwon-ops 저장소 docs/plan-mcp-gateway.md §7).
+_MCP_SHARED_KEY = os.environ.get("ARCH_LAW_DIAGNOSE_MCP_KEY")
+
+
+class _McpAuthMiddleware:
+    """`/mcp` 전용 인증. Bearer 토큰이 ARCH_LAW_DIAGNOSE_MCP_KEY 와 일치해야 통과."""
+
+    def __init__(self, app):
+        self._app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers") or [])
+        token = headers.get(b"authorization", b"").decode("latin-1")
+        expected = f"Bearer {_MCP_SHARED_KEY}" if _MCP_SHARED_KEY else None
+        if not expected or token != expected:
+            resp = PlainTextResponse("Unauthorized", status_code=401)
+            await resp(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+
+class _McpMount:
+    """"/mcp" 와 "/mcp/*" 를 FastMCP 로 보낸다. Starlette Mount 는 트레일링 슬래시
+    없는 "/mcp" 자체를 못 잡아(정규식이 "/mcp/{나머지}") 나중에 등록된 SPA 캐치올로
+    새는 문제가 있다(실측: arch-site-model). 그래서 라우팅 이전 단계(순수 ASGI
+    래퍼)에서 프리픽스를 직접 잘라 우회한다."""
+
+    def __init__(self, inner_app, mcp_app, prefix="/mcp"):
+        self._app = inner_app
+        self._mcp_app = mcp_app
+        self._prefix = prefix
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            path = scope["path"]
+            if path == self._prefix or path.startswith(self._prefix + "/"):
+                sub_scope = dict(scope)
+                sub_scope["path"] = path[len(self._prefix):] or "/"
+                await self._mcp_app(sub_scope, receive, send)
+                return
+        await self._app(scope, receive, send)
+
+
+# /health 가 이 값을 참조한다 — 아래에서 "app" 을 _McpMount 로 재바인딩하면 app.version
+# 은 더 이상 FastAPI 인스턴스를 못 가리킨다(app.get 클로저는 이름을 캡처하지 값을 캡처하지
+# 않는다). 그래서 버전 문자열을 상수로 뽑아 FastAPI(...)와 /health 가 같이 참조한다.
+_APP_VERSION = "4.0.0"
+
 app = FastAPI(
     title="arch-law-diagnose API",
-    version="4.0.0",
-    lifespan=lifespan,
+    version=_APP_VERSION,
+    lifespan=_combined_lifespan,
 )
+
 
 # 교차출처 허용 오리진 — env ALLOWED_ORIGINS(콤마구분)로 지정, 미설정 시 로컬 개발용만.
 # 단일 컨테이너 배포는 프론트가 동일 오리진이라 CORS 불필요 → 화이트리스트가 안전.
@@ -180,7 +254,7 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": app.version}
+    return {"status": "ok", "version": _APP_VERSION}
 
 
 @app.get("/api/eum/health")
@@ -388,14 +462,20 @@ async def address_search(q: str = Query(..., min_length=2, description="검색 �
 async def land_info(
     pnu: str | None = Query(None, description="필지번호 19자리 (우선 사용)"),
     address: str | None = Query(None, description="주소 (PNU 없을 때 fallback)"),
+    lat: float | None = Query(None, description="위도 — 있으면 자체 지오코딩 생략(외부 해석 주입)"),
+    lon: float | None = Query(None, description="경도 — 있으면 자체 지오코딩 생략"),
 ):
-    """주소/PNU 로 토지이용계획 즉시 조회 — 용도지역·지역지구·지목·공시지가 자동 채움."""
+    """주소/PNU 로 토지이용계획 즉시 조회 — 용도지역·지역지구·지목·공시지가 자동 채움.
+
+    lat/lon 을 주면 자체 지오코딩을 건너뛰고 그 좌표를 쓴다. 상위 오케스트레이터가
+    권위 있는 좌표(예: 카카오 해석)를 넘길 때 사용 — 주소 지오코딩 오인식 회피.
+    """
     if land_resolver is None:
         raise HTTPException(503, "서비스 초기화 중")
-    if not pnu and not address:
-        raise HTTPException(400, "pnu 또는 address 중 하나는 필수")
+    if not pnu and not address and (lat is None or lon is None):
+        raise HTTPException(400, "pnu · address · (lat,lon) 중 하나는 필수")
     try:
-        info = await land_resolver.resolve(address or "", pnu=pnu or "")
+        info = await land_resolver.resolve(address or "", pnu=pnu or "", lon=lon, lat=lat)
         return info
     except Exception as e:
         logger.exception("land_info 조회 오류: %s", e)
@@ -1106,4 +1186,10 @@ if _DIST.is_dir():
     async def spa_fallback(full_path: str):
         """SPA 라우팅 — /api/* 외 모든 경로를 index.html 로 반환."""
         return FileResponse(str(_DIST / "index.html"))
+
+
+# uvicorn 은 이 모듈의 "app" 심볼을 그대로 가져간다(Dockerfile CMD 참조) — FastAPI
+# lifespan(= _combined_lifespan)은 그대로 트리거된다: 이 래퍼는 http 요청만 가로채고
+# lifespan/websocket 스코프는 손대지 않고 그대로 넘긴다.
+app = _McpMount(app, _McpAuthMiddleware(_mcp_asgi_app))
 

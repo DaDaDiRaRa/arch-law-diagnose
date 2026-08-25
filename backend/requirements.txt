@@ -14,6 +14,7 @@ pdfplumber>=0.11.0
 python-multipart>=0.0.9
 openpyxl>=3.1.0
 networkx>=3.0  # 법규 의미 그래프 (Step 11)
+mcp>=1.2,<2.0.0  # /mcp (Claude Code 등 AI 에이전트용) — 2.0.0 은 mcp.server.fastmcp 를 없앤다(실측)
 
 # 개발·테스트 전용 (운영 컨테이너에는 불필요)
 pytest>=8.0
