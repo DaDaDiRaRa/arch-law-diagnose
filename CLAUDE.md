@@ -31,6 +31,37 @@
 
 ---
 
+## 🔗 competition_comparison 연계 (상류 — 우리가 읽는 쪽)
+
+> 자매 앱 **competition_comparison**(`D:\APPS\competition_comparison`). 공모지침서(PDF/DOCX/HWP)를 분석해 `_brief.json`을 낸다. **우리가 그 파일을 읽는다** — HTTP 아님, 공유 디렉터리(env `BRIEF_DIR`, Cloud Run은 그쪽 GCS `_briefs/`를 GCSFUSE 마운트) 직접 읽기. 소비 경로: `GET /api/feasibility/briefs`(목록) · `GET /api/feasibility/briefs/{file_id}` → `brief_importer.map_brief` → 사업성 `target_*` prefill → `BriefList`·`BriefImportPanel`·`MultiSiteCompare`.
+
+### ⚠️ 계약이 "파일 이름"이다 (깨져도 조용하다)
+
+`list_briefs`는 **파일을 열지 않고 파일명만으로** 정렬·필터한다 — `_FNAME_RE = ^(\d{8})_(\d{6})_(.+)$`, 즉 `YYYYMMDD_HHMMSS_카테고리[_슬러그]`. 파일명이 이 패턴에서 벗어나면 예외가 아니라 `('', '')`로 떨어져 **정렬 뒤로 밀리고 카테고리 필터에서 사라진다**. 프론트 `BriefList.jsx`의 카테고리 14종도 그쪽 파일명 suffix의 사본이다.
+
+같은 성격의 암묵 의존 3가지 — **바뀌면 전부 조용히 깨진다**:
+
+| 의존 | 어디서 | 깨지면 |
+| --- | --- | --- |
+| 파일명 `YYYYMMDD_HHMMSS_카테고리` | `brief_importer._FNAME_RE` (정렬·필터·`analyzed_at` 폴백) | 목록에서 누락·순서 뒤섞임 |
+| `brief_project_info.sites[]` 스키마 (`site_id`·`site_area_sqm`·`floor_area_ratio_pct`·`building_coverage_pct`·`max_height_m`·`floor_area_sqm`·`facilities`·`zoning`) | `brief_importer._map_site` | prefill이 빈 값 → 사업성 입력 침묵 누락 |
+| `brief_site[].address`의 `(부지N)` 표기 | `brief_importer._parse_site_addresses` | 부지별 주소 미분해 → 주소 빈칸 |
+
+그쪽 CLAUDE.md에도 「형제앱이 우리를 읽는 경로」로 기록됨(2026-08-27). **파일명 규칙·sites 스키마 변경은 사전 통지 대상**이고, 통지가 없으면 우리 쪽에서 먼저 알 방법이 없다(예외가 안 난다).
+
+### `feasibility_export` 갈아타기 — 부분 채택 (2026-08-27 대조 결과)
+
+그쪽 `_brief.json`에 정규화 블록 `feasibility_export`(schema_version 2)가 있다. 실샘플 10건(공공 5·민간 5, 부지 13개)에서 `map_brief` 출력과 전수 대조한 결론: **정량치는 100% 일치 → 지금 사업성 입력이 틀리고 있지는 않다.** 우리 파서를 지우는 "전면 교체"는 **손해**, 새 필드 3종만 **가산 채택**이 맞다.
+
+- **채택 대상(우리에게 없는 값)**: `limits_determined_by`(「심의」면 공모의 60%/460%는 법정 한계가 아님 — 현재 우리는 이 구분이 없어 심의로 상향된 460%를 법정 400%와 비교해 **없는 갭을 초과로 보고**한다. 영등포 샘플 2부지 실재) · `required_parking_count`+`parking_note`(현재 `target_parking_count`가 brief에서 안 채워져 주차 갭이 항상 "공모 요구 없음") · 사업비·설계비·공사기간.
+- **채택 제외**: `zone_use` — 그쪽 정규화에 **동점 오선택 버그**. `제3종일반주거지역 (제2종일반주거지역에서 종상향)` → `max(matches, key=len)`가 길이 동점(9자)에서 리스트 앞 항목을 골라 **`제2종일반주거지역`**(종상향 前)을 반환. 우리 `zone_use_normalizer`는 같은 입력에 `None`(확인필요)으로 정직하게 떨어진다. raw `zoning`을 우리 정규화기에 넣는 현행 유지.
+- **파서 삭제 불가**: 샘플 10건 중 4건은 블록 자체가 없고 1건은 v1(2차 필드 없음). `schema_version >= 2`면 우선 사용, 아니면 기존 파서 폴백 — 폴백은 영구히 필요하다.
+- **전면 교체 시 유실**: `floor_area_sqm`(목표 연면적)·`open_space_sqm`·`open_space_notes`는 그쪽 블록에 **없다**. `_quantitative` 단일부지 합성 폴백도 없다(종로세부지침 샘플: 우리 1부지 vs 그쪽 0부지). `building_law_uses`는 괄호 안만 보고 19용도 필터가 없어 `주민편의시설` 같은 비표준어를 그대로 내보내고, 괄호 없는 표기(`공동주택`)는 놓친다 — 우리 `_detect_building_uses`가 더 좁고 정확하다.
+
+---
+
+---
+
 ## ⏭️ 다음 작업
 
 > 정체성: diagnose = 결정론적 **"대지 판정 계산 엔진"**(숫자 + 판정 + 근거조문 포인터 law_refs). 법 해석은 graph 담당. 설계 원칙·배경은 [doc/ACCURACY_SHARPENING_PLAN.md](doc/ACCURACY_SHARPENING_PLAN.md)(완료된 계획, 원칙·가드레일만 유효).
@@ -38,9 +69,10 @@
 ### 🎯 활성 TODO
 
 - [ ] **법규그래프 참조 조문 7건 정정** (graph E-12 감사 발견, 2026-06-30) — `config/law_graph_auto.json`(+ `law_graph_seed.json`)이 graph에 실재하지 않는 조문을 참조. graph 측 감사(diagnose 참조 127건 실재성 검사)에서 확정: **7건 전부 diagnose 측 오류**(법제처 현행 fetch로 교차확인). ① 法/시행령 오기재 4건 — `건축법 시행령 제13조의2·제53조의2·제77조의2·제77조의4`로 적었으나 실제 조문은 `건축법`(본문)에 존재 → law 정정. ② 현행 미존재 3건 — `건축법 제7조의2`·`주차장법 제51조`·`녹색건축물 조성 지원법 제61조`는 법제처에도 없음(삭제/오기) → 참조 제거 또는 교체. 정정 후 `law_graph_auto.json` 재수확. graph 코드와 무관(diagnose 단독 작업).
-- [ ] **brief 추가 샘플**(민간·다부지) → Step 9 매핑 견고화 (공공 1건 검증됨). *(사용자 처리)*
+- [ ] **`feasibility_export` 부분 채택**(대조 완료, 착수 대기 — 사용자 승인 필요) — 실샘플 10건 전수 대조 결과 정량치 100% 일치라 **긴급하지 않다**(현재 사업성 입력은 틀리지 않음). 다만 `limits_determined_by="심의"`를 모르는 탓에 심의 상향 용적률(영등포 460% vs 준공업 법정 400%)을 **없는 갭 60%p 초과로 오보**한다 — 이것만이 실사용 오류. 범위: `map_brief`에 `schema_version>=2`면 `limits_determined_by`·`required_parking_count`/`parking_note`·사업비 3종을 **추가로** 얹고(기존 파싱은 폴백으로 유지·삭제 금지), 갭 분석은 「심의 결정」일 때 초과를 RED가 아니라 "심의 전제" 표기로. `zone_use`는 채택 안 함(그쪽 동점 오선택 버그 — 상세는 위 연계 섹션). 상세 근거는 「🔗 competition_comparison 연계」 참조.
+- [ ] **brief 추가 샘플**(민간·다부지) → Step 9 매핑 견고화. **competition_comparison DB에 이미 있음 — 요청 형태 확정(2026-08-27)**: `C:\Temp\CompTestDB\_briefs\*.json` 10건으로 1차 대조 완료(민간 5건 = `reconstruction` 카테고리, 다부지 2건). 남은 요청은 ① **다부지 민간** 1건 이상(현재 다부지는 공공 영등포 + 민간 하안주공뿐, 하안주공 2번째 부지는 주소·면적이 비어 있어 반쪽) ② `zoning`에 **종상향·지구단위 표기**가 들어간 건(우리 정규화기 None 폴백 검증용) ③ `brief_design_massing.parking_requirements`에 **부지별 주차 서술**이 있는 건. 형태: `_brief.json` 원본 그대로(파생 md/xlsx 불필요), `feasibility_export` schema_version 2 포함.
 - [ ] **토지이음 404 문의**(`iuLawInfo`·`sDevList`) ✉ luris@korea.kr · ☎ 1522-4484 → LawInfoPanel·DevTrendPanel 활성화. *(사용자 처리)*
-- [ ] **사내 시설용도 매핑표**(시니어 30분) → brief 용도 완전 자동화. *(사용자 처리)*
+- [ ] **사내 시설용도 매핑표**(시니어 30분) → brief 용도 완전 자동화. **요청 형태 확정(2026-08-27)**: competition_comparison이 `feasibility_export.sites[].building_law_uses`의 **원시 수집값 전체**(중복 포함 raw 빈도표, 정규화·필터 금지 — 그쪽 추출은 「괄호 안 + 시설로 끝나거나 주택 포함」이라 `주민편의시설`처럼 19용도가 아닌 어휘가 섞여 있고, **그게 정확히 우리가 필요한 재료**)를 CSV 2열(`원문어휘,출현횟수`)로 뽑아 준다 → 시니어가 3열째(`건축법_19용도`)만 채우면 `brief_importer._BUILDING_USES` 대체 매핑표가 된다. 미매핑 어휘는 빈칸 유지(추측 금지) → `facility_use_candidates`에서 제외되고 힌트로만 표시. ⚠ 그쪽 `building_law_uses`를 그대로 쓰는 것이 아니라 **어휘 목록만 재료로** 받는다.
 - [ ] **철도보호지구** — 보류(복잡). 코드(`railway/indexer.py`) 준비됨 → `RAILWAY_SHP_PATH`에 철도선형 SHP(Geofabrik OSM `gis_osm_railways_free_1.shp`, EPSG:4326) 배치 시 동작. 도시계획시설 철도는 이미 VWorld 판정 중, 빠진 건 운영철도 30m 보호지구(철도안전법 §45)뿐.
 - [ ] (낮음) 운영 인프라(Cloud Logging·Sentry·BigQuery), dev `npm audit fix`.
 
