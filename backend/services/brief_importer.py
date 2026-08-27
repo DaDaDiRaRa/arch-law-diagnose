@@ -12,6 +12,15 @@
   - 주소는 brief_site[]의 "(부지N)" 표기를 부지별로 분해해 자동 채움(E1 강화).
   - 인증 요구(녹색건축·제로에너지)는 완화 레버로, 발주처(공공기관)는 신청주체로 자동 채움.
   - facility_use는 건축법 19용도 매핑표가 아직 없으므로 자동 채우지 않고 힌트만 제공.
+  - competition_comparison이 같은 파일에 넣어주는 정규화 블록 `feasibility_export`
+    (schema_version 2)는 **가산만** 한다 — 우리가 못 뽑는 3종(심의 여부·주차대수·
+    사업규모)만 덮어씌우고, 나머지는 위 자체 파싱을 그대로 쓴다.
+    전면 위임하지 않는 이유(실샘플 10건 대조, 2026-08-27):
+      · 정량치는 100% 일치 → 갈아탈 실익이 없다.
+      · 블록이 없는 파일이 존재한다(10건 중 4건 없음·1건 v1) → 폴백은 영구히 필요.
+      · 그쪽 블록엔 floor_area_sqm·open_space_sqm이 아예 없다 → 갈아타면 유실.
+      · 그쪽 zone_use는 길이 동점에서 오선택한다("제3종…(제2종에서 종상향)"→제2종)
+        → 채택하지 않고 raw zoning을 우리 zone_use_normalizer에 넘긴다.
 """
 from __future__ import annotations
 
@@ -151,6 +160,46 @@ def _parse_site_addresses(brief: dict) -> dict[str, str]:
     return out
 
 
+# competition_comparison이 보증하는 정규화 블록의 최소 스키마 버전.
+# 1차(v1)에는 심의·주차 필드가 없어 가산할 게 없다.
+_FE_MIN_SCHEMA = 2
+
+
+def _fe_site_index(brief: dict) -> dict[str, dict]:
+    """feasibility_export.sites[] → {정규화 site_id: 블록}. 없거나 구버전이면 {}.
+
+    블록은 신뢰 대상이 아니라 **보완 재료**다. 여기서 뽑은 값만 _map_site가 얹는다.
+    """
+    fe = brief.get("feasibility_export")
+    if not isinstance(fe, dict):
+        return {}
+    try:
+        ver = int(fe.get("schema_version") or 0)
+    except (TypeError, ValueError):
+        return {}
+    if ver < _FE_MIN_SCHEMA:
+        return {}
+    out: dict[str, dict] = {}
+    for site in fe.get("sites") or []:
+        if isinstance(site, dict):
+            sid = _norm_site_id(site.get("site_id") or "")
+            if sid:
+                out.setdefault(sid, site)
+    return out
+
+
+def _fe_scale(brief: dict) -> dict:
+    """사업 규모(사업비·설계비·공사기간) — 정보 표시용. 계산에 안 쓴다."""
+    fe = brief.get("feasibility_export")
+    if not isinstance(fe, dict):
+        return {}
+    return {
+        "construction_cost_100m_won": _to_num(fe.get("construction_cost_100m_won")),
+        "design_cost_100m_won": _to_num(fe.get("design_cost_100m_won")),
+        "construction_period_months": _to_num(fe.get("construction_period_months")),
+    }
+
+
 def _map_relief(brief: dict) -> dict:
     """공모지침의 인증 요구 → 사업성 완화 레버 값.
 
@@ -211,8 +260,15 @@ def _detect_applicant_type(brief: dict, meta: dict, pinfo: dict) -> str:
     return ""
 
 
-def _map_site(site: dict, addr_map: dict[str, str] | None = None) -> dict:
-    """brief sites[] 한 건 → 사업성 prefill."""
+def _map_site(
+    site: dict,
+    addr_map: dict[str, str] | None = None,
+    fe_sites: dict[str, dict] | None = None,
+) -> dict:
+    """brief sites[] 한 건 → 사업성 prefill.
+
+    fe_sites: feasibility_export 블록(v2+) 인덱스. 우리가 못 뽑는 값만 얹는다.
+    """
     facilities = site.get("facilities") or []
     sid = site.get("site_id") or ""
     address = (site.get("address") or "").strip()
@@ -221,7 +277,7 @@ def _map_site(site: dict, addr_map: dict[str, str] | None = None) -> dict:
     # 건축법 시설용도 자동 감지 — 후보가 정확히 1개일 때만 자동 채움(복합·불명은 사용자 선택)
     use_candidates = _detect_building_uses(facilities)
     facility_use = use_candidates[0] if len(use_candidates) == 1 else ""
-    return {
+    out = {
         "site_id": sid,
         "address": address,
         "zoning": site.get("zoning") or "",
@@ -236,6 +292,16 @@ def _map_site(site: dict, addr_map: dict[str, str] | None = None) -> dict:
         "target_open_space_sqm": _to_num(site.get("open_space_sqm")),
         "open_space_notes": site.get("open_space_notes") or "",
     }
+    # ── feasibility_export 가산분 (없으면 전부 빈 값 → 기존 동작 그대로) ──
+    fe = (fe_sites or {}).get(_norm_site_id(sid)) or {}
+    # 한도를 정한 주체. "심의"면 공모의 건폐율·용적률·높이는 법정 한도가 아니라
+    # 도시계획위원회가 올려준 값 → 법정 한도와 단순 비교하면 없는 갭이 생긴다.
+    limits_by = (fe.get("limits_determined_by") or "").strip()
+    out["limits_determined_by"] = limits_by if limits_by in ("심의", "법정") else ""
+    pc = fe.get("required_parking_count")
+    out["target_parking_count"] = int(pc) if isinstance(pc, (int, float)) else None
+    out["parking_note"] = (fe.get("parking_note") or "").strip()
+    return out
 
 
 def map_brief(brief: dict) -> dict:
@@ -252,8 +318,9 @@ def map_brief(brief: dict) -> dict:
     pinfo = brief.get("brief_project_info") or {}
 
     addr_map = _parse_site_addresses(brief)
+    fe_sites = _fe_site_index(brief)
     sites_raw = pinfo.get("sites") or []
-    sites = [_map_site(s, addr_map) for s in sites_raw if isinstance(s, dict)]
+    sites = [_map_site(s, addr_map, fe_sites) for s in sites_raw if isinstance(s, dict)]
 
     # 단일 부지인데 '(부지N)' 표기가 없으면 brief_site 첫 주소를 사용
     if len(sites) == 1 and not sites[0]["address"]:
@@ -283,6 +350,9 @@ def map_brief(brief: dict) -> dict:
                 "target_max_height_m": None,
                 "target_open_space_sqm": None,
                 "open_space_notes": "",
+                "limits_determined_by": "",
+                "target_parking_count": None,
+                "parking_note": "",
             }]
 
     return {
@@ -293,6 +363,10 @@ def map_brief(brief: dict) -> dict:
         "analyzed_at": meta.get("analyzed_at") or "",
         "applicant_type": _detect_applicant_type(brief, meta, pinfo),
         "relief": _map_relief(brief),
+        # 사업 규모 — 표시 전용(계산 미사용). 블록 없으면 {}.
+        "scale": _fe_scale(brief),
+        # 가산분이 실제로 붙었는지 — 프론트가 "심의 표기 없음"과 "블록 없음"을 구분
+        "feasibility_export_used": bool(fe_sites),
         "sites": sites,
     }
 

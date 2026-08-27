@@ -207,7 +207,26 @@ export default function BriefImportPanel() {
                       <Spec label="용적률" v={s.target_far_pct} unit="%" />
                       <Spec label="최고높이" v={s.target_max_height_m} unit="m" />
                       <Spec label="공개공지" v={s.target_open_space_sqm} unit="㎡" />
+                      <Spec label="주차" v={s.target_parking_count} unit="대" />
                     </div>
+                    {s.limits_determined_by === '심의' && (
+                      <div
+                        className="text-[10px] mt-1.5 px-1.5 py-1"
+                        style={{
+                          color: 'var(--warn-deep)',
+                          background: 'var(--warn-bg)',
+                          borderRadius: 'var(--radius-sm)',
+                        }}
+                      >
+                        위 건폐율·용적률·높이는 <b>심의로 정해진 값</b> — 법정 한도와 다를 수 있고,
+                        초과분은 초과가 아니라 심의 전제로 표시됩니다.
+                      </div>
+                    )}
+                    {s.parking_note && (
+                      <div className="text-[10px] mt-1" style={{ color: 'var(--mute)' }}>
+                        주차 근거: {s.parking_note}
+                      </div>
+                    )}
                     {(s.facility_hint || s.facility_use || s.facility_use_candidates?.length > 0) && (
                       <div
                         className="text-[10px] mt-1.5 pt-1.5 space-y-0.5"

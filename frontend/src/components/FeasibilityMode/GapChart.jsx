@@ -2,13 +2,16 @@
  * 카테고리별 갭 시각화 — 막대 비교.
  *
  * status 색상:
- *   ok    → green (충족)
- *   over  → red   (초과)
+ *   ok              → green  (충족)
+ *   over            → red    (초과)
+ *   review_premised → amber  (심의 전제 — 공모 한도가 심의 결정값이라 법정 표 초과가
+ *                             결함이 아님. 다만 심의 확정 여부는 우리가 검증 못 함)
  *   unknown / no_target → gray (회색)
  */
 const STATUS_COLOR = {
   ok: 'var(--ok)',
   over: 'var(--error)',
+  review_premised: 'var(--warn-deep)',
   unknown: 'var(--faint)',
   no_target: 'var(--faint)',
 }
@@ -16,6 +19,7 @@ const STATUS_COLOR = {
 const STATUS_BG = {
   ok: 'rgba(22, 163, 74, 0.1)',
   over: 'rgba(220, 38, 38, 0.1)',
+  review_premised: 'rgba(245, 166, 35, 0.14)',
   unknown: 'rgba(108, 117, 125, 0.08)',
   no_target: 'rgba(108, 117, 125, 0.08)',
 }
@@ -23,6 +27,7 @@ const STATUS_BG = {
 const STATUS_LABEL = {
   ok: '충족',
   over: '초과',
+  review_premised: '심의 전제',
   unknown: '확인불가',
   no_target: '요구 없음',
 }

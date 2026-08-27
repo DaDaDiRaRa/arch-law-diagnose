@@ -105,3 +105,88 @@ def test_missing_dir_returns_empty(tmp_path, monkeypatch):
     monkeypatch.setenv("BRIEF_DIR", str(tmp_path / "nope"))
     bi._LIST_CACHE.clear()
     assert bi.list_briefs() == []
+
+
+# ── feasibility_export 부분 채택 (2026-08-27) ─────────────────────────────────
+# competition_comparison이 같은 파일에 넣어주는 정규화 블록에서 **우리가 못 뽑는
+# 3종만** 가산한다. 전면 위임 안 함 — 실샘플 10건 대조 결과 정량치는 100% 일치했고,
+# 블록이 없는 파일이 존재하며(10건 중 4건), 그쪽 블록엔 목표 연면적이 아예 없다.
+
+
+def _brief_with_fe(fe: dict | None) -> dict:
+    obj = {
+        "_brief_meta": {"brief_id": "x", "facility_type": "public"},
+        "brief_project_info": {
+            "competition_name": "테스트공모",
+            "sites": [{
+                "site_id": "부지1", "address": "서울특별시 영등포구 당산동3가 385",
+                "site_area_sqm": 7498, "floor_area_sqm": 30000,
+                "building_coverage_pct": 60, "floor_area_ratio_pct": 460,
+                "max_height_m": 100, "facilities": ["어린이집(노유자시설)"],
+            }],
+        },
+    }
+    if fe is not None:
+        obj["feasibility_export"] = fe
+    return obj
+
+
+def _fe(version: int, **site_extra) -> dict:
+    return {
+        "schema_version": version,
+        "sites": [{"site_id": "부지1", **site_extra}],
+        "construction_cost_100m_won": 2686,
+        "design_cost_100m_won": 124,
+        "construction_period_months": 15,
+    }
+
+
+def test_fe_v2_adds_review_parking_and_scale():
+    """v2 블록이면 심의 여부·주차대수·사업규모가 얹힌다."""
+    m = bi.map_brief(_brief_with_fe(_fe(
+        2, limits_determined_by="심의", required_parking_count=430,
+        parking_note="부설주차장으로 430대",
+    )))
+    site = m["sites"][0]
+    assert m["feasibility_export_used"] is True
+    assert site["limits_determined_by"] == "심의"
+    assert site["target_parking_count"] == 430
+    assert site["parking_note"] == "부설주차장으로 430대"
+    assert m["scale"]["construction_cost_100m_won"] == 2686
+
+
+def test_fe_v1_is_gated_out():
+    """v1에는 2차 필드가 없다 — 얹지 않는다."""
+    m = bi.map_brief(_brief_with_fe(_fe(1, limits_determined_by="심의")))
+    assert m["feasibility_export_used"] is False
+    assert m["sites"][0]["limits_determined_by"] == ""
+
+
+def test_no_fe_block_keeps_own_parsing():
+    """블록이 없어도 자체 파싱 결과는 그대로 — 폴백은 영구히 필요하다."""
+    m = bi.map_brief(_brief_with_fe(None))
+    site = m["sites"][0]
+    assert m["feasibility_export_used"] is False
+    assert site["limits_determined_by"] == ""
+    assert site["target_parking_count"] is None
+    # 정량치·용도 감지는 블록과 무관하게 살아 있어야 한다
+    assert site["target_far_pct"] == 460.0
+    assert site["target_floor_area_sqm"] == 30000.0
+    assert site["facility_use"] == "노유자시설"
+
+
+def test_fe_does_not_overwrite_own_quantities():
+    """블록이 있어도 정량치·연면적은 우리 파싱 값을 쓴다(그쪽 블록엔 연면적이 없다)."""
+    m = bi.map_brief(_brief_with_fe(_fe(
+        2, limits_determined_by="법정", floor_area_ratio_pct=999,
+    )))
+    site = m["sites"][0]
+    assert site["target_far_pct"] == 460.0        # 999가 아니다
+    assert site["target_floor_area_sqm"] == 30000.0
+
+
+def test_fe_unknown_limits_value_rejected():
+    """limits_determined_by는 심의/법정만 통과 — 모르는 값은 빈 값."""
+    m = bi.map_brief(_brief_with_fe(_fe(2, limits_determined_by="협의")))
+    assert m["sites"][0]["limits_determined_by"] == ""
+

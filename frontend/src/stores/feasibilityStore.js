@@ -25,6 +25,8 @@ const emptyFormData = {
   target_open_space_sqm: '',
   target_units: '',
   unit_exclusive_area: '',
+  // 공모가 제시한 한도를 정한 주체('심의'|'법정'|''). brief feasibility_export에서만 채워진다.
+  limits_determined_by: '',
 }
 
 const toNum = (v) => {
@@ -74,6 +76,7 @@ function buildFeasibilityPayload(formData, levers = null) {
     target_open_space_sqm: toNum(pick('target_open_space_sqm')),
     target_units: toInt(f.target_units),
     unit_exclusive_area: toNum(f.unit_exclusive_area),
+    limits_determined_by: f.limits_determined_by || null,
     site_label: f.site_label || null,
     // 완화 레버
     green_grade: L.green_grade || null,
@@ -107,6 +110,8 @@ function makeSite(seed = {}) {
     target_max_height_m: s(seed.target_max_height_m),
     target_open_space_sqm: s(seed.target_open_space_sqm),
     building_use_detail: seed.building_use_detail || '',
+    target_parking_count: s(seed.target_parking_count),
+    limits_determined_by: seed.limits_determined_by || '',
   }
 }
 
@@ -162,6 +167,9 @@ export const useFeasibilityStore = create((set, get) => ({
         target_far_pct: numOrEmpty(site.target_far_pct),
         target_max_height_m: numOrEmpty(site.target_max_height_m),
         target_open_space_sqm: numOrEmpty(site.target_open_space_sqm),
+        // feasibility_export 가산분 — 없으면 빈 값이라 기존 동작 그대로
+        target_parking_count: numOrEmpty(site.target_parking_count) || s.formData.target_parking_count,
+        limits_determined_by: site.limits_determined_by || '',
         // 주소가 brief에 있으면만 채움
         address: site.address || s.formData.address,
         zone_use_override: site.zoning || s.formData.zone_use_override,
@@ -180,6 +188,9 @@ export const useFeasibilityStore = create((set, get) => ({
         facility_hint: site.facility_hint || '',
         open_space_notes: site.open_space_notes || '',
         applicant_type: meta.applicant_type || '',
+        limits_determined_by: site.limits_determined_by || '',
+        parking_note: site.parking_note || '',
+        scale: meta.scale || {},
         // 대안 비교(What-If)에서 완화 레버 시드로 사용
         relief: {
           green_grade: relief.green_grade || '',
@@ -379,6 +390,8 @@ export const useFeasibilityStore = create((set, get) => ({
         target_far_pct: s.target_far_pct,
         target_max_height_m: s.target_max_height_m,
         target_open_space_sqm: s.target_open_space_sqm,
+        target_parking_count: s.target_parking_count,
+        limits_determined_by: s.limits_determined_by,
         building_use_detail: s.facility_hint ? `[공모] ${s.facility_hint}` : '',
       })
     )

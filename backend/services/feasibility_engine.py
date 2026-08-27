@@ -172,11 +172,22 @@ def _build_engine_payload(req: dict, site_area: float) -> dict:
     }
 
 
-def _compute_gap(target: float | None, limit: float | None, semantic: str) -> dict:
+def _compute_gap(
+    target: float | None,
+    limit: float | None,
+    semantic: str,
+    limits_by: str | None = None,
+) -> dict:
     """카테고리별 갭 분석.
 
     semantic="max": target이 limit 이하면 OK (건폐율·용적률 등 상한)
     semantic="min": target이 limit 이상이면 OK (주차 등 하한)
+
+    limits_by="심의": 공모가 제시한 건폐율·용적률·높이가 **법정 표가 아니라
+    도시계획위원회 심의로 정해진 값**이라는 뜻(공모지침 명시). 이때 법정 한도
+    초과는 결함이 아니라 심의로 이미 설명된 차이라 status를 "review_premised"로
+    낮춘다. 우리가 심의 결과를 검증할 수는 없으므로 "충족"이라 말하지도 않는다.
+    ⚠ 상한(max)에만 적용 — 주차 같은 법정 **최소**는 심의로 면제되지 않는다.
     """
     if target is None or target == 0:
         return {
@@ -198,6 +209,9 @@ def _compute_gap(target: float | None, limit: float | None, semantic: str) -> di
         if gap >= 0:
             status = "ok"
             gap_text = f"충족 · 여유 {gap:.1f}"
+        elif limits_by == "심의":
+            status = "review_premised"
+            gap_text = f"심의 전제 · 법정 한도 대비 +{-gap:.1f}"
         else:
             status = "over"
             gap_text = f"초과 · 부족 {-gap:.1f}"
@@ -343,11 +357,14 @@ def _compute_recommendation(categories: list[dict]) -> dict:
     has_coverable_over = False
     has_unknown = False
     has_ok = False
+    has_review_premised = False
 
     for cat in categories:
         gap = cat.get("gap_analysis", {})
         status = gap.get("status")
-        if status == "over":
+        if status == "review_premised":
+            has_review_premised = True
+        elif status == "over":
             scenarios = cat.get("scenarios", [])
             covers = any(s.get("covers_target") for s in scenarios)
             if covers:
@@ -362,6 +379,11 @@ def _compute_recommendation(categories: list[dict]) -> dict:
     if has_uncovered_over:
         verdict = "패스 권장"
         reason = "공모 요구치가 법적 한계를 초과하고 완화로도 커버 불가"
+    elif has_review_premised:
+        # 심의로 정해진 한도 — 법정 표와의 차이는 결함이 아니지만, 심의 결과를
+        # 우리가 검증할 수 없으므로 "참여 권장"으로 단정하지 않는다.
+        verdict = "협상 필요"
+        reason = "공모가 제시한 한도는 심의 결정값 — 법정 한도 초과분은 심의 전제. 심의 확정 여부 확인 필요"
     elif has_coverable_over:
         verdict = "협상 필요"
         reason = "법 기본 한도는 초과하나 완화 시나리오 적용 시 충족 가능 — 인증·심의 협상 검토"
@@ -620,13 +642,20 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
         req, site_area, base_far_limit, zone_use,
     )
 
+    # 공모지침이 "이 한도는 심의로 정한 값"이라 밝힌 경우(brief feasibility_export)
+    limits_by = (req.get("limits_determined_by") or "").strip() or None
+
     categories = []
     for spec in _GAP_SPECS:
         engine_result = results.get(spec["engine_category"], {})
         limit = engine_result.get(spec["limit_key"])
         target = _to_float(req.get(spec["target_field"]))
 
-        gap = _compute_gap(target, limit, spec["semantic"])
+        # 심의로 정해진 한도는 상한 비교에만 반영(주차 법정 최소는 심의 무관)
+        gap = _compute_gap(
+            target, limit, spec["semantic"],
+            limits_by if spec["semantic"] == "max" else None,
+        )
 
         scenarios = []
         if spec["key"] == "far":
@@ -653,7 +682,7 @@ async def run_feasibility(engine: DiagnoseEngine, req: dict) -> dict:
             site_area * max_relief["max_pct"] / 100.0
             if max_relief.get("max_pct") else None
         )
-        gap = _compute_gap(target_floor_area, max_floor_area, "max")
+        gap = _compute_gap(target_floor_area, max_floor_area, "max", limits_by)
         categories.append({
             "key": "floor_area",
             "label": "연면적",

@@ -97,3 +97,110 @@ def test_to_int():
     assert fe._to_int("7") == 7
     assert fe._to_int(None, default=0) == 0
     assert fe._to_int("bad", default=5) == 5
+
+
+# ── limits_determined_by="심의" (feasibility_export 부분 채택, 2026-08-27) ──────
+# 공모가 제시한 60%/460%가 도시계획위원회 심의로 정해진 값일 때, 법정 표(준공업
+# 400%)와의 차이는 결함이 아니다. 실사례: 영등포통합신청사 부지1.
+
+
+def test_gap_review_premised_replaces_over():
+    """심의 결정 한도면 초과가 아니라 '심의 전제'."""
+    g = fe._compute_gap(460, 400, "max", "심의")
+    assert g["status"] == "review_premised"
+    assert g["gap"] == -60          # 숫자는 그대로 — 차이를 숨기지 않는다
+    assert "심의" in g["gap_text"]
+
+
+def test_gap_legal_still_over():
+    """'법정'이면 기존대로 초과."""
+    assert fe._compute_gap(460, 400, "max", "법정")["status"] == "over"
+    assert fe._compute_gap(460, 400, "max", None)["status"] == "over"
+
+
+def test_gap_review_premised_not_applied_when_within_limit():
+    """한도 안이면 심의든 아니든 충족."""
+    assert fe._compute_gap(300, 400, "max", "심의")["status"] == "ok"
+
+
+def test_gap_min_semantic_ignores_review():
+    """주차 같은 법정 '최소'는 심의로 면제되지 않는다."""
+    g = fe._compute_gap(100, 430, "min", "심의")
+    assert g["status"] == "over"
+
+
+def test_recommendation_review_premised_is_not_pass_recommendation():
+    """심의 전제만 있으면 '패스 권장'이 아니라 '협상 필요'."""
+    cats = [{"gap_analysis": {"status": "review_premised"}, "scenarios": []}]
+    r = fe._compute_recommendation(cats)
+    assert r["verdict"] == "협상 필요"
+    assert "심의" in r["reason"]
+
+
+def test_recommendation_real_over_still_wins():
+    """진짜 초과가 같이 있으면 그쪽이 우선 — 심의 전제가 가리지 않는다."""
+    cats = [
+        {"gap_analysis": {"status": "review_premised"}, "scenarios": []},
+        {"gap_analysis": {"status": "over"}, "scenarios": []},
+    ]
+    assert fe._compute_recommendation(cats)["verdict"] == "패스 권장"
+
+
+# ── run_feasibility 통합 — 심의 플래그가 요청→카테고리까지 실제로 흐르는가 ──────
+# 단위 테스트는 _compute_gap만 본다. 요청 필드가 거기까지 닿는지는 별개 문제라
+# 스텁 엔진으로 전 구간을 한 번 통과시킨다. (영등포 부지1 실측치: 준공업 400% vs 460%)
+
+
+class _StubResolver:
+    async def resolve(self, address, pnu=""):
+        return {"zone_use": "준공업지역", "zone_district": "", "parcel_area": 7498.0}
+
+
+class _StubEngine:
+    """diagnose_fast만 흉내내는 최소 엔진 — 네트워크 0."""
+
+    def __init__(self):
+        self._resolver = _StubResolver()
+
+    async def diagnose_fast(self, payload, zone_use="", land_info=None, skip_ai=True):
+        return {
+            "land_info": {"zone_use": zone_use},
+            "results": {
+                "건폐율": {"limit_pct": 70.0, "source": "시행령"},
+                "용적률": {"limit_pct": 400.0, "source": "시행령", "relief_info": {}},
+                "주차": {"required_spaces": 300},
+            },
+            "applicable_reviews": {"items": [], "required_count": 0, "maybe_count": 0},
+        }
+
+
+def _run(req_extra):
+    import asyncio
+    req = {
+        "address": "서울특별시 영등포구 당산동3가 385",
+        "facility_use": "업무시설",
+        "applicant_type": "공공기관",
+        "site_area_override": 7498.0,
+        "target_far_pct": 460.0,
+        "target_building_coverage_pct": 60.0,
+        **req_extra,
+    }
+    return asyncio.run(fe.run_feasibility(_StubEngine(), req))
+
+
+def _far_status(res):
+    return next(c["gap_analysis"]["status"] for c in res["categories"] if c["key"] == "far")
+
+
+def test_run_feasibility_review_flag_reaches_categories():
+    """limits_determined_by='심의' → 용적률 갭이 review_premised."""
+    res = _run({"limits_determined_by": "심의"})
+    assert _far_status(res) == "review_premised"
+    assert res["overall_recommendation"]["verdict"] == "협상 필요"
+
+
+def test_run_feasibility_without_flag_is_over():
+    """플래그 없으면 기존 그대로 초과 — 회귀 방지."""
+    res = _run({})
+    assert _far_status(res) == "over"
+

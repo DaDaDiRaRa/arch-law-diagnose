@@ -1,7 +1,7 @@
 """API 입력 스키마 (Pydantic). main.py 에서 분리 — 순수 데이터 정의, 상태·의존성 없음."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -240,6 +240,13 @@ class FeasibilityRequest(BaseModel):
     )
     target_open_space_sqm: float | None = Field(
         None, ge=0, description="공모가 요구하는 공개공지 (㎡)"
+    )
+    limits_determined_by: Literal["심의", "법정"] | None = Field(
+        None,
+        description=(
+            "공모가 제시한 건폐율·용적률·높이를 정한 주체. '심의'면 법정 표가 아니라 "
+            "도시계획위원회 심의로 정해진 값이라 법정 한도 초과를 결함으로 보지 않는다"
+        ),
     )
     target_units: int | None = Field(
         None, ge=1, description="공모가 요구하는 세대수 (공동주택)"
