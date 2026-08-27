@@ -33,9 +33,46 @@ _LAW_SEARCH_KEYWORD = {
     "녹색건축물 조성 지원법": "녹색건축물 조성 지원법",
 }
 
-_NAMED = re.compile(r"「([^」]{2,40})」\s*제(\d+)조(?:의(\d+))?")
-_BARE = re.compile(r"제(\d+)조(?:의(\d+))?")
+# 법령 앵커 — 「법령명」 / "같은 법"(직전 명시 법령) / "법"(시행령 본문의 모법 약칭).
+# 마지막 대안은 뒤에 "제N조"가 붙을 때만, 그리고 앞 글자가 한글이 아닐 때만 잡는다
+# (안 그러면 "건축법"·"주차장법"의 꼬리 '법'이 걸린다).
+_ANCHOR = re.compile(
+    r"「([^」]{2,40})」"
+    r"|(같은\s*법)"
+    r"|(?<![가-힣])(법)(?=\s*제\d+조)"
+)
+_ART = re.compile(r"제(\d+)조(?:의(\d+))?")
 _BYP = re.compile(r"별표\s*(\d+)")
+
+# 조문 나열의 연결부 — 이것만 사이에 있으면 앞의 법령 문맥이 계속된다.
+# 예) "「건축법」 제60조 및 제61조", "제6조, 제7조, 제7조의2 및 제8조"
+_CONNECTOR = re.compile(
+    r"^[\s,，、·ㆍ]*(?:(?:및|과|와|또는|내지|부터|까지)[\s,，、·ㆍ]*)*$"
+)
+
+
+# 정식명칭 → 시드 약칭. 위 검색 키워드 표를 뒤집어 쓴다(표가 유일한 출처).
+# 본문 인용은 정식명칭(「국토의 계획 및 이용에 관한 법률」), 시드는 약칭(국토계획법)이라
+# 정규화하지 않으면 같은 조문이 노드 둘로 갈라진다.
+_LAW_ALIAS = {
+    re.sub(r"\s+", "", formal): short
+    for short, formal in _LAW_SEARCH_KEYWORD.items()
+    if re.sub(r"\s+", "", formal) != re.sub(r"\s+", "", short)
+}
+
+
+def _canon_law(law: str) -> str:
+    """법령명을 시드 표기로 통일. 표에 없으면 원문 그대로."""
+    return _LAW_ALIAS.get(re.sub(r"\s+", "", law or ""), law)
+
+
+def _parent_act(law: str) -> str:
+    """시행령·시행규칙 → 모법. 그 외는 자기 자신.
+
+    시행령 본문의 "법 제N조"는 모법 조문을 가리킨다(입법 관행). 이걸 모르면
+    "건축법 시행령 제13조의2"처럼 실재하지 않는 조문이 만들어진다.
+    """
+    return re.sub(r"\s*(시행령|시행규칙)$", "", law).strip() or law
 
 
 def _art(num: str, sub: str | None) -> str:
@@ -51,11 +88,19 @@ def _art_key(article_no: str) -> tuple[int, int]:
 def extract_refs(text: str, current_law: str, self_article: str | None = None) -> list[dict]:
     """조문 본문 → 상호참조 목록 [{law, article, kind}].
 
-    kind: named(「법」 제N조) | same(같은 법 제N조) | byp(별표 N).
+    kind: named(다른 법령 조문) | same(같은 법 조문) | byp(별표 N).
     self_article: 해당 조문 자신(자기참조 제외용).
+
+    법령 문맥을 좌→우로 이어가며 조문을 귀속시킨다. 앵커(「법령명」·"같은 법"·
+    시행령의 "법") 이후 **연결부(, · 및 …)로만 이어진 조문은 그 법령 소속**이다.
+    나열 중 첫 조문만 법령에 붙이면 뒤따르는 조문이 현재 법으로 잘못 떨어진다
+    (예: "「건축법」 제60조 및 제61조" → 제61조가 녹색건축물법 제61조가 됨).
     """
+    text = text or ""
     refs: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    current_law = _canon_law(current_law)
+    parent = _canon_law(_parent_act(current_law))
 
     def add(law: str, art: str, kind: str) -> None:
         key = (law, art)
@@ -64,17 +109,42 @@ def extract_refs(text: str, current_law: str, self_article: str | None = None) -
         seen.add(key)
         refs.append({"law": law, "article": art, "kind": kind})
 
-    for m in _NAMED.finditer(text or ""):
-        add(m.group(1).strip(), _art(m.group(2), m.group(3)), "named")
+    # 앵커·조문을 위치 순으로 병합 주사
+    events: list[tuple[int, int, str, str]] = []  # (start, end, type, payload)
+    last_named = ""
+    for m in _ANCHOR.finditer(text):
+        if m.group(1):
+            law = _canon_law(m.group(1).strip())
+            last_named = law
+        elif m.group(2):
+            law = last_named or current_law      # "같은 법" = 직전 명시 법령
+        else:
+            law = parent                         # 시행령의 "법" = 모법
+        events.append((m.start(), m.end(), "anchor", law))
+    for m in _ART.finditer(text):
+        events.append((m.start(), m.end(), "art", _art(m.group(1), m.group(2))))
+    events.sort(key=lambda e: (e[0], 0 if e[2] == "anchor" else 1))
 
-    # 명시 법령 참조를 지운 뒤 같은 법 내 조문 참조 스캔(중복 방지)
-    wo_named = _NAMED.sub("  ", text or "")
-    for m in _BARE.finditer(wo_named):
-        art = _art(m.group(1), m.group(2))
-        if art != self_article:
-            add(current_law, art, "same")
+    active_law = ""      # 현재 이어지는 법령 문맥
+    active_end = 0       # 그 문맥이 끝난 위치(여기부터 조문까지가 연결부여야 이어짐)
+    for start, end, typ, payload in events:
+        if typ == "anchor":
+            active_law, active_end = payload, end
+            continue
+        # 조문 — 앞 문맥과 연결부로만 이어져 있으면 그 법령, 아니면 현재 법
+        if active_law and _CONNECTOR.match(text[active_end:start]):
+            law = active_law
+        else:
+            law = current_law
+        active_law, active_end = law, end
+        if law == current_law:
+            if payload == self_article:
+                continue
+            add(law, payload, "same")
+        else:
+            add(law, payload, "named")
 
-    for m in _BYP.finditer(text or ""):
+    for m in _BYP.finditer(text):
         add(current_law, f"별표 {m.group(1)}", "byp")
 
     return refs

@@ -1,21 +1,21 @@
 {
   "nodes": [
     {
-      "id": "auto_국토의계획및이용에관한법률_제77조",
+      "id": "auto_국토계획법_제77조",
       "kind": "법률",
-      "law": "국토의 계획 및 이용에 관한 법률",
+      "law": "국토계획법",
       "article": "제77조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토의 계획 및 이용에 관한 법률/제77조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제77조",
       "origin": "auto"
     },
     {
-      "id": "auto_국토의계획및이용에관한법률_제78조",
+      "id": "auto_국토계획법_제78조",
       "kind": "법률",
-      "law": "국토의 계획 및 이용에 관한 법률",
+      "law": "국토계획법",
       "article": "제78조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토의 계획 및 이용에 관한 법률/제78조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제78조",
       "origin": "auto"
     },
     {
@@ -55,6 +55,33 @@
       "origin": "auto"
     },
     {
+      "id": "auto_산업입지및개발에관한법률_제7조",
+      "kind": "법률",
+      "law": "산업입지 및 개발에 관한 법률",
+      "article": "제7조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/산업입지 및 개발에 관한 법률/제7조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_산업입지및개발에관한법률_제7조의2",
+      "kind": "법률",
+      "law": "산업입지 및 개발에 관한 법률",
+      "article": "제7조의2",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/산업입지 및 개발에 관한 법률/제7조의2",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_산업입지및개발에관한법률_제8조",
+      "kind": "법률",
+      "law": "산업입지 및 개발에 관한 법률",
+      "article": "제8조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/산업입지 및 개발에 관한 법률/제8조",
+      "origin": "auto"
+    },
+    {
       "id": "auto_도시개발법_제2조",
       "kind": "법률",
       "law": "도시개발법",
@@ -73,48 +100,12 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법_제7조",
-      "kind": "법률",
-      "law": "건축법",
-      "article": "제7조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법/제7조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법_제7조의2",
-      "kind": "법률",
-      "law": "건축법",
-      "article": "제7조의2",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법/제7조의2",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법_제8조",
-      "kind": "법률",
-      "law": "건축법",
-      "article": "제8조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법/제8조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_건축법_제4조",
       "kind": "법률",
       "law": "건축법",
       "article": "제4조",
       "title": "",
       "url": "https://www.law.go.kr/법령/건축법/제4조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_공공기관의운영에관한법률_제4조",
-      "kind": "법률",
-      "law": "공공기관의 운영에 관한 법률",
-      "article": "제4조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/공공기관의 운영에 관한 법률/제4조",
       "origin": "auto"
     },
     {
@@ -127,12 +118,30 @@
       "origin": "auto"
     },
     {
+      "id": "auto_공공기관의운영에관한법률_제4조",
+      "kind": "법률",
+      "law": "공공기관의 운영에 관한 법률",
+      "article": "제4조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/공공기관의 운영에 관한 법률/제4조",
+      "origin": "auto"
+    },
+    {
       "id": "auto_산업집적활성화및공장설립에관한법률_제2조",
       "kind": "법률",
       "law": "산업집적활성화 및 공장설립에 관한 법률",
       "article": "제2조",
       "title": "",
       "url": "https://www.law.go.kr/법령/산업집적활성화 및 공장설립에 관한 법률/제2조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제20조",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제20조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제20조",
       "origin": "auto"
     },
     {
@@ -154,12 +163,21 @@
       "origin": "auto"
     },
     {
-      "id": "auto_국토의계획및이용에관한법률시행령_제48조",
+      "id": "auto_국토계획법시행령_제48조",
       "kind": "시행령",
-      "law": "국토의 계획 및 이용에 관한 법률 시행령",
+      "law": "국토계획법 시행령",
       "article": "제48조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토의 계획 및 이용에 관한 법률 시행령/제48조",
+      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제48조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_산지관리법_제2조",
+      "kind": "법률",
+      "law": "산지관리법",
+      "article": "제2조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/산지관리법/제2조",
       "origin": "auto"
     },
     {
@@ -181,30 +199,21 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제42조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제42조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제42조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제20조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제20조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제20조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_건축법시행령_별표1",
       "kind": "시행령",
       "law": "건축법 시행령",
       "article": "별표 1",
       "title": "",
       "url": "https://www.law.go.kr/법령/건축법 시행령/별표 1",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제49조",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제49조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제49조",
       "origin": "auto"
     },
     {
@@ -217,21 +226,21 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제49조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제49조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제49조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_원자력안전법_제2조",
       "kind": "법률",
       "law": "원자력안전법",
       "article": "제2조",
       "title": "",
       "url": "https://www.law.go.kr/법령/원자력안전법/제2조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법시행령_제64조",
+      "kind": "시행령",
+      "law": "건축법 시행령",
+      "article": "제64조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법 시행령/제64조",
       "origin": "auto"
     },
     {
@@ -253,24 +262,6 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제64조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제64조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제64조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제53조의2",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제53조의2",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제53조의2",
-      "origin": "auto"
-    },
-    {
       "id": "auto_토지이용규제기본법_제8조",
       "kind": "법률",
       "law": "토지이용규제 기본법",
@@ -280,21 +271,21 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제60조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제60조",
+      "id": "auto_국토계획법_제51조",
+      "kind": "법률",
+      "law": "국토계획법",
+      "article": "제51조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제60조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제51조",
       "origin": "auto"
     },
     {
-      "id": "auto_국토의계획및이용에관한법률_제51조",
+      "id": "auto_국토계획법_제37조",
       "kind": "법률",
-      "law": "국토의 계획 및 이용에 관한 법률",
-      "article": "제51조",
+      "law": "국토계획법",
+      "article": "제37조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토의 계획 및 이용에 관한 법률/제51조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제37조",
       "origin": "auto"
     },
     {
@@ -307,57 +298,39 @@
       "origin": "auto"
     },
     {
+      "id": "auto_건축법_제77조의2",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제77조의2",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제77조의2",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제77조의4",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제77조의4",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제77조의4",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제2조",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제2조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제2조",
+      "origin": "auto"
+    },
+    {
       "id": "auto_도시공원및녹지등에관한법률_제2조",
       "kind": "법률",
       "law": "도시공원 및 녹지 등에 관한 법률",
       "article": "제2조",
       "title": "",
       "url": "https://www.law.go.kr/법령/도시공원 및 녹지 등에 관한 법률/제2조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제61조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제61조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제61조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제37조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제37조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제37조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제77조의2",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제77조의2",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제77조의2",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제77조의4",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제77조의4",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제77조의4",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제2조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제2조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제2조",
       "origin": "auto"
     },
     {
@@ -370,12 +343,39 @@
       "origin": "auto"
     },
     {
-      "id": "auto_국토의계획및이용에관한법률_제47조",
+      "id": "auto_건축법_제64조",
       "kind": "법률",
-      "law": "국토의 계획 및 이용에 관한 법률",
+      "law": "건축법",
+      "article": "제64조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제64조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제84조",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제84조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제84조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_건축법_제46조",
+      "kind": "법률",
+      "law": "건축법",
+      "article": "제46조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/건축법/제46조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_국토계획법_제47조",
+      "kind": "법률",
+      "law": "국토계획법",
       "article": "제47조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토의 계획 및 이용에 관한 법률/제47조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제47조",
       "origin": "auto"
     },
     {
@@ -469,39 +469,12 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제84조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제84조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제84조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제55조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제55조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제55조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_건축법시행령_제9조",
       "kind": "시행령",
       "law": "건축법 시행령",
       "article": "제9조",
       "title": "",
       "url": "https://www.law.go.kr/법령/건축법 시행령/제9조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제56조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제56조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제56조",
       "origin": "auto"
     },
     {
@@ -532,21 +505,12 @@
       "origin": "auto"
     },
     {
-      "id": "auto_건축법시행령_제13조의2",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제13조의2",
+      "id": "auto_국토계획법_제36조",
+      "kind": "법률",
+      "law": "국토계획법",
+      "article": "제36조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제13조의2",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_건축법시행령_제11조",
-      "kind": "시행령",
-      "law": "건축법 시행령",
-      "article": "제11조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/건축법 시행령/제11조",
+      "url": "https://www.law.go.kr/법령/국토계획법/제36조",
       "origin": "auto"
     },
     {
@@ -559,21 +523,30 @@
       "origin": "auto"
     },
     {
-      "id": "auto_국토계획법_제36조",
-      "kind": "법률",
-      "law": "국토계획법",
-      "article": "제36조",
+      "id": "auto_국토계획법시행령_제31조",
+      "kind": "시행령",
+      "law": "국토계획법 시행령",
+      "article": "제31조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법/제36조",
+      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제31조",
       "origin": "auto"
     },
     {
-      "id": "auto_국토계획법_제37조",
-      "kind": "법률",
-      "law": "국토계획법",
-      "article": "제37조",
+      "id": "auto_건축법시행령_제2조",
+      "kind": "시행령",
+      "law": "건축법 시행령",
+      "article": "제2조",
       "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법/제37조",
+      "url": "https://www.law.go.kr/법령/건축법 시행령/제2조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_국토계획법시행령_제2조",
+      "kind": "시행령",
+      "law": "국토계획법 시행령",
+      "article": "제2조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제2조",
       "origin": "auto"
     },
     {
@@ -613,42 +586,6 @@
       "origin": "auto"
     },
     {
-      "id": "auto_국토계획법시행령_제77조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제77조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제77조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_국토계획법시행령_제31조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제31조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제31조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_국토계획법시행령_제37조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제37조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제37조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_국토계획법시행령_제2조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제2조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제2조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_국토계획법시행령_별표2",
       "kind": "시행령",
       "law": "국토계획법 시행령",
@@ -685,12 +622,30 @@
       "origin": "auto"
     },
     {
+      "id": "auto_영유아보육법_제10조",
+      "kind": "법률",
+      "law": "영유아보육법",
+      "article": "제10조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/영유아보육법/제10조",
+      "origin": "auto"
+    },
+    {
       "id": "auto_감염병의예방및관리에관한법률_제36조",
       "kind": "법률",
       "law": "감염병의 예방 및 관리에 관한 법률",
       "article": "제36조",
       "title": "",
       "url": "https://www.law.go.kr/법령/감염병의 예방 및 관리에 관한 법률/제36조",
+      "origin": "auto"
+    },
+    {
+      "id": "auto_국토계획법시행령_제46조",
+      "kind": "시행령",
+      "law": "국토계획법 시행령",
+      "article": "제46조",
+      "title": "",
+      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제46조",
       "origin": "auto"
     },
     {
@@ -712,48 +667,12 @@
       "origin": "auto"
     },
     {
-      "id": "auto_국토계획법시행령_제78조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제78조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제78조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_국토계획법시행령_제10조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제10조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제10조",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_국토계획법시행령_제46조",
-      "kind": "시행령",
-      "law": "국토계획법 시행령",
-      "article": "제46조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/국토계획법 시행령/제46조",
-      "origin": "auto"
-    },
-    {
       "id": "auto_국토계획법시행령_별표1",
       "kind": "시행령",
       "law": "국토계획법 시행령",
       "article": "별표 1",
       "title": "",
       "url": "https://www.law.go.kr/법령/국토계획법 시행령/별표 1",
-      "origin": "auto"
-    },
-    {
-      "id": "auto_주차장법_제51조",
-      "kind": "법률",
-      "law": "주차장법",
-      "article": "제51조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/주차장법/제51조",
       "origin": "auto"
     },
     {
@@ -791,28 +710,19 @@
       "title": "",
       "url": "https://www.law.go.kr/법령/녹색건축물 조성 지원법/제14조의2",
       "origin": "auto"
-    },
-    {
-      "id": "auto_녹색건축물조성지원법_제61조",
-      "kind": "법률",
-      "law": "녹색건축물 조성 지원법",
-      "article": "제61조",
-      "title": "",
-      "url": "https://www.law.go.kr/법령/녹색건축물 조성 지원법/제61조",
-      "origin": "auto"
     }
   ],
   "edges": [
     {
       "source": "buildingact_55",
-      "target": "auto_국토의계획및이용에관한법률_제77조",
+      "target": "auto_국토계획법_제77조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingact_56",
-      "target": "auto_국토의계획및이용에관한법률_제78조",
+      "target": "auto_국토계획법_제78조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -868,6 +778,27 @@
     },
     {
       "source": "buildingact_61",
+      "target": "auto_산업입지및개발에관한법률_제7조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingact_61",
+      "target": "auto_산업입지및개발에관한법률_제7조의2",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingact_61",
+      "target": "auto_산업입지및개발에관한법률_제8조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingact_61",
       "target": "auto_도시개발법_제2조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
@@ -881,29 +812,15 @@
       "origin": "auto"
     },
     {
-      "source": "buildingact_61",
-      "target": "auto_건축법_제7조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingact_61",
-      "target": "auto_건축법_제7조의2",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingact_61",
-      "target": "auto_건축법_제8조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
       "source": "buildingact_4_2",
       "target": "auto_건축법_제4조",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingact_13_2",
+      "target": "auto_건축법_제11조",
       "rel": "참조",
       "note": "본문 자동 추출(same)",
       "origin": "auto"
@@ -917,13 +834,6 @@
     },
     {
       "source": "buildingact_13_2",
-      "target": "auto_건축법_제11조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingact_13_2",
       "target": "buildingact_4_2",
       "rel": "참조",
       "note": "본문 자동 추출(same)",
@@ -931,7 +841,21 @@
     },
     {
       "source": "buildingdecree_27",
+      "target": "buildingact_42",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_27",
       "target": "auto_산업집적활성화및공장설립에관한법률_제2조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_27",
+      "target": "auto_건축법_제20조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -952,7 +876,14 @@
     },
     {
       "source": "buildingdecree_27",
-      "target": "auto_국토의계획및이용에관한법률시행령_제48조",
+      "target": "auto_국토계획법시행령_제48조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_27",
+      "target": "auto_산지관리법_제2조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -973,23 +904,16 @@
     },
     {
       "source": "buildingdecree_27",
-      "target": "auto_건축법시행령_제42조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_27",
-      "target": "auto_건축법시행령_제20조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_27",
       "target": "auto_건축법시행령_별표1",
       "rel": "참조",
       "note": "본문 자동 추출(byp)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_34",
+      "target": "auto_건축법_제49조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1000,17 +924,10 @@
       "origin": "auto"
     },
     {
-      "source": "buildingdecree_34",
-      "target": "auto_건축법시행령_제49조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
       "source": "buildingdecree_35",
-      "target": "auto_건축법시행령_제49조",
+      "target": "auto_건축법_제49조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1022,9 +939,23 @@
     },
     {
       "source": "buildingdecree_46",
+      "target": "auto_건축법_제49조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_46",
       "target": "auto_원자력안전법_제2조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_46",
+      "target": "auto_건축법시행령_제64조",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
       "origin": "auto"
     },
     {
@@ -1042,24 +973,17 @@
       "origin": "auto"
     },
     {
-      "source": "buildingdecree_46",
-      "target": "auto_건축법시행령_제49조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_46",
-      "target": "auto_건축법시행령_제64조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
       "source": "buildingdecree_63_7",
-      "target": "auto_건축법시행령_제53조의2",
+      "target": "buildingact_53_2",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_82",
+      "target": "buildingact_60",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1070,15 +994,22 @@
       "origin": "auto"
     },
     {
-      "source": "buildingdecree_82",
-      "target": "auto_건축법시행령_제60조",
+      "source": "buildingdecree_86",
+      "target": "buildingact_61",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_86",
-      "target": "auto_국토의계획및이용에관한법률_제51조",
+      "target": "auto_국토계획법_제51조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_86",
+      "target": "auto_국토계획법_제37조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -1092,44 +1023,30 @@
     },
     {
       "source": "buildingdecree_86",
-      "target": "auto_도시공원및녹지등에관한법률_제2조",
+      "target": "auto_건축법_제77조의2",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_86",
-      "target": "auto_건축법시행령_제61조",
+      "target": "auto_건축법_제77조의4",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_86",
-      "target": "auto_건축법시행령_제37조",
+      "target": "auto_건축법_제2조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_86",
-      "target": "auto_건축법시행령_제77조의2",
+      "target": "auto_도시공원및녹지등에관한법률_제2조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_86",
-      "target": "auto_건축법시행령_제77조의4",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_86",
-      "target": "auto_건축법시행령_제2조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1141,21 +1058,35 @@
     },
     {
       "source": "buildingdecree_89",
-      "target": "auto_건축법시행령_제64조",
+      "target": "auto_건축법_제64조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_90",
-      "target": "auto_건축법시행령_제64조",
+      "target": "auto_건축법_제64조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_국토의계획및이용에관한법률_제47조",
+      "target": "auto_건축법_제84조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_119",
+      "target": "auto_건축법_제46조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_119",
+      "target": "auto_국토계획법_제47조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -1211,6 +1142,13 @@
     },
     {
       "source": "buildingdecree_119",
+      "target": "buildingact_55",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_119",
       "target": "auto_영유아보육법_제15조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
@@ -1239,27 +1177,6 @@
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제84조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_119",
-      "target": "buildingdecree_46",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제55조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "buildingdecree_119",
       "target": "auto_건축법시행령_제9조",
       "rel": "참조",
       "note": "본문 자동 추출(same)",
@@ -1267,14 +1184,21 @@
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제56조",
+      "target": "buildingact_56",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "buildingdecree_119",
+      "target": "auto_건축법시행령_제6조",
       "rel": "참조",
       "note": "본문 자동 추출(same)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제6조",
+      "target": "buildingdecree_46",
       "rel": "참조",
       "note": "본문 자동 추출(same)",
       "origin": "auto"
@@ -1295,23 +1219,23 @@
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제60조",
+      "target": "buildingact_60",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제61조",
+      "target": "buildingact_61",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_119",
-      "target": "auto_건축법시행령_제2조",
+      "target": "auto_건축법_제2조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1330,21 +1254,14 @@
     },
     {
       "source": "buildingdecree_10_3",
-      "target": "auto_건축법시행령_제13조의2",
+      "target": "buildingact_13_2",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
       "source": "buildingdecree_10_3",
-      "target": "auto_건축법시행령_제11조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nuca_76",
-      "target": "auto_산업입지및개발에관한법률_제2조",
+      "target": "auto_건축법_제11조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -1364,8 +1281,36 @@
       "origin": "auto"
     },
     {
+      "source": "nuca_76",
+      "target": "auto_산업입지및개발에관한법률_제2조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_84",
+      "target": "auto_국토계획법_제77조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_84",
+      "target": "auto_국토계획법시행령_제31조",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
+      "origin": "auto"
+    },
+    {
       "source": "nucadecree_84",
       "target": "auto_산업입지및개발에관한법률_제2조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_84",
+      "target": "auto_국토계획법_제37조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -1382,6 +1327,13 @@
       "target": "auto_건축법시행령_제2조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_84",
+      "target": "auto_국토계획법시행령_제2조",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
       "origin": "auto"
     },
     {
@@ -1421,37 +1373,16 @@
     },
     {
       "source": "nucadecree_84",
-      "target": "auto_국토계획법시행령_제77조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_84",
-      "target": "auto_국토계획법시행령_제31조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_84",
-      "target": "auto_국토계획법시행령_제37조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_84",
-      "target": "auto_국토계획법시행령_제2조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_84",
       "target": "auto_국토계획법시행령_별표2",
       "rel": "참조",
       "note": "본문 자동 추출(byp)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_85",
+      "target": "auto_국토계획법_제78조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1484,7 +1415,28 @@
     },
     {
       "source": "nucadecree_85",
+      "target": "auto_영유아보육법_제10조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_85",
       "target": "auto_감염병의예방및관리에관한법률_제36조",
+      "rel": "참조",
+      "note": "본문 자동 추출(named)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_85",
+      "target": "auto_국토계획법시행령_제46조",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
+      "origin": "auto"
+    },
+    {
+      "source": "nucadecree_85",
+      "target": "auto_국토계획법_제37조",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
       "origin": "auto"
@@ -1512,34 +1464,6 @@
     },
     {
       "source": "nucadecree_85",
-      "target": "auto_국토계획법시행령_제78조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_85",
-      "target": "auto_국토계획법시행령_제10조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_85",
-      "target": "auto_국토계획법시행령_제46조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_85",
-      "target": "auto_국토계획법시행령_제37조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "nucadecree_85",
       "target": "auto_국토계획법시행령_별표1",
       "rel": "참조",
       "note": "본문 자동 추출(byp)",
@@ -1547,9 +1471,9 @@
     },
     {
       "source": "parkingact_19",
-      "target": "auto_주차장법_제51조",
+      "target": "auto_국토계획법_제51조",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     },
     {
@@ -1582,6 +1506,13 @@
     },
     {
       "source": "greenact_15",
+      "target": "auto_녹색건축물조성지원법_제14조의2",
+      "rel": "참조",
+      "note": "본문 자동 추출(same)",
+      "origin": "auto"
+    },
+    {
+      "source": "greenact_15",
       "target": "buildingact_56",
       "rel": "참조",
       "note": "본문 자동 추출(named)",
@@ -1596,23 +1527,9 @@
     },
     {
       "source": "greenact_15",
-      "target": "greenact_14",
+      "target": "buildingact_61",
       "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "greenact_15",
-      "target": "auto_녹색건축물조성지원법_제14조의2",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
-      "origin": "auto"
-    },
-    {
-      "source": "greenact_15",
-      "target": "auto_녹색건축물조성지원법_제61조",
-      "rel": "참조",
-      "note": "본문 자동 추출(same)",
+      "note": "본문 자동 추출(named)",
       "origin": "auto"
     }
   ]
