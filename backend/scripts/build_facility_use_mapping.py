@@ -22,10 +22,15 @@
 """
 import csv, glob, json, os, re, sys
 from collections import Counter, defaultdict
+from pathlib import Path
 sys.path.insert(0, r'D:\APPS\arch-law-diagnose\backend')
 from services.brief_importer import _BUILDING_USES, _detect_building_uses
 
-byp1 = open(os.path.join(os.environ["TEMP"], "byp1.txt"), encoding="utf-8").read()
+# 별표1 대조는 전사본(config/building_use_seed.json)을 쓴다 — 임시파일 의존 금지.
+from services.building_use_table import load_seed, safe_names, hint_names
+_seed = load_seed()
+_byp1_names = set(_seed.get("names", {}))
+_safe, _hints = safe_names(), hint_names()
 
 # 공모 어휘 수집 — 공모 단위 중복 제거(같은 공모 재분석분은 1회로)
 PATS = [os.path.join(os.environ["TEMP"], "prod_briefs", "*.json"),
@@ -63,25 +68,28 @@ for term, n in vocab.most_common():
     auto1 = auto[0] if len(auto) == 1 else ""
     inner = re.findall(r"\(([^)]*)\)", term)
     probe = [core] + [i.strip() for i in inner]
-    in_byp1 = next((x for x in probe if x and x in byp1), "")
+    in_byp1 = next((x for x in probe if x and x in _byp1_names), "")
     if term in NOT_BUILDING:
         cls = "C. 건축물 아님(매핑 불필요)"
     elif auto1:
         cls = "0. 이미 자동감지"
+    elif in_byp1 and in_byp1 in _safe:
+        cls = "A. 별표1에 있음·무조건(코드가 해결)"
     elif in_byp1:
-        cls = "A. 별표1에 있음(코드로 해결 가능)"
+        cls = "A2. 별표1에 있으나 조건부·모호(힌트만)"
     else:
         cls = "B. 별표1에 없음 — 시니어 판단 필요"
     rows.append([term, n, cls, auto1, in_byp1, ""])
 
-out = os.path.join(os.environ["TEMP"], "facility_use_mapping.csv")
+out = str(Path(__file__).resolve().parents[2] / "data" / "facility_use_mapping.csv")
 with open(out, "w", encoding="utf-8-sig", newline="") as fh:
     w = csv.writer(fh)
     w.writerow(["원문어휘", "공모수", "분류", "현재_자동감지", "별표1_매칭어", "건축법_용도(시니어 기입)"])
     w.writerows(rows)
 
 print(f"공모 {len(by_comp)}종 · 고유어휘 {len(vocab)}종\n")
-for cls in ["0. 이미 자동감지", "A. 별표1에 있음(코드로 해결 가능)",
+for cls in ["0. 이미 자동감지", "A. 별표1에 있음·무조건(코드가 해결)",
+            "A2. 별표1에 있으나 조건부·모호(힌트만)",
             "B. 별표1에 없음 — 시니어 판단 필요", "C. 건축물 아님(매핑 불필요)"]:
     sel = [r for r in rows if r[2] == cls]
     print(f"[{cls}] {len(sel)}종")
@@ -89,10 +97,6 @@ for cls in ["0. 이미 자동감지", "A. 별표1에 있음(코드로 해결 가
     print()
 
 # 우리 _BUILDING_USES 커버리지
-heads = set()
-for m in re.finditer(r"^\s*(\d{1,2})\.\s*([^\n\[(:]{2,20})", byp1, re.M):
-    h = m.group(2).strip().rstrip("[(")
-    if len(h) >= 2: heads.add((int(m.group(1)), h))
-groups = sorted({n for n, _ in heads if 1 <= n <= 29})
-print(f"별표1 용도군 번호 {len(groups)}개 확인 · 우리 _BUILDING_USES {len(_BUILDING_USES)}종")
+print(f"별표1 용도군 {len(_seed.get('groups', {}))}개 · 감지 어휘 {len(_BUILDING_USES)}종 "
+      f"(시설명 {len(_safe)} 무조건 / {len(_hints)} 조건부·모호)")
 print("CSV:", out)

@@ -3,17 +3,7 @@ import { useDiagnoseStore } from '../../stores/diagnoseStore'
 import { api } from '../../utils/api'
 import AddressSearch from '../AddressSearch'
 import BriefUploader from '../BriefUploader'
-
-const BUILDING_USES = [
-  '제1종근린생활시설', '제2종근린생활시설', '근린생활시설',
-  '공동주택', '단독주택',
-  '업무시설', '공공업무시설',
-  '판매시설',
-  '숙박시설', '의료시설', '교육연구시설',
-  '문화및집회시설', '종교시설', '운동시설',
-  '노유자시설',
-  '위락시설', '공장', '창고시설', '기타',
-]
+import { BUILDING_USES } from '../../constants/buildingUses'
 
 const ZONE_USES = [
   '',

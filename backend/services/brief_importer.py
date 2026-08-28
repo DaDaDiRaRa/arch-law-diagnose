@@ -28,8 +28,11 @@ import json
 import logging
 import os
 import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
+
+from services import building_use_table
 
 logger = logging.getLogger(__name__)
 
@@ -74,39 +77,101 @@ def _norm_site_id(s: str) -> str:
     return re.sub(r"\s+", "", s or "")
 
 
-# 건축법 시설용도 — 사업성 폼 드롭다운과 동일. 자동 채움 후보 판별용.
-# 구체적인 용도를 앞에 둬서, 한 항목당 가장 구체적인 1개만 매칭(예: '제1종근린생활시설'이
-# '근린생활시설'보다 먼저). 매핑표 부재로 '주민편의시설' 등 비표준 용어는 의도적으로 제외.
-_BUILDING_USES = [
-    "제1종근린생활시설", "제2종근린생활시설", "근린생활시설",
-    "공동주택", "단독주택",
-    "공공업무시설", "업무시설",
-    "판매시설", "숙박시설", "의료시설", "교육연구시설",
-    "문화및집회시설", "종교시설", "운동시설", "노유자시설",
-    "위락시설", "공장", "창고시설",
-]
+# 건축법 시설용도 — 사업성 폼 드롭다운(frontend/src/constants/buildingUses.js)과 동일해야
+# 한다. 여기서 내보낸 이름이 드롭다운에 없으면 prefill 이 조용히 무시된다.
+#
+# 출처는 건축법 시행령 [별표 1] 전사본(`config/building_use_seed.json`, 29개 용도군).
+# 예전엔 18종을 손으로 적어 뒀는데 운수·수련·자동차관련·방송통신·장례·야영장 등
+# 13개 용도군이 빠져 있었다 — 그런 용도의 공모가 오면 어휘가 아무리 정확해도 후보 0.
+# `_LEGACY_EXTRA` 는 별표1 용도군은 아니지만 실무·드롭다운에서 쓰던 표기(회귀 방지).
+_LEGACY_EXTRA = ["근린생활시설", "공공업무시설"]
+
+# 부속·부대 용도는 그 건물의 주용도가 아니다 — '부설주차장'을 자동차관련시설로 읽으면
+# 주용도가 둘로 늘어 자동 채움이 꺼진다(영등포: 노유자시설 하나여야 함).
+_ANCILLARY_RE = re.compile(r"부설|부대|부속")
+
+
+def _norm_use(s: str) -> str:
+    """공백 차이 흡수 — 별표1은 '문화 및 집회시설', 드롭다운은 '문화및집회시설'."""
+    return re.sub(r"\s+", "", s or "")
+
+
+@lru_cache(maxsize=1)
+def _use_vocab() -> list[str]:
+    """자동감지 대상 용도명 — 구체적인 것(긴 것) 우선.
+
+    긴 것을 앞에 둬야 한 항목당 가장 구체적인 1개만 잡힌다
+    ('제1종근린생활시설'이 '근린생활시설'보다 먼저).
+    """
+    uses = [_norm_use(g) for g in building_use_table.use_groups()]
+    for extra in _LEGACY_EXTRA:
+        if extra not in uses:
+            uses.append(extra)
+    return sorted(uses, key=len, reverse=True)
+
+
+# 하위호환 — scripts/build_facility_use_mapping.py 등이 참조한다.
+_BUILDING_USES = _use_vocab()
 
 
 def _detect_building_uses(facilities: list[str]) -> list[str]:
-    """facilities 괄호표기에서 건축법 시설용도 후보 추출(중복 제거·순서 유지).
+    """facilities 에서 건축법 시설용도 후보 추출(중복 제거·순서 유지).
 
     예) ['어린이집(노유자시설)', '부설주차장'] → ['노유자시설']
-        ['…(주민편의시설)', '부설주차장'] → []  (주민편의시설은 19용도 아님)
+        ['학교']                              → ['교육연구시설']  (별표1 시설명)
+        ['…(주민편의시설)', '부설주차장']       → []  (법에 없는 공모 관용어)
     괄호가 있으면 괄호 안만, 없으면 항목 전체에서 탐색. 한 항목당 가장 구체적 1개.
+
+    2단계로 본다: ①용도군명 직접 매칭 ②별표1 시설명 중 **단일·무조건**인 것만
+    (`building_use_table.safe_names`). 조건부·복수 용도군 시설명은 여기 안 들어온다
+    — 보건소는 1천㎡ 미만이면 제1종근생, 넘으면 업무시설이라 이름만으론 못 정한다.
+    그런 건 `_facility_use_hints`로 힌트만 준다.
     """
+    safe = building_use_table.safe_names()
     found: list[str] = []
     for f in facilities or []:
-        if not f:
+        if not f or _ANCILLARY_RE.search(f):
             continue
         inner = re.findall(r"\(([^)]*)\)", f)
         targets = inner if inner else [f]
         for t in targets:
-            for use in _BUILDING_USES:
-                if use in t:
-                    if use not in found:
-                        found.append(use)
-                    break  # 한 항목당 가장 구체적 용도 1개만
+            norm = _norm_use(t)
+            hit = next((u for u in _use_vocab() if u in norm), "")
+            if not hit:
+                # 별표1 시설명은 **정확히 일치할 때만** 쓴다. 부분매칭하면
+                # '세대창고'(아파트 부대 창고)가 '창고'에 걸려 창고시설이 된다.
+                # zone_use_normalizer 와 같은 태도 — 애매하면 안 정한다.
+                hit = _norm_use(safe.get(t.strip(), ""))
+            if hit and hit not in found:
+                found.append(hit)
+            if hit:
+                break  # 한 항목당 가장 구체적 용도 1개만
     return found
+
+
+def _facility_use_hints(facilities: list[str]) -> list[dict]:
+    """자동 채움은 못 하지만 사람에게 보여줄 만한 별표1 매칭.
+
+    조건부(면적·제외규정) 또는 복수 용도군 시설명. 예) 보건소·학원·제과점.
+    **facility_use 로는 절대 안 쓴다** — 이름만으로 정해지지 않는 것들이다.
+    """
+    hints = building_use_table.hint_names()
+    resolved = set(_detect_building_uses(facilities))
+    out: list[dict] = []
+    seen: set[str] = set()
+    for f in facilities or []:
+        if not f or _ANCILLARY_RE.search(f):
+            continue
+        for name in sorted(hints, key=len, reverse=True):
+            if name == f.strip() and name not in seen:
+                uses = [_norm_use(u) for u in hints[name]]
+                # 이미 자동감지로 정해진 용도면 힌트로 또 보여주지 않는다
+                if not set(uses) - resolved:
+                    break
+                seen.add(name)
+                out.append({"term": name, "uses": uses})
+                break
+    return out
 
 
 def _resolve_brief_dir() -> Path:

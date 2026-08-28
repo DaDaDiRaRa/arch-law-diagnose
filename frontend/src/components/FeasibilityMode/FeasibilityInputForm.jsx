@@ -1,17 +1,7 @@
 import { useFeasibilityStore } from '../../stores/feasibilityStore'
 import AddressSearch from '../AddressSearch'
 import BriefImportPanel from './BriefImportPanel'
-
-const FACILITY_USES = [
-  '제1종근린생활시설', '제2종근린생활시설', '근린생활시설',
-  '공동주택', '단독주택',
-  '업무시설', '공공업무시설',
-  '판매시설',
-  '숙박시설', '의료시설', '교육연구시설',
-  '문화및집회시설', '종교시설', '운동시설',
-  '노유자시설',
-  '위락시설', '공장', '창고시설', '기타',
-]
+import { BUILDING_USES as FACILITY_USES } from '../../constants/buildingUses'
 
 const APPLICANT_TYPES = ['개인', '민간법인', '공공기관']
 
