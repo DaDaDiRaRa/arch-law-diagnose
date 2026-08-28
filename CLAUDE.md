@@ -80,7 +80,7 @@
 
 - [ ] **C. QueryBox 일반 법령 Q&A 축소·graph 링크아웃** — 기능 *축소*라 합치기 전엔 안 함. 현재는 일반 질문도 답하되 graph 원문 그라운딩으로 환각만 억제, 그대로 유지.
 - [ ] **A(게이팅). confidence로 GREEN→YELLOW** — 판정 로직 변경이라 별도 사용자 결정.
-- [ ] **MCP/API 도구화 + 계약** — 불변식: diagnose 도구는 *숫자+판정+law_refs만* 반환, 법령 본문/해석 산문은 절대 반환 안 함(본문은 graph `/api/lookup`).
+- [~] **MCP/API 도구화 + 계약** — ⚠**1차는 이미 배포됨**(커밋 `2e1eb35`, 2026-08-25): `backend/mcp_server/server.py`가 `land_info`·`diagnose` 2개 툴을 노출하고 `main.py`가 `/mcp`로 마운트한다(`_McpMount`). 아래 '보류' 표기는 그 전 상태였다. 남은 것은 **계약 명문화**뿐 — 불변식: diagnose 도구는 *숫자+판정+law_refs만* 반환, 법령 본문/해석 산문은 절대 반환 안 함(본문은 graph `/api/lookup`).
 
 **하지 말 것** (환각 표면 차단 — 영구 가드레일): 조문 본문·해석 자체 생성 금지(graph 영역), 자치구 고시 PDF 자동파싱 금지(폐지고시 오인 위험), LLM 결정수치 금지, 점수곡선 재발명 금지(골든셋 캘리브레이션만). ※ 법제처 DRF 별표 PDF(현행 시행령 별표, `별표서식PDF파일링크`)는 예외 — 추출값을 seed로 전사 + verify 스크립트로 전수 대조 OK.
 
@@ -315,6 +315,7 @@ DELETE FROM land_info_cache WHERE pnu='...';
 
 ## 디버깅 팁
 
+- ⚠ **앱이 안 뜨는데 테스트는 초록이면 의존성 버전 충돌부터** (2026-08-27 실제 발생) — `.venv\Scripts\python.exe -m pip check`. 함정 구조: `requirements.txt`가 `fastapi==0.115.5`(starlette<0.42)와 `mcp>=1.2,<2.0.0`을 같이 요구하는데, **최신 `mcp`는 `sse-starlette>=1.6.1` → `starlette>=0.49.1`을 끌고 와 fastapi와 충돌**한다. 깨끗한 설치는 pip가 백트래킹으로 `mcp 1.12.4`+`sse-starlette 3.0.3`+`starlette 0.41.3`을 찾아내 정상이지만(그래서 Docker·배포본은 안전, 대신 빌드가 느리다), venv에 `pip install mcp` 같은 걸 따로 하면 starlette가 올라가며 `Router.__init__() got an unexpected keyword argument 'on_startup'`로 **import 단계에서 죽는다**. 복구: `pip install "mcp==1.12.4" "sse-starlette==3.0.3" "starlette==0.41.3"`. 회귀는 `tests/test_app_boot.py`가 잡는다(그 전엔 `main`을 import하는 테스트가 하나도 없어 340건 전부 통과하면서 앱이 죽어 있었다).
 - **LLM JSON 파싱** — `llm_client._extract_json()` 3단계 자동 복구. 실패 시 WARNING에 에러 위치 앞뒤 100자 출력.
 - **VWorld 응답** — `[VWorld 도로 응답 샘플]` 로그로 구조 확인. 빈 feature list면 레이어명 오타 or 좌표계 확인.
 - **토지이음** — `/api/eum/health` 로 연결 상태 확인. 인증 실패 시 XML `<errMsg>` 로그 출력.
